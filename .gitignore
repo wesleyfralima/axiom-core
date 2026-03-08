@@ -1,0 +1,44 @@
+# --- Python ---
+__pycache__/
+*.py[cod]
+*$py.class
+.ipynb_checkpoints
+
+# --- Ambientes Virtuais (Poetry) ---
+# O Poetry geralmente cria o venv em uma pasta centralizada,
+# mas se você configurar 'virtualenvs.in-project = true', ele usará esta pasta:
+.venv/
+bin/
+lib/
+include/
+share/
+
+# --- Build & Distribuição (Essencial para .whl) ---
+# Estas pastas contêm os arquivos temporários e o .whl gerado pelo 'poetry build'
+dist/
+build/
+*.egg-info/
+*.whl
+
+# --- Testes (Pytest) ---
+.pytest_cache/
+.coverage
+htmlcov/
+nosetests.xml
+coverage.xml
+*.cover
+
+# --- IDEs ---
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# --- Logs & Temporários ---
+*.log
+.DS_Store (para macOS)
+
+# --- infra de teste e arquivos de DEV ---
+d_fake_infra/
+todo.md
+diretrizes.md

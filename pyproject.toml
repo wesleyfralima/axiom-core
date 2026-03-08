@@ -1,0 +1,19 @@
+[tool.poetry]
+name = "axiom-core"
+version = "0.1.0"
+description = "Core domain and application rules for Axiom Task Manager"
+authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = ">=3.12,<3.15"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0.0"
+pytest-asyncio = "^0.23.0"
+mypy = "^1.8.0"
+black = "^24.0.0"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
