@@ -4,7 +4,7 @@ from uuid import UUID
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import UserId
+from b_domain.value_objects import UserId, Priority
 from c_application.dtos.task_dtos import UpdateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 
@@ -34,6 +34,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         except (ValueError, TypeError):
             raise ValidationException("O userId informado não é válido.")
 
+        try:
+            priority: Priority = Priority(request.priority)
+        except (ValueError, ):
+            raise ValidationException("A prioridade informada é inválida.")
+
         async with self.uow:
             # 2. Busca por prefixo com filtro de usuário
             tasks_found: List["Task"] = await self.uow.tasks.find_by_id_prefix(
@@ -61,7 +66,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 task.update_description(now, request.description)
 
             if request.priority is not None:
-                task.update_priority(now, request.priority)
+                task.update_priority(now, priority)
 
             if request.due_date is not None:
                 # Aqui você pode adicionar lógica de timezone se necessário
