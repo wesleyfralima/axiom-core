@@ -1,32 +1,14 @@
+import random
 from dataclasses import dataclass
 from datetime import datetime
 from enum import Enum
-import random
 from typing import List, Optional
 
 from a_core import ValueObject
 from b_domain.entities import Task
 from b_domain.value_objects.enums import MomentumTrend, TaskStatus
 from b_domain.value_objects.flow_state import UserFlowState
-
-
-@dataclass(frozen=True, kw_only=True)
-class EngineConfig(ValueObject):
-    """Hiper-parâmetros que regulam a sensibilidade do motor."""
-
-    w_complexity: float = 2.0
-    w_duration: float = 1.5
-    w_energy: float = 2.5
-    w_priority: float = 2.0
-
-    ultradian_limit: int = 90
-    warmup_duration_limit: int = 10
-
-    max_complexity_score: float = 10.0
-    max_duration_score: float = 5.0
-    max_energy_score: float = 10.0
-
-    exploration_noise: float = 0.5
+from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
 
 class FlowDecisionType(str, Enum):
@@ -47,10 +29,13 @@ class FlowDecision(ValueObject):
 
 
 class FlowEngine:
-    def __init__(self, config: Optional[EngineConfig] = None):
-        self.config = config or EngineConfig()
-
-    def get_next_action(self, candidate_tasks: List[Task], state: UserFlowState, now: datetime) -> FlowDecision:
+    def get_next_action(
+            self,
+            candidate_tasks: List[Task],
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime,
+    ) -> FlowDecision:
         """
         Orquestrador do Fluxo: Segue a hierarquia de necessidades
         (Tempo → Biologia → Fricção → Backlog).
@@ -60,7 +45,7 @@ class FlowEngine:
         if decision := self._check_session_limit(state, now):
             return decision
         # 2. Ritmo Ultradiano (Pausa Bio)
-        if decision := self._check_ultradian_rhythm(state, now):
+        if decision := self._check_ultradian_rhythm(state, profile, now):
             return decision
 
         available_candidates: list[Task] = self._filter_available_tasks(candidate_tasks, now)
@@ -70,7 +55,7 @@ class FlowEngine:
             available_candidates = self._filter_available_tasks(candidate_tasks, now, min_skip_min=0)
 
         # 3. Resistência Comportamental (Fricção)
-        if decision := self._check_friction_resistance(available_candidates, state, now):
+        if decision := self._check_friction_resistance(available_candidates, state, profile, now):
             return decision
 
         # 4. Disponibilidade de Backlog
@@ -78,9 +63,15 @@ class FlowEngine:
             return self._handle_empty_backlog(state, now)
 
         # 5. Ranking de Tarefas Reais
-        return self._suggest_optimal_task(available_candidates, state, now)
+        return self._suggest_optimal_task(available_candidates, state, profile, now)
 
-    def calculate_flow_score(self, task: Task, state: UserFlowState, now: datetime) -> float:
+    def calculate_flow_score(
+            self,
+            task: Task,
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime,
+    ) -> float:
 
         # 1. VETO ABSOLUTO: Se não cabe no resto da sessão, score mínimo.
         available = state.get_available_minutes(now)
@@ -89,7 +80,7 @@ class FlowEngine:
 
         # 2. JANELA COGNITIVA: Tempo até a próxima pausa ultradiana
         focus_time = state.get_continuous_focus_minutes(now)
-        time_to_break = self.config.ultradian_limit - focus_time
+        time_to_break = profile.ultradian_limit - focus_time
 
         # Se a pausa já deveria ter ocorrido, time_to_break fica negativo.
         # Usamos max(1, ...) para evitar divisões por zero.
@@ -110,9 +101,9 @@ class FlowEngine:
         if energy_diff < 0:
             energy_score = energy_diff * 2.5  # Penalidade por falta de energia
         elif energy_diff == 0:
-            energy_score = self.config.max_energy_score
+            energy_score = profile.max_energy_score
         else:
-            energy_score = self.config.max_energy_score - (energy_diff * 0.2)
+            energy_score = profile.max_energy_score - (energy_diff * 0.2)
 
         # 5. PILAR: COMPLEXIDADE (Cognitivo)
         # Capacidade aumenta com o momentum_score (de 2 a 5)
@@ -121,28 +112,28 @@ class FlowEngine:
         if comp_diff < 0:
             complexity_score = comp_diff * 3.0  # Penalidade por "overload" cognitivo
         else:
-            complexity_score = self.config.max_complexity_score - (comp_diff * 0.5)
+            complexity_score = profile.max_complexity_score - (comp_diff * 0.5)
 
         # 6. PILAR: DURAÇÃO (Encaixe na Janela)
         # Comparamos com a target_window (menor tempo entre pausa e fim da sessão)
         duration_ratio = task.estimated_duration_minutes / target_window
         # Se ratio > 1, a tarefa é maior que a janela: score cai.
-        duration_score = self.config.max_duration_score / max(1.0, duration_ratio)
+        duration_score = profile.max_duration_score / max(1.0, duration_ratio)
 
         # 7. PILAR: PRIORIDADE (Valor de Negócio)
         priority_score = float(task.priority.value)
 
         # 8. CÁLCULO DO BASE SCORE
         base_score = (
-                (self.config.w_energy * energy_score) +
-                (self.config.w_complexity * complexity_score) +
-                (self.config.w_duration * duration_score) +
-                (self.config.w_priority * priority_score)
+                (profile.w_energy * energy_score) +
+                (profile.w_complexity * complexity_score) +
+                (profile.w_duration * duration_score) +
+                (profile.w_priority * priority_score)
         )
 
         # 9. MULTIPLICADORES (Momentum e Fricção)
         # O Momentum ajusta a inércia (Warmup vs Flow)
-        momentum_mult = self._get_momentum_multiplier(task, state)
+        momentum_mult = self._get_momentum_multiplier(task, state, profile)
 
         final_score = base_score * momentum_mult
 
@@ -156,11 +147,15 @@ class FlowEngine:
 
         return final_score
 
-    def _get_momentum_multiplier(self, task: Task, state: UserFlowState) -> float:
-        """Extraído para limpar o método principal."""
+    @staticmethod
+    def _get_momentum_multiplier(
+            task: Task,
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+    ) -> float:
 
         if state.momentum_trend == MomentumTrend.STAGNANT:
-            if task.estimated_duration_minutes <= self.config.warmup_duration_limit:
+            if task.estimated_duration_minutes <= profile.warmup_duration_limit:
                 return 2.0  # Bônus para Quick Wins
             return 0.3  # Penalidade para tarefas longas sem ritmo
 
@@ -214,22 +209,34 @@ class FlowEngine:
             )
         return None
 
-    def _check_ultradian_rhythm(self, state: UserFlowState, now: datetime) -> Optional[FlowDecision]:
+    def _check_ultradian_rhythm(
+            self,
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime,
+    ) -> Optional[FlowDecision]:
 
         focus_time = state.get_continuous_focus_minutes(now)
 
-        if focus_time >= self.config.ultradian_limit:
+        if focus_time >= profile.ultradian_limit:
             return FlowDecision(
                 decision_type=FlowDecisionType.SYSTEM_BREAK,
                 task=self._create_ultradian_break(state, now),
-                reason=f"Limite Ultradiano de {self.config.ultradian_limit}min atingido."
+                reason=f"Limite Ultradiano de {profile.ultradian_limit}min atingido."
             )
         return None
 
-    def _check_friction_resistance(self, tasks: List[Task], state: UserFlowState, now: datetime) -> FlowDecision | None:
+    def _check_friction_resistance(
+            self,
+            tasks: List[Task],
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime,
+    ) -> FlowDecision | None:
+
         if getattr(state, 'consecutive_skips', 0) >= 3:
             # Pegamos a melhor tarefa real para propor a quebra dela
-            best_task = self._rank_and_pick(tasks, state, now)
+            best_task = self._rank_and_pick(tasks, state, profile, now)
             if best_task and best_task.estimated_duration_minutes > 15:
                 return FlowDecision(
                     decision_type=FlowDecisionType.FRICTION_INTERVENTION,
@@ -246,7 +253,13 @@ class FlowEngine:
             reason="Backlog exaurido mas tempo de sessão ainda disponível."
         )
 
-    def _suggest_optimal_task(self, tasks: List[Task], state: UserFlowState, now: datetime) -> FlowDecision:
+    def _suggest_optimal_task(
+            self,
+            tasks: List[Task],
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime,
+    ) -> FlowDecision:
         """Selects the most suitable task for execution given the user's current state.
 
         The method filters tasks based on available time and active context,
@@ -281,26 +294,33 @@ class FlowEngine:
             )
 
         # Rank tasks and pick the best candidate according to state and current time.
-        best_task: Task = self._rank_and_pick(valid_tasks, state, now)
+        best_task: Task = self._rank_and_pick(valid_tasks, state, profile, now)
 
         return FlowDecision(
             decision_type=FlowDecisionType.TASK_EXECUTION,
             task=best_task,
             reason="Best match for your current energy and momentum.",
-            score=self.calculate_flow_score(best_task, state, now)
+            score=self.calculate_flow_score(best_task, state, profile, now)
         )
 
-    def _rank_and_pick(self, tasks: List[Task], state: UserFlowState, now: datetime) -> Optional[Task]:
+    def _rank_and_pick(
+            self,
+            tasks: List[Task],
+            state: UserFlowState,
+            profile: UserBehaviorProfile,
+            now: datetime
+    ) -> Optional[Task]:
+
         best_task = None
         best_score = float('-inf')
 
         for task in tasks:
-            score = self.calculate_flow_score(task, state, now)
+            score = self.calculate_flow_score(task, state, profile, now)
 
             # EXPLORATION NOISE (pequena aleatoriedade controlada)
             score += random.uniform(
-                -self.config.exploration_noise,
-                self.config.exploration_noise
+                -profile.exploration_noise,
+                profile.exploration_noise
             )
 
             if score > best_score:

@@ -80,16 +80,19 @@ class UserFlowState(ValueObject):
         interval_penalty = 0.0
         if self.last_completion_at:
             gap = (now - self.last_completion_at).total_seconds() / 60
-            if gap > 20:
-                interval_penalty = 0.15
+            if gap > profile.momentum_decay_gap_minutes:
+                interval_penalty = profile.momentum_decay_penalty
 
         # Recompensa Ponderada: Tarefas difíceis geram mais momentum
         base_reward = profile.momentum_base_reward
-        energy_bonus = energy.value * 0.04
-        complexity_bonus = complexity.value * 0.03
+        energy_bonus = energy.value * profile.momentum_energy_weight
+        complexity_bonus = complexity.value * profile.momentum_complexity_weight
 
         increment = base_reward + energy_bonus + complexity_bonus - interval_penalty
-        new_momentum = min(1.0, self.momentum_score + increment)
+        new_momentum_score = max(
+            0.0,
+            min(1.0, self.momentum_score + increment)
+        )
 
         # 2. CÁLCULO DE DIMINUIÇÃO DE ENERGIA (Bateria)
         # Regra: Se a tarefa exigiu esforço Real (Energia ≥ Balanced)
@@ -97,7 +100,10 @@ class UserFlowState(ValueObject):
         new_energy_val = self.current_energy.value
 
         # Esforço total da tarefa
-        effort_load = energy.value + complexity.value
+        effort_load = (
+                energy.value * profile.energy_fatigue_weight +
+                complexity.value * profile.complexity_fatigue_weight
+        )
 
         # Se o esforço for significativo (ex: ≥ 4), reduzimos um nível de energia
         # HIGH (3) -> BALANCED (2) -> LOW (1)
@@ -107,7 +113,7 @@ class UserFlowState(ValueObject):
         return replace(
             self,
             momentum_streak=self.momentum_streak + 1,
-            momentum_score=max(0.0, new_momentum),
+            momentum_score=new_momentum_score,
             current_energy=EnergyLevel(new_energy_val),  # Atualiza a energia aqui!
             last_completion_at=now,
             consecutive_skips=0,
@@ -127,7 +133,12 @@ class UserFlowState(ValueObject):
 
     def record_abandon(self) -> "UserFlowState":
         """Quebra total de fluxo."""
-        return self.reset_momentum()
+        return replace(
+            self,
+            momentum_streak=0,
+            momentum_score=0.0,
+            consecutive_skips=self.consecutive_skips + 1
+        )
 
     def reset_momentum(self) -> "UserFlowState":
         """Redefine streak e score, mas mantém as âncoras de tempo da sessão."""
@@ -145,18 +156,21 @@ class UserFlowState(ValueObject):
         """Redefine o cronômetro de foco (Tempo). Útil para intervenções cognitivas."""
         return replace(self, focus_started_at=now)
 
-    def record_rest(self, minutes_rested: int) -> "UserFlowState":
+    def record_rest(
+            self,
+            minutes_rested: int,
+            profile: UserBehaviorProfile
+    ) -> "UserFlowState":
         """
         Registra uma pausa e recupera o nível de energia proporcionalmente.
-        Heurística: 15 minutos de descanso = +1 Nível de Energia.
         """
 
         # Cálculo da proporção (mínimo de 0 ganho)
-        energy_gain: int = minutes_rested // 15
+        energy_gain: int = minutes_rested // profile.rest_recovery_minutes_per_level
 
         # Bônus de "Power Nap": Se descansou entre 10 e 14 min,
         # garantido ao menos 1 nível de recuperação.
-        if energy_gain == 0 and minutes_rested >= 10:
+        if energy_gain == 0 and minutes_rested >= profile.power_nap_min_minutes:
             energy_gain = 1
 
         # Supõe-se que o usuário não consiga atingir o
@@ -170,5 +184,4 @@ class UserFlowState(ValueObject):
         return replace(
             self,
             current_energy=EnergyLevel(new_energy_val),
-            focus_started_at=self.focus_started_at  # Mantemos o foco, o renew_focus cuidará disso
         )
