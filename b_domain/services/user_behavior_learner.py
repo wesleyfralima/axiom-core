@@ -5,18 +5,26 @@ from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
 
 class UserBehaviorLearner:
-    """Updates the `UserBehaviorProfile` based on aggregated observed metrics.
+    """Learns and updates long-term behavioral tendencies from aggregated metrics.
 
-    The learner adjusts long-term behavioral tendencies by considering:
-        - Ratios of completed and skipped tasks
-        - Average task duration and complexity
-        - Fatigue and task abandonment patterns
-        - Focus block lengths and intervals between tasks
-        - Exploration noise adjustments over time
+    This class adjusts the `UserBehaviorProfile` by applying incremental learning
+    rules with a defined learning rate. It considers multiple behavioral factors:
+
+    - Ranking weights: duration, complexity, and energy usage
+    - Fatigue and skip behavior: penalties and abandonment ratios
+    - Cognitive limits: focus cycles and ultradian rhythms
+    - Momentum dynamics: intervals between task completions
+    - Exploration: noise reduction as experience grows
+    - Preferences: alignment with observed averages
+    - Sustainable capacity: maximum tolerable duration and complexity
+    - Pause behavior: average rest and recovery patterns
     """
 
-    @staticmethod
-    def learn(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics) -> UserBehaviorProfile:
+    LEARNING_RATE: float = 0.2
+    RANKING_SCALE: int = 6
+
+    @classmethod
+    def learn(cls, profile: UserBehaviorProfile, metrics: UserBehaviorMetrics) -> UserBehaviorProfile:
         """Update the user behavior profile based on aggregated metrics.
 
         Applies a learning rate to gradually adjust profile parameters
@@ -32,72 +40,193 @@ class UserBehaviorLearner:
             UserBehaviorProfile: Updated profile with adjusted weights and limits.
         """
 
-        # Learning rate: proportion of new data absorbed (0.0 to 1.0)
-        lr: float = 0.2
+        lr: float = cls.LEARNING_RATE
 
-        # -----------------------------------------------------
-        # 1. Ranking weights (duration, complexity, energy)
-        # -----------------------------------------------------
-        new_w_duration: float = profile.w_duration + lr * (
+        weights = cls._learn_ranking_weights(profile, metrics, lr)
+        fatigue = cls._learn_fatigue_and_skip(profile, metrics, lr)
+        cognitive = cls._learn_cognitive_limits(profile, metrics, lr)
+        momentum = cls._learn_momentum(profile, metrics, lr)
+        exploration = cls._learn_exploration(profile, metrics)
+        preferences = cls._learn_preferences(profile, metrics, lr)
+        capacity = cls._learn_capacity(profile, metrics)
+        pauses = cls._learn_pause_patterns(profile, metrics, lr)
+
+        return replace(
+            profile,
+            **weights,
+            **fatigue,
+            **cognitive,
+            **momentum,
+            **exploration,
+            **preferences,
+            **capacity,
+            **pauses
+        )
+
+    # -----------------------------------------------------
+    # Ranking weights
+    # -----------------------------------------------------
+
+    @classmethod
+    def _learn_ranking_weights(cls, profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust ranking weights for duration, complexity, and energy."""
+
+        w_duration: float = profile.w_duration + lr * (
                 (metrics.avg_task_duration_minutes / profile.max_duration_score) - profile.w_duration
         )
-        new_w_complexity: float = profile.w_complexity + lr * (
+        w_complexity: float = profile.w_complexity + lr * (
                 (metrics.avg_task_complexity / profile.max_complexity_score) - profile.w_complexity
         )
-        new_w_energy: float = profile.w_energy + lr * (
+        w_energy: float = profile.w_energy + lr * (
                 (metrics.avg_energy_used / profile.max_energy_score) - profile.w_energy
         )
 
-        # -----------------------------------------------------
-        # 2. Fatigue and skip penalties
-        # -----------------------------------------------------
+        total: float = w_duration + w_complexity + w_energy
+
+        w_duration: float = (w_duration / total) * cls.RANKING_SCALE
+        w_complexity: float = (w_complexity / total) * cls.RANKING_SCALE
+        w_energy: float = (w_energy / total) * cls.RANKING_SCALE
+
+        return dict(
+            w_duration=max(0.5, min(w_duration, 5.0)),
+            w_complexity=max(0.5, min(w_complexity, 5.0)),
+            w_energy=max(0.5, min(w_energy, 5.0)),
+        )
+
+    # -----------------------------------------------------
+    # Fatigue and skip behaviour
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_fatigue_and_skip(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust fatigue weight and skip penalty based on observed ratios."""
+
         total_actions: int = metrics.total_tasks_completed + metrics.total_tasks_skipped
-        skip_ratio: float = metrics.total_tasks_skipped / max(1, total_actions)  # avoid division by zero
+        skip_ratio: float = metrics.total_tasks_skipped / max(1, total_actions)
         abandon_ratio: float = metrics.total_tasks_abandoned / max(1, total_actions)
+        energy_fatigue: float = profile.energy_fatigue_weight * (1.0 + abandon_ratio)
+        skip_penalty: float = profile.skip_penalty + lr * (skip_ratio - profile.skip_penalty)
 
-        # More abandonments → increase fatigue weight
-        new_energy_fatigue: float = profile.energy_fatigue_weight * (1.0 + abandon_ratio)
+        return dict(
+            energy_fatigue_weight=energy_fatigue,
+            skip_penalty=skip_penalty
+        )
 
-        # Skip penalty adjusted by proportion, capped at 0.5
-        new_skip_penalty: float = profile.skip_penalty + skip_ratio * 0.5
-        new_skip_penalty: float = min(new_skip_penalty, 0.5)
+    # -----------------------------------------------------
+    # Cognitive limits (focus cycles)
+    # -----------------------------------------------------
 
-        # -----------------------------------------------------
-        # 3. Cognitive limits (Ultradian rhythm)
-        # -----------------------------------------------------
+    @staticmethod
+    def _learn_cognitive_limits(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust ultradian limit based on average focus block length."""
+
         new_ultradian: int = profile.ultradian_limit
-        if metrics.avg_focus_block_minutes > 0:
-            observed_limit = metrics.avg_focus_block_minutes * 1.2  # challenge margin
-            new_ultradian = int(profile.ultradian_limit + lr * (observed_limit - profile.ultradian_limit))
 
-        # -----------------------------------------------------
-        # 4. Momentum dynamics
-        # -----------------------------------------------------
-        new_momentum_gap = profile.momentum_decay_gap_minutes
-        if metrics.avg_completion_interval_minutes > 0:
-            target_gap = metrics.avg_completion_interval_minutes * 1.5
-            new_momentum_gap = int(
-                profile.momentum_decay_gap_minutes + lr * (target_gap - profile.momentum_decay_gap_minutes)
+        if metrics.avg_focus_block_minutes > 0:
+            observed_limit: float = metrics.avg_focus_block_minutes * 1.2
+            new_ultradian: int = int(
+                profile.ultradian_limit + lr * (observed_limit - profile.ultradian_limit)
             )
 
-        # -----------------------------------------------------
-        # 5. Exploration noise
-        # -----------------------------------------------------
-        # Less noise if more tasks are completed proportionally
-        completion_ratio: float = metrics.total_tasks_completed / max(1, total_actions)
-        new_noise: float = max(0.1, profile.exploration_noise * (0.5 + 0.5 * completion_ratio))
+        return dict(
+            ultradian_limit=max(25, min(new_ultradian, 120))
+        )
 
-        # -----------------------------------------------------
-        # 6. Return updated profile with safety limits
-        # -----------------------------------------------------
-        return replace(
-            profile,
-            w_duration=max(0.5, min(new_w_duration, 5.0)),
-            w_complexity=max(0.5, min(new_w_complexity, 5.0)),
-            w_energy=max(0.5, min(new_w_energy, 5.0)),
-            energy_fatigue_weight=new_energy_fatigue,
-            ultradian_limit=max(25, min(new_ultradian, 120)),
-            momentum_decay_gap_minutes=max(10, min(new_momentum_gap, 60)),
-            skip_penalty=new_skip_penalty,
-            exploration_noise=new_noise
+    # -----------------------------------------------------
+    # Momentum dynamics
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_momentum(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust momentum decay gap based on completion intervals."""
+
+        new_gap: int = profile.momentum_decay_gap_minutes
+
+        if metrics.avg_completion_interval_minutes > 0:
+            target_gap: float = metrics.avg_completion_interval_minutes * 1.5
+            new_gap: int = int(
+                profile.momentum_decay_gap_minutes +
+                lr * (target_gap - profile.momentum_decay_gap_minutes)
+            )
+
+        return dict(
+            momentum_decay_gap_minutes=max(10, min(new_gap, 60))
+        )
+
+    # -----------------------------------------------------
+    # Exploration
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_exploration(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics):
+        """Reduce exploration noise as experience grows."""
+
+        experience: int = metrics.total_tasks_completed
+        exploration: float = profile.exploration_noise / (experience ** 0.5 + 1)
+
+        return dict(
+            exploration_noise=max(0.05, exploration)
+        )
+
+    # -----------------------------------------------------
+    # Preferences
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_preferences(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust preferred task duration, complexity, and energy usage."""
+
+        pref_duration: float = profile.preferred_task_duration + lr * (
+                metrics.avg_task_duration_minutes - profile.preferred_task_duration
+        )
+        pref_complexity: float = profile.preferred_task_complexity + lr * (
+                metrics.avg_task_complexity - profile.preferred_task_complexity
+        )
+        pref_energy: float = profile.preferred_energy_usage + lr * (
+                metrics.avg_energy_used - profile.preferred_energy_usage
+        )
+
+        return dict(
+            preferred_task_duration=pref_duration,
+            preferred_task_complexity=pref_complexity,
+            preferred_energy_usage=pref_energy
+        )
+
+    # -----------------------------------------------------
+    # Sustainable capacity
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_capacity(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics):
+        """Adjust sustainable capacity limits for duration and complexity."""
+
+        duration_cap: float = max(
+            profile.max_sustainable_duration,
+            metrics.avg_task_duration_minutes * 1.5
+        )
+        complexity_cap: float = max(
+            profile.max_sustainable_complexity,
+            metrics.avg_task_complexity * 1.5
+        )
+
+        return dict(
+            max_sustainable_duration=duration_cap,
+            max_sustainable_complexity=complexity_cap
+        )
+
+    # -----------------------------------------------------
+    # Pause behaviour
+    # -----------------------------------------------------
+
+    @staticmethod
+    def _learn_pause_patterns(profile: UserBehaviorProfile, metrics: UserBehaviorMetrics, lr: float):
+        """Adjust average pause minutes based on observed rest patterns."""
+
+        if metrics.avg_pause_minutes == 0:
+            return {}
+
+        avg_pause: float = profile.avg_pause_minutes + lr * (metrics.avg_pause_minutes - profile.avg_pause_minutes)
+
+        return dict(
+            avg_pause_minutes=avg_pause
         )
