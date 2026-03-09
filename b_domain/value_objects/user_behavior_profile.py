@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 
 from a_core.base import ValueObject
+from b_domain.value_objects import UserId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -12,6 +13,8 @@ class UserBehaviorProfile(ValueObject):
     este objeto descreve como o usuário tende a se comportar
     ao longo do tempo.
     """
+
+    user_id: UserId
 
     # ---------------------------------------------------------
     # PESOS DO FLOW ENGINE
