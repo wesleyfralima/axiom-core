@@ -1,44 +1,55 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
-if TYPE_CHECKING:
-    from b_domain.entities import Task
-    from b_domain.ports.repositories.filters import TaskFilter
-    from b_domain.value_objects.identifiers import TaskId, UserId
+from b_domain.entities import Task
+from b_domain.ports.repositories.filters import TaskFilter
+from b_domain.value_objects.identifiers import TaskId, UserId
 
 
 class TaskRepository(ABC):
-    """Contract for Task persistence.
+    """Contract for persistence operations on tasks.
 
     Any database adapter (e.g., SQLiteTaskRepository, PostgresTaskRepository)
     must implement these methods to be injected via the UnitOfWork.
     """
 
     @abstractmethod
-    async def add(self, task: "Task") -> None:
+    async def add(self, task: Task) -> Task:
         """Persist a new task.
 
         Args:
-            task (Task): The domain task entity to be added.
+            task (Task): Domain task entity to be added.
+
+        Returns:
+            Task: The persisted task entity.
         """
 
     @abstractmethod
-    async def update(self, task: "Task") -> None:
+    async def update(self, task: Task) -> Task:
         """Update an existing task.
 
         Args:
             task (Task): The task entity with updated values.
+
+        Returns:
+            Task: The updated task entity.
         """
 
     @abstractmethod
-    async def update_many(self, tasks: List["Task"]) -> None:
-        """
-        Atualiza múltiplas tarefas em uma única operação de persistência.
-        Ideal para processar efeitos em cascata como desbloqueio de dependências.
+    async def update_many(self, tasks: List[Task]) -> List[Task]:
+        """Update multiple tasks in a single persistence operation.
+
+        Useful for cascading effects such as unlocking dependencies.
+
+        Args:
+            tasks (List[Task]): List of task entities to update.
+
+        Returns:
+            List[Task]: The updated task entities.
         """
 
     @abstractmethod
-    async def delete(self, task_id: "TaskId") -> None:
+    async def delete(self, task_id: TaskId) -> None:
         """Permanently remove a task.
 
         Args:
@@ -46,7 +57,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_id(self, task_id: "TaskId", user_id: Optional["UserId"] = None) -> Optional["Task"]:
+    async def get_by_id(self, task_id: TaskId, user_id: Optional[UserId] = None) -> Optional[Task]:
         """Retrieve a task by its exact ID.
 
         If user_id is provided, the repository must ensure the task belongs
@@ -57,30 +68,30 @@ class TaskRepository(ABC):
             user_id (Optional[UserId]): The ID of the user who owns the task.
 
         Returns:
-            Optional[Task]: The instantiated domain task if found, otherwise None.
+            Optional[Task]: Domain task if found, otherwise None.
         """
 
     @abstractmethod
-    async def list(self, filters: "TaskFilter") -> List["Task"]:
+    async def list(self, filters: TaskFilter) -> List[Task]:
         """Return a paginated list of tasks based on provided filters.
 
-        The implementation MUST respect the `limit` and `offset` attributes
+        Implementations MUST respect the `limit` and `offset` attributes
         present in the BaseFilter to prevent memory overloads.
 
         Args:
             filters (TaskFilter): The filter criteria, including pagination.
 
         Returns:
-            List[Task]: A list of task entities matching the filters.
+            List[Task]: Task entities matching the filters.
         """
 
     @abstractmethod
-    async def count(self, filters: "TaskFilter") -> int:
+    async def count(self, filters: TaskFilter) -> int:
         """Return the total count of tasks matching the filters.
 
-        The implementation MUST ignore the `limit` and `offset` attributes
-        when counting, returning the total absolute number of matching rows.
-        This is used alongside `list` to build paginated API responses.
+        Implementations MUST ignore `limit` and `offset` when counting,
+        returning the absolute number of matching rows. Used alongside
+        `list` to build paginated API responses.
 
         Args:
             filters (TaskFilter): The filter criteria.
@@ -90,7 +101,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
-    async def get_subtasks(self, parent_id: "TaskId", limit: int = 100, offset: int = 0) -> List["Task"]:
+    async def get_subtasks(self, parent_id: TaskId, limit: int = 100, offset: int = 0) -> List[Task]:
         """Retrieve direct children of a task.
 
         Includes basic pagination to protect the system from massive subtask lists.
@@ -101,15 +112,23 @@ class TaskRepository(ABC):
             offset (int): Number of subtasks to skip.
 
         Returns:
-            List[Task]: A list of subtasks.
+            List[Task]: Subtasks of the given parent.
         """
 
     @abstractmethod
-    async def find_by_id_prefix(self, id_prefix: str, user_id: "UserId" = None) -> List["Task"]:
-        ...
+    async def find_by_id_prefix(self, id_prefix: str, user_id: UserId = None) -> List[Task]:
+        """Find tasks by matching an ID prefix.
+
+        Args:
+            id_prefix (str): Prefix string to match against task IDs.
+            user_id (UserId, optional): Scope search to a specific user.
+
+        Returns:
+            List[Task]: Tasks whose IDs start with the given prefix.
+        """
 
     @abstractmethod
-    async def find_tasks_blocked_by(self, target_id: "TaskId") -> List["Task"]:
+    async def find_tasks_blocked_by(self, target_id: TaskId) -> List[Task]:
         """Retrieve all tasks that depend on the given task ID.
 
         Args:
