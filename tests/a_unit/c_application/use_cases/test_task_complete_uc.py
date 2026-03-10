@@ -13,8 +13,8 @@ from c_application.use_cases import CompleteTaskUseCase
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_successfully(use_case_context, fake_uow):
-    clock = use_case_context["clock"]
+async def test_complete_task_successfully(create_use_case_context, fake_uow):
+    clock = create_use_case_context["clock"]
 
     # 1. Setup do estado inicial
     # IMPORTANTE: Usar os objetos de ID tipados, não strings
@@ -32,7 +32,7 @@ async def test_complete_task_successfully(use_case_context, fake_uow):
     await fake_uow.users.add(user)
 
     # 2. Instanciar Use Case
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
 
     # No DTO, o user_id costuma vir como string da API/CLI, 
     # o Use Case se encarrega de converter ou validar se necessário.
@@ -63,8 +63,8 @@ async def test_complete_task_successfully(use_case_context, fake_uow):
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_prefix_too_short(use_case_context):
-    use_case = CompleteTaskUseCase(**use_case_context)
+async def test_complete_task_fails_if_prefix_too_short(create_use_case_context):
+    use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix="abc", user_id=str(uuid4()))
 
     with pytest.raises(ValidationException, match="pelo menos 4 caracteres"):
@@ -76,9 +76,9 @@ async def test_complete_task_fails_if_prefix_too_short(use_case_context):
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_prefix_is_ambiguous(use_case_context, fake_uow):
+async def test_complete_task_fails_if_prefix_is_ambiguous(create_use_case_context, fake_uow):
     user = User.create(username="wesley")
-    clock = use_case_context["clock"]
+    clock = create_use_case_context["clock"]
     now = clock.now()
 
     # Criamos duas tarefas que começam com o mesmo TaskId
@@ -93,7 +93,7 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(use_case_context, fake
     await fake_uow.tasks.add(t1)
     await fake_uow.tasks.add(t2)
 
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
     # Usamos um prefixo que (teoricamente) bateria em ambas se tivessem IDs similares
     # No fake, o find_by_id_prefix deve ser populado para retornar ambas
 
@@ -109,9 +109,9 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(use_case_context, fake
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_task_is_blocked(use_case_context, fake_uow):
+async def test_complete_task_fails_if_task_is_blocked(create_use_case_context, fake_uow):
     user = User.create(username="wesley")
-    clock = use_case_context["clock"]
+    clock = create_use_case_context["clock"]
     now = clock.now()
 
     task_a = Task.create(title=Title("Task A"), user_id=user.id, now=now)
@@ -123,7 +123,7 @@ async def test_complete_task_fails_if_task_is_blocked(use_case_context, fake_uow
     await fake_uow.tasks.add(task_b)
     await fake_uow.users.add(user)
 
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
 
     # Tentar completar B sem completar A antes
     request = TaskByUserRequest(task_id_prefix=str(task_b.id)[:8], user_id=str(user.id))
@@ -137,10 +137,10 @@ async def test_complete_task_fails_if_task_is_blocked(use_case_context, fake_uow
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_stops_timer_and_unlocks_successors(use_case_context, fake_uow):
+async def test_complete_task_stops_timer_and_unlocks_successors(create_use_case_context, fake_uow):
     # 1. Setup
     user = User.create(username="wesley")
-    clock = use_case_context["clock"]
+    clock = create_use_case_context["clock"]
     now = clock.now()
 
     # Tarefa A bloqueia B
@@ -163,7 +163,7 @@ async def test_complete_task_stops_timer_and_unlocks_successors(use_case_context
     await fake_uow.time_entries.add(timer)
 
     # 2. Execução
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
 
     # Simulamos que a conclusão ocorre 30 minutos depois
     # (Opcional: avançar o clock se o FakeClock permitir)
@@ -196,8 +196,8 @@ async def test_complete_task_stops_timer_and_unlocks_successors(use_case_context
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_belongs_to_another_user(use_case_context, fake_uow):
-    clock = use_case_context["clock"]
+async def test_complete_task_fails_if_belongs_to_another_user(create_use_case_context, fake_uow):
+    clock = create_use_case_context["clock"]
     now = clock.now()
 
     # Setup: Tarefa pertence ao 'outro'
@@ -208,7 +208,7 @@ async def test_complete_task_fails_if_belongs_to_another_user(use_case_context, 
     await fake_uow.tasks.add(task_do_outro)
     await fake_uow.users.add(wesley)
 
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
 
     # Wesley tenta completar usando o prefixo da tarefa do outro
     request = TaskByUserRequest(
@@ -222,18 +222,18 @@ async def test_complete_task_fails_if_belongs_to_another_user(use_case_context, 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_already_done(use_case_context, fake_uow):
-    clock = use_case_context["clock"]
+async def test_complete_task_fails_if_already_done(create_use_case_context, fake_uow):
+    clock = create_use_case_context["clock"]
     now = clock.now()
 
     user = User.create(username="wesley")
     task = Task.create(title=Title("Já fiz"), user_id=user.id, now=now)
-    task.mark_as_done(use_case_context["clock"].now())  # Forçamos o estado DONE
+    task.mark_as_done(create_use_case_context["clock"].now())  # Forçamos o estado DONE
 
     await fake_uow.tasks.add(task)
     await fake_uow.users.add(user)
 
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix=str(task.id)[:8], user_id=str(user.id))
 
     with pytest.raises(InvalidStateTransition, match="task is already DONE"):
@@ -242,8 +242,8 @@ async def test_complete_task_fails_if_already_done(use_case_context, fake_uow):
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_generates_next_recurrence(use_case_context, fake_uow):
-    clock = use_case_context["clock"]
+async def test_complete_task_generates_next_recurrence(create_use_case_context, fake_uow):
+    clock = create_use_case_context["clock"]
     user = User.create(username="wesley")
 
     # Criamos uma tarefa com regra de recorrência (ex: Diária)
@@ -260,7 +260,7 @@ async def test_complete_task_generates_next_recurrence(use_case_context, fake_uo
     await fake_uow.users.add(user)
     await fake_uow.tasks.add(task)
 
-    use_case = CompleteTaskUseCase(**use_case_context)
+    use_case = CompleteTaskUseCase(**create_use_case_context)
     await use_case.execute(TaskByUserRequest(task_id_prefix=str(task.id)[:8], user_id=str(user.id)))
 
     # Verificação: Deve haver 2 tarefas no repositório agora
