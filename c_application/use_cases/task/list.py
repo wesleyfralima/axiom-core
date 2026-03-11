@@ -1,50 +1,71 @@
-from typing import List, Optional, TYPE_CHECKING
+from datetime import datetime
+from typing import List
 from uuid import UUID
 
 from a_core.exceptions import EntityNotFound, ValidationException
+from b_domain.entities import Task
 from b_domain.ports.repositories import TaskFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, TaskStatus, Priority, UserId
 from c_application.dtos.task_dtos import TaskOutputDTO, ListTasksRequest
 from c_application.mappers.task_mapper import TaskMapper
 
-if TYPE_CHECKING:
-    from b_domain.entities import Task
-
 
 class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
-    """Use case for listing tasks with filtering and domain mapping."""
+    """Use case for listing tasks with filtering and domain mapping.
+
+    This use case applies filters such as status, priority, parent ID,
+    tags, and root-only flag, then maps the results into output DTOs.
+    """
 
     async def execute(self, request: ListTasksRequest) -> List[TaskOutputDTO]:
-        """Execute the task listing logic."""
+        """Execute the task listing workflow.
+
+        Steps:
+            1. Validate and resolve input into value objects.
+            2. Build a domain-level filter object.
+            3. Query the repository for matching tasks.
+            4. Map tasks into output DTOs with consistent formatting.
+
+        Args:
+            request (ListTasksRequest): Request object containing filter criteria.
+
+        Returns:
+            List[TaskOutputDTO]: List of tasks matching the filters.
+
+        Raises:
+            EntityNotFound: If status or priority values are invalid.
+            ValidationException: If the user ID is invalid.
+        """
 
         async with self.uow:
-            # 1. Validação e Resolução de Value Objects
+
+            # 1. Validation and resolution of value objects
             try:
-                f_status = TaskStatus(request.status) if request.status else None
+                f_status: TaskStatus = TaskStatus(request.status) if request.status else None
             except ValueError:
                 raise EntityNotFound(entity_name="TaskStatus", identifier=request.status)
 
             try:
-                f_priority = Priority(request.priority) if request.priority else None
+                f_priority: Priority = Priority(request.priority) if request.priority else None
             except ValueError:
                 raise EntityNotFound(entity_name="Priority", identifier=request.priority)
 
             try:
                 f_user_id: UserId = UserId(UUID(request.user_id))
             except (ValueError, TypeError):
-                raise ValidationException("O user_id informado está inválido.")
+                raise ValidationException("The provided user_id is invalid.")
 
-            f_parent_id: Optional[TaskId] = None
+            f_parent_id: TaskId | None = None
             if request.parent_id:
                 try:
                     f_parent_id = TaskId(UUID(request.parent_id))
                 except (ValueError, TypeError):
-                    # Se o ID do pai for inválido, retornamos vazio (comportamento seguro)
+                    # Safe behavior: return empty list if parent ID is invalid
                     return []
 
-            # 2. Montagem do Filtro de Domínio
-            filters = TaskFilter(
+            # 2. Build domain filter
+            filters: TaskFilter = TaskFilter(
                 user_id=f_user_id,
                 status=f_status,
                 priority=f_priority,
@@ -53,10 +74,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
                 only_roots=request.only_roots,
             )
 
-            # 3. Consulta ao Repositório
-            tasks: List["Task"] = await self.uow.tasks.list(filters)
+            # 3. Query repository
+            tasks: List[Task] = await self.uow.tasks.list(filters)
 
-            # 4. Mapeamento via TaskMapper
-            # Passamos o clock.now() uma vez para ser reaproveitado no loop
-            now = self.clock.now()
+            # 4. Centralized mapping
+            now: datetime = self.clock.now()
             return [TaskMapper.to_output(task, now) for task in tasks]

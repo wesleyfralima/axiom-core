@@ -1,11 +1,12 @@
+from datetime import datetime
 from typing import List
 from uuid import UUID
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import UserId, Priority
-from c_application.dtos.task_dtos import UpdateTaskInputDTO, TaskOutputDTO
+from b_domain.value_objects import Priority, UserId
+from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
 
 
@@ -13,52 +14,69 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
     """Asynchronous use case for partial task updates.
 
     Supports partial ID matching and ensures domain rules are respected
-    during the update process.
+    during the update process. Each field update is delegated to the
+    Task entity to enforce business rules.
     """
 
-    async def execute(self, request: UpdateTaskInputDTO) -> "TaskOutputDTO":
-        """Execute the task update logic.
+    async def execute(self, request: UpdateTaskInputDTO) -> TaskOutputDTO:
+        """Execute the task update workflow.
+
+        Steps:
+            1. Validate task ID prefix length.
+            2. Validate and parse user ID.
+            3. Validate priority if provided.
+            4. Retrieve task by prefix scoped to user.
+            5. Handle ambiguous or missing results.
+            6. Apply partial updates to the task.
+            7. Persist the updated task.
+            8. Map the entity to an output DTO.
 
         Args:
-            request (UpdateTaskRequest): Input data for partial task updates.
+            request (UpdateTaskInputDTO): Input data for partial task updates.
+
+        Returns:
+            TaskOutputDTO: Output DTO representing the updated task.
+
+        Raises:
+            ValidationException: If prefix is too short, user ID is invalid,
+            priority is invalid, task not found, or multiple ambiguous matches exist.
         """
 
-        now = self.clock.now()
+        now: datetime = self.clock.now()
 
-        # 1. Validação de Prefixo (UX consistente com Delete/Complete/Get)
+        # 1. Prefix validation (consistent UX with Delete/Complete/Get use cases)
         if len(request.task_id_prefix) < 4:
-            raise ValidationException("O prefixo do ID deve ter pelo menos 4 caracteres.")
+            raise ValidationException("Task ID prefix must have at least 4 characters.")
 
         try:
             user_id: UserId = UserId(UUID(request.user_id))
         except (ValueError, TypeError):
-            raise ValidationException("O userId informado não é válido.")
+            raise ValidationException("The provided user_id is invalid.")
 
         try:
             priority: Priority = Priority(request.priority)
-        except (ValueError, ):
-            raise ValidationException("A prioridade informada é inválida.")
+        except ValueError:
+            raise ValidationException("The provided priority is invalid.")
 
         async with self.uow:
-            # 2. Busca por prefixo com filtro de usuário
-            tasks_found: List["Task"] = await self.uow.tasks.find_by_id_prefix(
+
+            # 2. Search by prefix scoped to user
+            tasks_found: List[Task] = await self.uow.tasks.find_by_id_prefix(
                 id_prefix=request.task_id_prefix,
                 user_id=user_id
             )
 
             if not tasks_found:
-                raise ValidationException(f"Tarefa com ID '{request.task_id_prefix}' não encontrada.")
+                raise ValidationException(f"No task found with ID prefix '{request.task_id_prefix}'.")
 
             if len(tasks_found) > 1:
-                conflicting_ids = ", ".join([str(t.id)[:8] for t in tasks_found])
-                raise ValidationException(
-                    f"ID ambíguo. Encontradas {len(tasks_found)} tarefas: [{conflicting_ids}]."
-                )
+                conflicting_ids: str = ", ".join([str(t.id)[:8] for t in tasks_found])
+                raise ValidationException(f"Ambiguous ID. Found {len(tasks_found)} tasks: [{conflicting_ids}].")
 
-            task = tasks_found[0]
+            task: Task = tasks_found[0]
 
-            # 3. Aplicação de Mudanças Parciais
-            # Delegamos para a entidade validar as regras de negócio de cada campo
+            # 3. Apply partial updates
+            # Each update is delegated to the Task entity to enforce domain rules
             if request.title is not None:
                 task.rename(now, request.title)
 
@@ -69,11 +87,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 task.update_priority(now, priority)
 
             if request.due_date is not None:
-                # Aqui você pode adicionar lógica de timezone se necessário
+                # Timezone handling could be added here if needed
                 task.update_due_date(now, request.due_date)
 
-            # 4. Persistência
+            # 4. Persistence
             await self.uow.tasks.update(task)
 
-        # 5. Retorno via Mapper
+        # 5. Return mapped output DTO
         return TaskMapper.to_output(task, now)

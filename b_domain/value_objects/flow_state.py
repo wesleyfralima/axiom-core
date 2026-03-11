@@ -192,7 +192,7 @@ class UserFlowState(ValueObject):
         if energy_gain == 0 and minutes_rested >= profile.power_nap_min_minutes:
             energy_gain = 1
 
-        # Theoretically, ser cannot reach EnergyLevel.PEAK
+        # Theoretically, user cannot reach EnergyLevel.PEAK
         # only by resting; maximum achievable is EnergyLevel.HIGH
         new_energy_val: int = min(
             EnergyLevel.HIGH.value,
