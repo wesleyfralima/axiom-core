@@ -2,12 +2,13 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from typing import List, Optional
 
+from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel, Priority
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 
 
 @dataclass(frozen=True, kw_only=True)
-class CreateTaskInputDTO:
+class CreateTaskInputDTO(DTO):
     """Data Transfer Object for creating a new Task.
 
     This DTO is used when a new task is being created. It contains
@@ -35,7 +36,7 @@ class CreateTaskInputDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
-class UpdateTaskInputDTO:
+class UpdateTaskInputDTO(DTO):
     """Data Transfer Object for updating an existing Task.
 
     This DTO is used when updating an existing task. It allows
@@ -60,7 +61,7 @@ class UpdateTaskInputDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
-class TaskOutputDTO:
+class TaskOutputDTO(DTO):
     """Data Transfer Object for returning Task information.
 
     This DTO is used when returning task details to the client
@@ -94,14 +95,14 @@ class TaskOutputDTO:
 
 
 @dataclass(frozen=True)
-class TaskByUserRequest:
+class TaskByUserRequest(DTO):
     task_id_prefix: str
     user_id: str
     completed_at: Optional[datetime] = None
 
 
 @dataclass(frozen=True, kw_only=True)
-class CompleteTaskOutputDTO:
+class CompleteTaskOutputDTO(DTO):
     """Composite DTO for the result of completing a task.
 
     This DTO encapsulates both the completed task and, if applicable,
@@ -113,7 +114,7 @@ class CompleteTaskOutputDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
-class GetTaskRequest:
+class GetTaskRequest(DTO):
     """Input data for retrieving a specific task."""
     task_id_prefix: str
     user_id: str
@@ -121,7 +122,7 @@ class GetTaskRequest:
 
 
 @dataclass(frozen=True, kw_only=True)
-class ListTasksRequest:
+class ListTasksRequest(DTO):
     """Input data for listing tasks with complex filtering."""
 
     user_id: str

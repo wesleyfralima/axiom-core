@@ -2,11 +2,12 @@ from dataclasses import dataclass
 from datetime import datetime, time
 from typing import List, Optional
 
+from a_core import DTO
 from b_domain.value_objects.enums import RecurrenceInterval
 
 
 @dataclass(frozen=True, kw_only=True)
-class RecurrenceInputDTO:
+class RecurrenceInputDTO(DTO):
     """Data Transfer Object for recurrence rules.
 
     This DTO represents recurrence configuration for tasks or events.

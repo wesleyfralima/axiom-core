@@ -6,7 +6,7 @@ from a_core.base import TextValueObject
 
 @dataclass(frozen=True, eq=False, repr=False)
 class Title(TextValueObject):
-    """Represents a Task or Project title with validation rules.
+    """Represents a title with validation rules.
 
     The value will be automatically stripped of leading/trailing whitespaces
     and validated against length constraints.
@@ -20,7 +20,7 @@ class Title(TextValueObject):
 
 @dataclass(frozen=True, eq=False, repr=False)
 class Description(TextValueObject):
-    """Represents a Task or Project description with validation rules."""
+    """Represents a description with validation rules."""
 
     ALLOW_NONE: ClassVar[bool] = True
     MAX_LENGTH: ClassVar[int] = 5000

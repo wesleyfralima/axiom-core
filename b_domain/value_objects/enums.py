@@ -3,40 +3,43 @@ from functools import cache
 
 
 class TaskStatus(str, Enum):
-    """Enumeration of possible Task statuses."""
+    """Enumeration of possible Task statuses.
 
-    # --- Gestão e Intenção (Axiom Pro) ---
-    SOMEDAY = "someday"  # No backlog, mas fora do alcance do Flow Engine (incubação)
-    PENDING = "pending"  # Ativa para o Flow Engine, aguardando execução
-    BLOCKED = "blocked"  # Aguardando dependência externa
+    Represents the lifecycle of a task across planning, execution,
+    and completion, including feedback states.
+    """
 
-    # --- Fluxo (Axiom Flow) ---
-    SUGGESTED = "suggested"
+    # --- Planning and Intention (Axiom Pro) ---
+    SOMEDAY = "someday"         # In backlog, but outside Flow Engine scope (incubation)
+    PENDING = "pending"         # Active for Flow Engine, waiting for execution
+    BLOCKED = "blocked"         # Waiting for external dependency
 
-    # --- Execução ---
+    # --- Flow (Axiom Flow) ---
+    SUGGESTED = "suggested"     # Suggested by Flow Engine
+
+    # --- Execution ---
     IN_PROGRESS = "in_progress"
-    PAUSED = "paused"  # Interrupção temporária (preserva contexto de momentum)
+    PAUSED = "paused"           # Temporary interruption (momentum preserved)
 
-    # --- Conclusão ---
+    # --- Completion ---
     DONE = "done"
 
-    # --- Feedback de Fluxo (Podem ser invisíveis no Pro) ---
-    SKIPPED = "skipped"  # O usuário recusou a sugestão do Flow
-    DEFERRED = "deferred"  # O usuário começou, mas "devolveu" para a lista
-    ABANDONED = "abandoned"  # O usuário abandonou ou o sistema inferiu que ele parou sem avisar
+    # --- Flow Feedback (could be invisible in Pro) ---
+    SKIPPED = "skipped"         # User declined Flow suggestion
+    DEFERRED = "deferred"       # User started but returned task to list
+    ABANDONED = "abandoned"     # User abandoned or system inferred stop
 
     CANCELLED = "cancelled"
-    REOPENED = "reopened"  # Reativada após conclusão ou cancelamento
-    ARCHIVED = "archived"  # Estado terminal, não há volta
+    REOPENED = "reopened"       # Reactivated after completion or cancellation
+    ARCHIVED = "archived"       # Terminal state, no return
 
     @classmethod
     @cache
     def _get_transitions(cls) -> dict["TaskStatus", set["TaskStatus"]]:
-        """Caches and returns the state machine transitions.
+        """Return cached state machine transitions.
 
-        Using a cached class method avoids recreating the dictionary
-        on every check, while circumventing Python's limitation of
-        referencing enum members during class creation.
+        This defines valid transitions between statuses. Using a cached
+        class method avoids recreating the dictionary on every check.
         """
 
         return {
@@ -98,9 +101,16 @@ class TaskStatus(str, Enum):
         }
 
     def can_transition_to(self, new_status: "TaskStatus") -> bool:
-        """Check if a task can transition from the current status to a new status."""
+        """Check if a task can transition from the current status to a new status.
 
-        # Se for o mesmo status, geralmente permitimos como um "no-op" (sem efeito)
+        Args:
+            new_status (TaskStatus): Target status.
+
+        Returns:
+            bool: True if transition is valid, False otherwise.
+        """
+
+        # Allow same-status transitions as a no-op
         if self == new_status:
             return True
 
@@ -109,7 +119,7 @@ class TaskStatus(str, Enum):
 
 
 class Priority(IntEnum):
-    """Enumeration of priority levels for Tasks or Projects.
+    """Enumeration of priority levels for tasks or projects.
 
     Supports native Python comparison (e.g., Priority.CRITICAL > Priority.LOW).
     """
@@ -124,7 +134,7 @@ class Priority(IntEnum):
 
 
 class RecurrenceInterval(str, Enum):
-    """Enumeration of possible recurrence intervals for Tasks."""
+    """Enumeration of possible recurrence intervals for tasks."""
     HOURLY = "HO"
     DAILY = "DA"
     WEEKLY = "WE"
@@ -133,25 +143,23 @@ class RecurrenceInterval(str, Enum):
 
 
 class EnergyLevel(IntEnum):
-    """
-    Representa o esforço cognitivo ou físico necessário para uma tarefa.
-    Baseado na metodologia GTD (Getting Things Done).
+    """Represents the cognitive or physical effort required for a task.
+
+    Inspired by GTD (Getting Things Done) methodology.
     """
 
-    DRAINED = 1  # "Modo Zumbi": Só microtasks de < 2 min
-    LOW = 2  # Tarefas administrativas leves
-    BALANCED = 3  # Trabalho padrão, reuniões
-    HIGH = 4  # Foco sério, produção ativa
-    PEAK = 5  # "God Mode": Resolução de problemas complexos / Deep Work
+    DRAINED = 1         # "Zombie mode": only microtasks < 2 min
+    LOW = 2             # Light administrative tasks
+    BALANCED = 3        # Standard work, meetings
+    HIGH = 4            # Serious focus, active production
+    PEAK = 5            # "God Mode": complex problem-solving / Deep Work
 
     def __str__(self) -> str:
         return self.name.capitalize()
 
 
 class TaskComplexity(IntEnum):
-    """
-    Representa o nível de complexidade de uma tarefa.
-    """
+    """Represents the complexity level of a task."""
 
     VERY_LOW = 1
     LOW = 2
@@ -164,7 +172,9 @@ class TaskComplexity(IntEnum):
 
 
 class MomentumTrend(str, Enum):
-    RISING = "rising"  # Usuário está "on fire", pode aumentar complexidade
-    STABLE = "stable"  # Fluxo mantido
-    FALLING = "falling"  # Alerta de fadiga, sugerir tarefas mais fáceis
-    STAGNANT = "stagnant"  # Inércia total, precisa de uma "Quick Win" (Microtask)
+    """Represents the trend of user momentum in task execution."""
+
+    RISING = "rising"           # User is "on fire", can handle higher complexity
+    STABLE = "stable"           # Flow maintained
+    FALLING = "falling"         # Fatigue warning, suggest easier tasks
+    STAGNANT = "stagnant"       # Total inertia, needs a "Quick Win" (microtask)

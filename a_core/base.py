@@ -63,18 +63,19 @@ class Entity:
 
 @dataclass(frozen=True, kw_only=True)
 class DomainEvent:
-    """
-    Classe base para todos os eventos de domínio.
-    Representa um fato que já ocorreu no sistema e que é de interesse do negócio.
+    """Base class for all domain events.
+
+    Represents a fact that has already occurred in the system
+    and is relevant to the business domain.
     """
 
-    # ID único do evento (garante idempotência se usarmos mensageria no futuro)
+    # Unique event ID (ensures idempotency if messaging is used in the future)
     event_id: UUID = field(default_factory=uuid4, init=False)
 
-    # Momento exato em que o fato ocorreu (sempre em UTC na raiz)
+    # Exact moment when the fact occurred (always stored in UTC at the root level)
     occurred_on: datetime = field(
         default_factory=lambda: datetime.now(timezone.utc),
-        init=False
+        init=False,
     )
 
 
@@ -97,6 +98,15 @@ class UniqueId(ValueObject):
         """Return the string representation of the UUID."""
         return str(self.value)
 
+    @classmethod
+    def from_string(cls, value: str) -> "UniqueId":
+        """Create a UniqueId from a string.
+
+        Args:
+            value (str): The string representation of the VALID UUID.
+        """
+        return cls(UUID(value))
+
 
 @dataclass(frozen=True)
 class TextValueObject(ValueObject):
@@ -104,8 +114,8 @@ class TextValueObject(ValueObject):
 
     value: Optional[str] = None
 
-    # Usamos ClassVar para garantir que estas configurações NÃO se tornem
-    # argumentos do __init__. Elas são constantes da classe filha.
+    # We use ClassVar to ensure these configurations do NOT become
+    # __init__ arguments. They are constants defined by child classes.
     MIN_LENGTH: ClassVar[Optional[int]] = None
     MAX_LENGTH: ClassVar[Optional[int]] = None
     ALLOW_NONE: ClassVar[bool] = True
@@ -114,12 +124,14 @@ class TextValueObject(ValueObject):
     def __post_init__(self) -> None:
         """Validate the string value after initialization."""
 
-        val = self.value
+        val: str | None = self.value
 
+        # None check
         if val is None and not self.ALLOW_NONE:
             raise ValidationException(f"{self.__class__.__name__} cannot be None.")
 
         if val is not None:
+
             # Apply stripping if enabled
             if self.STRIP:
                 val = val.strip()
@@ -147,12 +159,16 @@ class TextValueObject(ValueObject):
 
         Subclasses can override this method to inject custom logic
         (e.g., regex pattern matching, forbidden words) without
-        needing to override __post_init__ or use lambda hooks.
+        needing to override __post_init__.
         """
 
     def __eq__(self, other: Any) -> bool:
-        """Compare equality with another object."""
+        """Compare equality with another object.
 
+        - If `other` is a string, compare directly with `value`.
+        - If `other` is the same class, compare their `value`.
+        - Otherwise, return False.
+        """
         if isinstance(other, str):
             return self.value == other
         if isinstance(other, self.__class__):

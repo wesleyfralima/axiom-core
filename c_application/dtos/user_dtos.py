@@ -1,9 +1,11 @@
 from dataclasses import dataclass
 from typing import Optional
 
+from a_core import DTO
+
 
 @dataclass(frozen=True, kw_only=True)
-class UserPrefsInputDTO:
+class UserPrefsInputDTO(DTO):
     """Detailed user configuration settings."""
 
     # ------------------------------------------------------------------
@@ -51,14 +53,14 @@ class UserPrefsInputDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
-class CreateUserInputDTO:
+class CreateUserInputDTO(DTO):
     """DTO for creating a new user with secure password handling."""
     username: str
     password: str
 
 
 @dataclass
-class UserOutputDTO:
+class UserOutputDTO(DTO):
     """Public representation of a user and their key preferences."""
 
     # Basic
@@ -71,7 +73,7 @@ class UserOutputDTO:
 
 
 @dataclass(frozen=True, kw_only=True)
-class UpdateUserPreferencesRequest:
+class UpdateUserPreferencesRequest(DTO):
     """Dados de entrada para atualizar preferências de forma parcial."""
     username: str
     preferences: UserPrefsInputDTO
