@@ -104,8 +104,30 @@ class UniqueId(ValueObject):
 
         Args:
             value (str): The string representation of the VALID UUID.
+
+        Raises:
+            ValidationException: If the string representation is not a valid UUID.
         """
-        return cls(UUID(value))
+        try:
+            return cls(UUID(value))
+        except ValueError:
+            raise ValidationException(f"The provided value is not a valid UUID: {value}")
+
+
+@dataclass(frozen=True)
+class IdPrefix(ValueObject):
+    """Strong identifier for IDs prefixes."""
+
+    value: str
+
+    def __post_init__(self):
+        if len(self.value) < 4:
+            raise ValidationException(
+                "The ID prefix must be at least 4 characters long."
+            )
+
+    def __str__(self) -> str:
+        return self.value
 
 
 @dataclass(frozen=True)
