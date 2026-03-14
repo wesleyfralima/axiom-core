@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from typing import Sequence
 
 from a_core.base import DomainEvent
 
@@ -16,14 +17,33 @@ class EventBus(ABC):
 
     @abstractmethod
     async def publish(self, event: DomainEvent) -> None:
-        """Publish a domain event asynchronously.
+        """Publish a single domain event asynchronously.
 
         Args:
             event (DomainEvent): The domain event to be published.
 
-        Returns:
-            None
+        Raises:
+            Exception: Implementations may raise errors if publishing fails.
+        """
+
+    @abstractmethod
+    async def publish_many(self, events: Sequence[DomainEvent]) -> None:
+        """Publish multiple domain events asynchronously.
+
+        Args:
+            events (Sequence[DomainEvent]): A sequence of domain events to publish.
 
         Raises:
             Exception: Implementations may raise errors if publishing fails.
         """
+        raise NotImplementedError
+
+    @abstractmethod
+    async def trigger_relay(self) -> None:
+        """Trigger an outbox relay mechanism.
+
+        This method is typically used to notify the system that new events
+        are available in the outbox, prompting background workers or
+        subscribers to process them.
+        """
+        raise NotImplementedError
