@@ -4,7 +4,7 @@ from typing import Optional, List, Set
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
-from b_domain.events.events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.value_objects import TaskId, Title, Description, TaskStatus, Priority
 from b_domain.value_objects.dates import DueDate
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
