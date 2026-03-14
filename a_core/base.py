@@ -20,7 +20,7 @@ class Entity:
     """Base class for all domain Entities (e.g., Task, User, Context).
 
     An Entity is defined by its Identity (ID), rather than its attributes.
-    This guarantees that the business logic handles unique, traceable objects
+    This guarantees that business logic handles unique, traceable objects
     regardless of how their internal data might change over time.
     """
 
@@ -28,7 +28,7 @@ class Entity:
     created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
 
-    # Lista interna de eventos não publicados
+    # Internal list of unpublished domain events
     _domain_events: List["DomainEvent"] = field(default_factory=list, repr=False, init=False)
 
     def __eq__(self, other: Any) -> bool:
@@ -45,7 +45,7 @@ class Entity:
         return False
 
     def __hash__(self) -> int:
-        """Generates a hash based on the entity's unique ID."""
+        """Generate a hash based on the entity's unique ID."""
         return hash(self.id)
 
     def _touch(self, now: datetime) -> None:
@@ -53,12 +53,20 @@ class Entity:
         self.updated_at = now
 
     def add_event(self, event: "DomainEvent") -> None:
-        """Registra um novo evento ocorrido nesta entidade."""
+        """Register a new domain event that occurred in this entity.
+
+        Args:
+            event (DomainEvent): The domain event to record.
+        """
         self._domain_events.append(event)
 
     def pull_events(self) -> List["DomainEvent"]:
-        """Extrai todos os eventos e limpa a lista interna."""
-        events = self._domain_events[:]
+        """Extract all recorded domain events and clear the internal list.
+
+        Returns:
+            List[DomainEvent]: The list of domain events that were recorded.
+        """
+        events: list["DomainEvent"] = self._domain_events[:]
         self._domain_events.clear()
         return events
 
@@ -319,7 +327,7 @@ class BaseRepository:
         """
         self._seen_entities = seen_entities
 
-    def _track(self, entity):
+    def _track(self, entity: Entity):
         """Track an entity if it supports domain events.
 
         Entities with a `pull_events` method are added to the Unit of Work's
