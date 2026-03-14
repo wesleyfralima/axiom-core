@@ -356,6 +356,6 @@ class BaseRepository:
             if name.startswith(("get", "find", "list", "add")):
                 if not getattr(method, "_is_tracked", False):
                     raise TypeError(
-                        f"\n[ARCHITECTURE ERROR] The method '{cls.__name__}.{name}' "
+                        f"[ARCHITECTURE ERROR] The method '{cls.__name__}.{name}' "
                         f"must be decorated with @tracks_entity to ensure tracking."
                     )
