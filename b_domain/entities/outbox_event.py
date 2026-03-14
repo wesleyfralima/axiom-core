@@ -1,8 +1,9 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
-from typing import Optional, Any
+from typing import Optional, Any, List
 
 from a_core import Entity, UniqueId
+from a_core.base import DomainEvent
 
 
 @dataclass(kw_only=True)
@@ -46,3 +47,29 @@ class OutboxEvent(Entity):
             bool: True if the event has been processed, False otherwise.
         """
         return self.processed_at is not None
+
+    def add_event(self, event: DomainEvent) -> None:
+        """Disables event recording for OutboxEvent entities.
+
+        OutboxEvent is a persistence mechanism used to store other domain events.
+        Allowing it to record its own events could lead to infinite recursion
+        (e.g., an OutboxEvent triggering the creation of another OutboxEvent).
+        Therefore, this operation is explicitly disallowed.
+
+        Raises:
+            ValueError: Always raised to prevent event recording on this entity type.
+        """
+        raise ValueError("OutboxEvent entities do not support adding events")
+
+    def pull_events(self) -> List[DomainEvent]:
+        """Returns an empty list of domain events.
+
+        Overridden to ensure that the Unit of Work and Repository tracking
+        mechanisms treat this entity as "silent." This prevents the system
+        from attempting to process or re-persist metadata from the outbox
+        infrastructure itself.
+
+        Returns:
+            List[DomainEvent]: An empty list, as OutboxEvents never emit domain events.
+        """
+        return []
