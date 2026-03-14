@@ -83,7 +83,7 @@ class DomainEvent:
     id: "UniqueId" = field(default_factory=lambda: UniqueId())
     """Unique event ID (may ensure idempotency)."""
 
-    occurred_on: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
     """Exact moment when the fact occurred (always stored in UTC at the root level)"""
 
     correlation_id: Optional["UniqueId"] = None
@@ -111,9 +111,7 @@ class DomainEvent:
         data: dict[str, Any] = asdict(self)
 
         # Remove envelope metadata
-        data.pop("id", None)
-        data.pop("correlation_id", None)
-        data.pop("occurred_on", None)
+        data.pop("AGGREGATE_TYPE", None)
 
         return data
 

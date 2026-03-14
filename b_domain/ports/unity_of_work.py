@@ -114,7 +114,7 @@ class UnitOfWork(ABC):
             event_version=event.event_version(),
             aggregate_type=getattr(event, "AGGREGATE_TYPE", None),
             payload=event.to_payload(),
-            occurred_at=event.occurred_on,
+            occurred_at=event.occurred_at,
         )
 
     @abstractmethod
