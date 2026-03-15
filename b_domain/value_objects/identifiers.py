@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from a_core.base import UniqueId
+from a_core import UniqueId
 
 
 @dataclass(frozen=True)

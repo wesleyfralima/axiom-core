@@ -4,7 +4,7 @@ from dataclasses import dataclass, field, replace
 from datetime import datetime
 from typing import Literal, Optional
 
-from a_core.base import Entity, ValueObject
+from a_core import Entity, ValueObject
 from a_core.exceptions import DomainException
 from b_domain.value_objects import UserId
 from b_domain.value_objects.identifiers import ContextId

@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from a_core.base import DomainEvent
+from a_core import DomainEvent
 from b_domain.value_objects import TaskId, UserId, ContextId
 from b_domain.value_objects.enums import EnergyLevel
 

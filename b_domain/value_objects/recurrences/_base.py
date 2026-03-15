@@ -3,8 +3,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 from typing import List, Optional
 
-from a_core import ValidationException
-from a_core.base import ValueObject
+from a_core import ValidationException, ValueObject
 from b_domain.exceptions.recurrence import (
     EndDateBeforeStartDate,
     InvalidIntervalValue,

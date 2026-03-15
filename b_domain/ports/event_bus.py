@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Sequence, Type, Any
 
-from a_core.base import DomainEvent
+from a_core import DomainEvent
 
 
 class EventBus(ABC):

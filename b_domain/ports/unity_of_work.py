@@ -3,8 +3,7 @@ from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import Optional, Self, Type
 
-from a_core import Entity
-from a_core.base import DomainEvent
+from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.repositories import TaskRepository, UserRepository

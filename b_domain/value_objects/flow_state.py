@@ -2,7 +2,7 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
 from typing import Optional
 
-from a_core.base import ValueObject
+from a_core import ValueObject
 from b_domain.value_objects import UserId, ContextId
 from b_domain.value_objects.enums import EnergyLevel, MomentumTrend, TaskComplexity
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile

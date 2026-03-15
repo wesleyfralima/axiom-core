@@ -2,8 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime, timezone
 from typing import Optional, Any, List
 
-from a_core import Entity, UniqueId
-from a_core.base import DomainEvent
+from a_core import DomainEvent, Entity, UniqueId
 
 
 @dataclass(kw_only=True)

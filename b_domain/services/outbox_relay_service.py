@@ -2,7 +2,7 @@ import logging
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Type
 
-from a_core.base import DomainEvent
+from a_core import DomainEvent
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.repositories.outbox_event_repository import OutboxEventRepository

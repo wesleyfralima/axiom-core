@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import Optional
 
-from a_core.base import IdPrefix
+from a_core import IdPrefix
 from a_core.exceptions import ValidationException, InvalidStateTransition
 from b_domain.entities import Task, TimeEntry
 from b_domain.ports.providers import ClockProvider

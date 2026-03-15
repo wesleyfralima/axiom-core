@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import Optional
 
-from a_core.base import DomainEvent
+from a_core import DomainEvent
 from b_domain.value_objects.identifiers import ContextId, UserId
 
 

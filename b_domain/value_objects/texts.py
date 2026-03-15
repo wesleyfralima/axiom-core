@@ -1,7 +1,7 @@
 from dataclasses import dataclass
 from typing import ClassVar
 
-from a_core.base import TextValueObject
+from a_core import TextValueObject
 
 
 @dataclass(frozen=True, eq=False, repr=False)

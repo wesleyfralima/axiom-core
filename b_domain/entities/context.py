@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 
-from a_core.base import Entity
+from a_core import Entity
 from b_domain.value_objects import UserId
 
 

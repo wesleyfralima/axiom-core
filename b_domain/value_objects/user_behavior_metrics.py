@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import datetime
 from typing import Optional
 
-from a_core.base import ValueObject
+from a_core import ValueObject
 from b_domain.value_objects import UserId
 
 
