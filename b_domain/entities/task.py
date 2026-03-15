@@ -27,7 +27,7 @@ class Task(Entity):
     title: Title
 
     # Optional relationships
-    due_date: DueDate = field(default_factory=lambda: DueDate.empty)
+    due_date: DueDate = field(default_factory=DueDate.empty)
     parent_id: Optional[TaskId] = None
     recurrence: Optional[RecurrenceRule] = None
 
@@ -395,7 +395,8 @@ class Task(Entity):
             user_id=self.user_id,
             estimated_minutes=self.estimated_duration_minutes,
             actual_minutes=actual_minutes,
-            energy_level_used=self.required_energy_level
+            energy_level_used=self.required_energy_level,
+            task_complexity=self.complexity,
         ))
 
     def mark_as_cancelled(self, now: datetime) -> None:
