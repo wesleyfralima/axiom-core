@@ -1,0 +1,53 @@
+from b_domain.entities import Task
+from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.ports.unity_of_work import UnitOfWork
+
+
+class CreateRecurringTaskHandler:
+    """Domain event handler that generates the next occurrence of a recurring task.
+
+    When a task with recurrence rules is completed, this handler creates
+    the next scheduled occurrence, ensuring continuity of recurring tasks.
+    """
+
+    def __init__(self, uow: UnitOfWork):
+        """Initialize the handler with a UnitOfWork.
+
+        Args:
+            uow (UnitOfWork): Unit of Work instance for transactional consistency.
+        """
+        self.uow = uow
+
+    async def handle(self, event: TaskCompletedEvent) -> None:
+        """Handle a TaskCompletedEvent.
+
+        Steps:
+            1. Load the full task entity to access recurrence rules.
+            2. If no recurrence is defined, exit early.
+            3. Create the next occurrence based on the completion date.
+            4. Estimate duration using the average of past occurrences.
+            5. Persist the new task.
+
+        Args:
+            event (TaskCompletedEvent): The domain event signaling task completion.
+        """
+
+        async with self.uow:
+
+            # Retrieve the completed task to access recurrence rules
+            task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
+            if not task or not task.recurrence:
+                return
+
+            # Create the next occurrence based on completion time
+            next_task: Task | None = task.create_next_occurrence(event.occurred_at)
+            if not next_task:
+                return
+
+            # Use the average duration of previous occurrences as an estimate
+            next_task.estimated_duration_minutes = task.average_duration_minutes
+
+            # Persist the new recurring task
+            await self.uow.tasks.add(next_task)
+
+            print(f"🔁 [HANDLER: Recurrence] New occurrence created for: {next_task.title}")
