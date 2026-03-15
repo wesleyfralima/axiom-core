@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Sequence
+from typing import Sequence, Type, Any
 
 from a_core.base import DomainEvent
 
@@ -14,6 +14,18 @@ class EventBus(ABC):
     This abstraction ensures that domain logic remains decoupled from
     infrastructure concerns.
     """
+
+    @abstractmethod
+    def subscribe(self, event_type: Type[DomainEvent], handler: Any) -> None:
+        """Register a handler for a specific domain event type.
+
+        The handler must implement an asynchronous `handle(event)` method,
+        which will be invoked whenever an event of the given type is published.
+
+        Args:
+            event_type (Type[DomainEvent]): The class of the domain event to subscribe to.
+            handler (Any): The handler instance that processes the event.
+        """
 
     @abstractmethod
     async def publish(self, event: DomainEvent) -> None:
