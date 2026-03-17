@@ -1,18 +1,23 @@
 from dataclasses import dataclass
+from datetime import datetime
+from typing import Optional
 
 from a_core import DomainEvent
 from b_domain.value_objects import TaskId, UserId, ContextId
-from b_domain.value_objects.enums import EnergyLevel
+from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 
 
 @dataclass(frozen=True, kw_only=True)
 class TaskCreatedEvent(DomainEvent):
-    pass
+    """Triggered when a new task is created."""
+    title: str
+    task_id: TaskId
+    due_date: Optional[datetime] = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class TaskEditedEvent(DomainEvent):
-    pass
+    """Triggered when an existing task is edited."""
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -41,12 +46,14 @@ class TaskCompletedEvent(DomainEvent):
         estimated_minutes (int): Estimated duration of the task.
         actual_minutes (int): Actual duration spent on the task.
         energy_level_used (EnergyLevel): Energy level applied during execution.
+        task_complexity (TaskComplexity): Complexity level of the task.
     """
     task_id: TaskId
     user_id: UserId
     estimated_minutes: int
     actual_minutes: int
     energy_level_used: EnergyLevel
+    task_complexity: TaskComplexity
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -67,4 +74,4 @@ class TaskAbandonedEvent(DomainEvent):
 
 @dataclass(frozen=True, kw_only=True)
 class TaskDeletedEvent(DomainEvent):
-    pass
+    """Triggered when a task is deleted."""
