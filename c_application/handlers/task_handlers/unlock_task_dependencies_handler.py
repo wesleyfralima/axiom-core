@@ -44,5 +44,3 @@ class UnlockTaskDependenciesHandler:
 
             # Bulk update all unlocked tasks
             await self.uow.tasks.update_many(blocked_tasks)
-
-            print(f"🔓 [HANDLER: Unlock] {len(blocked_tasks)} tasks unlocked after completion of {event.task_id}")

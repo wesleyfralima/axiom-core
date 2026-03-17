@@ -105,8 +105,6 @@ class DomainEvent:
             if f.name in cls.BASE_FIELDS:
                 continue
 
-            print(f.type)
-
             raw_value = data.get(f.name)
             kwargs[f.name] = cls._deserialize_value(raw_value, f.type)
 

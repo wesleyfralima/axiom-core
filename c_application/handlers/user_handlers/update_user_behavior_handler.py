@@ -79,5 +79,3 @@ class UpdateUserBehaviorHandler:
             # 3. Persist both updated metrics and profile
             await self.uow.user_behavior_metrics.save(new_metrics)
             await self.uow.user_behavior_profiles.save(new_profile)
-
-            print(f"🧠 [HANDLER: Learning] User profile {event.user_id} updated.")

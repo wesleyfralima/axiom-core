@@ -49,5 +49,3 @@ class CreateRecurringTaskHandler:
 
             # Persist the new recurring task
             await self.uow.tasks.add(next_task)
-
-            print(f"🔁 [HANDLER: Recurrence] New occurrence created for: {next_task.title}")
