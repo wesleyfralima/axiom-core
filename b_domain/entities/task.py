@@ -4,7 +4,7 @@ from typing import Optional, List, Set
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
-from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCompletedEvent, TaskCreatedEvent
 from b_domain.value_objects import TaskId, Title, Description, TaskStatus, Priority
 from b_domain.value_objects.dates import DueDate
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
@@ -128,7 +128,7 @@ class Task(Entity):
                     "Fixed task must have an aware (UTC) recurrence start_date"
                 )
 
-        return cls(
+        created: "Task" = cls(
             id=TaskId(),
             user_id=user_id,
             title=title,
@@ -148,6 +148,14 @@ class Task(Entity):
             attempt_count=attempt_count,
             average_duration_minutes=average_duration_minutes,
         )
+
+        created.add_event(TaskCreatedEvent(
+            title=created.title.value,
+            task_id=created.id,
+            due_date=created.due_date.value,
+        ))
+
+        return created
 
     @classmethod
     def create_system_task(cls, title: str, duration: int, reason: str, user_id: UserId) -> "Task":
