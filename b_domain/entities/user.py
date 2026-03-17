@@ -27,12 +27,14 @@ class UserPrefs(ValueObject):
     working_hours_start: int = 9  # 09:00
     working_hours_end: int = 18  # 18:00
     skip_weekends: bool = True
-
-    default_task_duration_minutes: int = 60
+    external_calendar_name: str = "Axiom Pro"
+    external_calendar_id: Optional[str] = None
+    external_calendar_autosync: bool = True
 
     # ------------------------------------------------------------------
     # Task behavior
     # ------------------------------------------------------------------
+    default_task_duration_minutes: int = 60
     default_task_priority: str = "medium"
     default_task_status: str = "pending"
     auto_schedule_tasks: bool = False

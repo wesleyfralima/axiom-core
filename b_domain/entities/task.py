@@ -50,6 +50,12 @@ class Task(Entity):
 
     is_system_generated: bool = False
 
+    # External calendar integration
+    calendar_event_id: Optional[str] = None
+    calendar_id: Optional[str] = None
+    calendar_link: Optional[str] = None
+    last_synced_at: Optional[datetime] = None
+
     # Subtasks list is not persisted directly as a column,
     # but is useful for hydrating the object in memory
     _subtasks: List['Task'] = field(default_factory=list, repr=False)
@@ -440,3 +446,48 @@ class Task(Entity):
             bool: True if it has a parent, False otherwise.
         """
         return self.parent_id is not None
+
+    def needs_calendar_sync(self) -> bool:
+        """Checks if the task has local changes not yet sent to the calendar."""
+        if not self.calendar_event_id:
+            return True
+        if not self.last_synced_at:
+            return True
+        return self.updated_at > self.last_synced_at
+
+    def mark_as_synced(self, now: datetime, external_id: str, calendar_id: str, link: str = None) -> None:
+        """Mark this task as synced with an external calendar.
+
+        This method should be called by the Service after a successful
+        synchronization with the CalendarProvider.
+
+        Args:
+            now (datetime): The current time.
+            external_id (str): The identifier of the event in the external calendar.
+            calendar_id (str): The identifier of the calendar in the external calendar.
+            link (str, optional): The link to the external calendar event. Defaults to None.
+        """
+        self.calendar_event_id = external_id
+        self.calendar_id = calendar_id
+        self.calendar_link = link
+        self.last_synced_at = now
+        self._touch(now)
+
+    def mark_as_unsynced(self, now: datetime) -> None:
+        """Remove the link between this task and the external calendar.
+
+        Useful if the event was deleted externally or if the user disables
+        synchronization.
+        """
+        self.calendar_event_id = None
+        self._touch(now)
+
+    @property
+    def has_calendar_event(self) -> bool:
+        """Check whether this task is linked to an external calendar event.
+
+        Returns:
+            bool: True if the task has an associated external calendar event,
+            False otherwise.
+        """
+        return self.calendar_event_id is not None
