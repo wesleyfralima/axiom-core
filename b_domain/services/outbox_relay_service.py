@@ -1,13 +1,14 @@
-import logging
+from dataclasses import replace
 from datetime import datetime, timezone, timedelta
-from typing import Dict, Type
+from logging import getLogger, Logger
+from typing import Type, Dict
 
 from a_core import DomainEvent
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.repositories.outbox_event_repository import OutboxEventRepository
 
-logger = logging.getLogger(__name__)
+logger: Logger = getLogger(__name__)
 
 
 class OutboxRelayService:
@@ -73,8 +74,9 @@ class OutboxRelayService:
                 self._handle_failure(entry, str(e))
                 logger.error(f"Failed to dispatch event {entry.event_id}: {e}")
 
-            # Persist updated state (success or failure)
-            await self.outbox_repo.update(entry)
+            finally:
+                # Persist updated state (success or failure)
+                await self.outbox_repo.update(entry)
 
         return processed_count
 
@@ -95,7 +97,14 @@ class OutboxRelayService:
         if not event_class:
             raise ValueError(f"Event class not found in registry: {entry.event_name}")
 
-        return event_class(**entry.payload)
+        event: DomainEvent = event_class.from_dict(entry.payload)
+
+        return replace(
+            event,
+            id=entry.event_id,
+            occurred_at=entry.occurred_at,
+            correlation_id=entry.correlation_id,
+        )
 
     @staticmethod
     def _handle_failure(entry: OutboxEvent, error_message: str) -> None:
