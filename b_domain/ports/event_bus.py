@@ -1,7 +1,9 @@
 from abc import ABC, abstractmethod
-from typing import Sequence, Type, Any
+from typing import Sequence, Type, Callable, Awaitable
 
 from a_core import DomainEvent
+
+EventHandlerType = Callable[[DomainEvent], Awaitable[None]]
 
 
 class EventBus(ABC):
@@ -16,7 +18,7 @@ class EventBus(ABC):
     """
 
     @abstractmethod
-    def subscribe(self, event_type: Type[DomainEvent], handler: Any) -> None:
+    def subscribe(self, event_type: Type[DomainEvent], handler: EventHandlerType) -> None:
         """Register a handler for a specific domain event type.
 
         The handler must implement an asynchronous `handle(event)` method,
