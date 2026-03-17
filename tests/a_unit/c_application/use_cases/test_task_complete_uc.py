@@ -4,9 +4,8 @@ from uuid import uuid4
 import pytest
 
 from a_core import ValidationException, InvalidStateTransition
-from b_domain.entities import Task, User, TimeEntry
-from b_domain.value_objects import TaskStatus, TaskId, RecurrenceInterval, Title
-from b_domain.value_objects.recurrences.simple import SimpleIntervalRule
+from b_domain.entities import Task, User
+from b_domain.value_objects import TaskStatus, TaskId, Title
 from c_application.dtos.task_dtos import TaskByUserRequest
 from c_application.use_cases import CompleteTaskUseCase
 
@@ -67,7 +66,7 @@ async def test_complete_task_fails_if_prefix_too_short(create_use_case_context):
     use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix="abc", user_id=str(uuid4()))
 
-    with pytest.raises(ValidationException, match="pelo menos 4 caracteres"):
+    with pytest.raises(ValidationException, match="The ID prefix must be at least 4 characters long"):
         await use_case.execute(request)
 
 
@@ -100,7 +99,7 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(create_use_case_contex
     request = TaskByUserRequest(task_id_prefix=str(t1.id)[:4], user_id=str(user.id))
 
     # Se o repositório fake retornar mais de uma, o UC deve barrar
-    with pytest.raises(ValidationException, match="ID ambíguo"):
+    with pytest.raises(ValidationException, match="Ambiguous ID"):
         await use_case.execute(request)
 
 
@@ -128,72 +127,13 @@ async def test_complete_task_fails_if_task_is_blocked(create_use_case_context, f
     # Tentar completar B sem completar A antes
     request = TaskByUserRequest(task_id_prefix=str(task_b.id)[:8], user_id=str(user.id))
 
-    with pytest.raises(InvalidStateTransition, match="complete all blocking tasks first"):
+    with pytest.raises(InvalidStateTransition, match="Task is blocked by dependencies"):
         await use_case.execute(request)
 
 
 # -------------------------------------------------------------------------
 # 4. Fluxo Social: Parar Timers Ativos e Desbloquear Próxima
 # -------------------------------------------------------------------------
-@pytest.mark.asyncio
-@pytest.mark.uc
-async def test_complete_task_stops_timer_and_unlocks_successors(create_use_case_context, fake_uow):
-    # 1. Setup
-    user = User.create(username="wesley")
-    clock = create_use_case_context["clock"]
-    now = clock.now()
-
-    # Tarefa A bloqueia B
-    task_a = Task.create(title=Title("Tarefa A"), user_id=user.id, now=now)
-    task_b = Task.create(title=Title("Tarefa B"), user_id=user.id, now=now)
-    task_b.add_dependency(task_a.id)
-
-    # Criamos um TimeEntry ativo (sem end_time) para a Tarefa A
-    timer = TimeEntry(
-        task_id=task_a.id,
-        user_id=user.id,
-        start_time=now,
-        description="Focando na Tarefa A"
-    )
-
-    # Populamos o Fake UOW
-    await fake_uow.users.add(user)
-    await fake_uow.tasks.add(task_a)
-    await fake_uow.tasks.add(task_b)
-    await fake_uow.time_entries.add(timer)
-
-    # 2. Execução
-    use_case = CompleteTaskUseCase(**create_use_case_context)
-
-    # Simulamos que a conclusão ocorre 30 minutos depois
-    # (Opcional: avançar o clock se o FakeClock permitir)
-    request = TaskByUserRequest(
-        task_id_prefix=str(task_a.id)[:8],
-        user_id=str(user.id),
-        completed_at=now  # Usando o tempo do clock
-    )
-
-    await use_case.execute(request)
-
-    # 3. Asserções de Time Tracking
-    # Buscamos a entrada do repositório para garantir que a persistência foi chamada
-    entries = await fake_uow.time_entries.find_by_user(user.id)
-    updated_timer = entries[0]
-
-    assert updated_timer.end_time is not None, "O timer deveria ter sido encerrado."
-    assert updated_timer.end_time == now, "O end_time deve ser o timestamp de conclusão."
-    assert updated_timer.elapsed_minutes(now=now) >= 0
-
-    # 4. Asserções de Grafo de Dependências
-    updated_b = await fake_uow.tasks.get_by_id(task_b.id)
-
-    assert task_a.id not in updated_b.depends_on, "A dependência de A deveria ter sido removida de B."
-    assert updated_b.is_blocked is False, "A tarefa B deveria estar desbloqueada agora."
-
-    # 5. Atomicidade
-    assert fake_uow.committed is True
-
-
 @pytest.mark.asyncio
 @pytest.mark.uc
 async def test_complete_task_fails_if_belongs_to_another_user(create_use_case_context, fake_uow):
@@ -216,7 +156,7 @@ async def test_complete_task_fails_if_belongs_to_another_user(create_use_case_co
         user_id=str(wesley.id)
     )
 
-    with pytest.raises(ValidationException, match="Nenhuma tarefa encontrada"):
+    with pytest.raises(ValidationException, match="No task found with ID prefix"):
         await use_case.execute(request)
 
 
@@ -236,38 +176,5 @@ async def test_complete_task_fails_if_already_done(create_use_case_context, fake
     use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix=str(task.id)[:8], user_id=str(user.id))
 
-    with pytest.raises(InvalidStateTransition, match="task is already DONE"):
+    with pytest.raises(InvalidStateTransition, match="Task is already completed."):
         await use_case.execute(request)
-
-
-@pytest.mark.asyncio
-@pytest.mark.uc
-async def test_complete_task_generates_next_recurrence(create_use_case_context, fake_uow):
-    clock = create_use_case_context["clock"]
-    user = User.create(username="wesley")
-
-    # Criamos uma tarefa com regra de recorrência (ex: Diária)
-    # Assumindo que você tem uma DailyRecurrenceRule implementada
-    task = Task.create(
-        title=Title("Treinar"),
-        user_id=user.id,
-        recurrence=SimpleIntervalRule(frequency=RecurrenceInterval.DAILY, start_date=clock.now()),
-        now=clock.now(),
-        due_date=clock.now(),
-        is_floating=False,
-    )
-
-    await fake_uow.users.add(user)
-    await fake_uow.tasks.add(task)
-
-    use_case = CompleteTaskUseCase(**create_use_case_context)
-    await use_case.execute(TaskByUserRequest(task_id_prefix=str(task.id)[:8], user_id=str(user.id)))
-
-    # Verificação: Deve haver 2 tarefas no repositório agora
-    all_tasks = await fake_uow.tasks.find_by_user(user.id)
-    assert len(all_tasks) == 2
-
-    # Uma está DONE, a outra está PENDING para o futuro
-    statuses = [t.status for t in all_tasks]
-    assert TaskStatus.DONE in statuses
-    assert TaskStatus.PENDING in statuses

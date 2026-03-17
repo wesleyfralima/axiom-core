@@ -328,6 +328,4 @@ def create_use_case_context(fake_uow, fake_clock):
     return {
         "uow": fake_uow,
         "clock": fake_clock,
-        "metrics_aggregator": UserBehaviorMetricsAggregator(),
-        "behavior_learner": UserBehaviorLearner(),
     }
