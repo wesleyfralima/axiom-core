@@ -78,7 +78,7 @@ class UserPrefs(ValueObject):
         return replace(self, **changes)
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class User(Entity):
     """Represents a User entity within the domain.
 

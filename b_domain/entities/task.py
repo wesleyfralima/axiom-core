@@ -12,7 +12,7 @@ from b_domain.value_objects.identifiers import UserId, ContextId
 from b_domain.value_objects.recurrences import RecurrenceRule
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class Task(Entity):
     """Represents a Task entity with business rules and validation."""
 
@@ -59,13 +59,6 @@ class Task(Entity):
     # Subtasks list is not persisted directly as a column,
     # but is useful for hydrating the object in memory
     _subtasks: List['Task'] = field(default_factory=list, repr=False)
-
-    def __hash__(self) -> int:
-        """
-        Torna a Entidade hashable baseando-se apenas na sua identidade única.
-        Isso permite que a Task seja usada em sets (como no Unit of Work).
-        """
-        return hash(self.id)
 
     @classmethod
     def create(

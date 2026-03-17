@@ -7,7 +7,7 @@ from a_core.exceptions import DomainException
 from b_domain.value_objects import TaskId, UserId
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class TimeEntry(Entity):
     """Represents a tracked time interval for a task.
 

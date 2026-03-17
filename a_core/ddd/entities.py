@@ -6,7 +6,7 @@ from a_core.ddd.events import DomainEvent
 from a_core.ddd.identities import UniqueId
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class Entity:
     """Base class for all domain Entities (e.g., Task, User, Context).
 

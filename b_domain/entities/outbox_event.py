@@ -5,7 +5,7 @@ from typing import Optional, Any, List
 from a_core import DomainEvent, Entity, UniqueId
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class OutboxEvent(Entity):
     """Represents a domain event stored in the Outbox.
 

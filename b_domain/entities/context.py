@@ -4,7 +4,7 @@ from a_core import Entity
 from b_domain.value_objects import UserId
 
 
-@dataclass(kw_only=True)
+@dataclass(kw_only=True, eq=False)
 class Context(Entity):
     """Represents the 'where' or 'how' a task should be performed.
 
