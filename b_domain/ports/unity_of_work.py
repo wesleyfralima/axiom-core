@@ -108,10 +108,10 @@ class UnitOfWork(ABC):
         """Convert a DomainEvent into an OutboxEvent for persistence."""
         return OutboxEvent(
             event_id=event.id,
-            correlation_id=getattr(event, "correlation_id", None),
+            correlation_id=event.correlation_id,
             event_name=event.event_name(),
             event_version=event.event_version(),
-            aggregate_type=getattr(event, "AGGREGATE_TYPE", None),
+            aggregate_type=event.AGGREGATE_TYPE,
             payload=event.to_payload(),
             occurred_at=event.occurred_at,
         )
