@@ -129,7 +129,7 @@ class CalendarEventInput:
 
 
 @dataclass
-class CalendarEventOutput:
+class CalendarEventOutput(CalendarEventInput):
     """Represents an event already persisted in the provider.
 
     Extends EventInput with additional metadata fields.
