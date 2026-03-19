@@ -88,14 +88,19 @@ class User(Entity):
     id: "UserId" = field(default_factory=lambda: UserId())
 
     username: str
+    email: str
     password_hash: Optional[str] = None
+    is_active: bool = True
+
     preferences: UserPrefs = field(default_factory=UserPrefs)
 
     @classmethod
     def create(
             cls,
             username: str,
+            email: str,
             password_hash: Optional[str] = None,
+            is_active: bool = True,
             preferences: Optional[UserPrefs] = None,
             now: Optional[datetime] = None,
     ) -> "User":
@@ -103,7 +108,9 @@ class User(Entity):
 
         Args:
             username (str): The unique username of the user.
+            email (str): The unique email of the user.
             password_hash (Optional[str], optional): Hashed password. Defaults to None.
+            is_active (bool, optional): Whether the user is active or not. Defaults to True.
             preferences (Optional[UserPrefs], optional): Initial preferences.
                 Defaults to an empty UserPrefs instance.
             now (Optional[datetime], optional): Current timestamp. If not provided,
@@ -115,7 +122,9 @@ class User(Entity):
 
         kwargs: dict[str, str | datetime | UserPrefs | None] = {
             "username": username,
+            "email": email,
             "password_hash": password_hash,
+            "is_active": is_active,
             "preferences": preferences or UserPrefs(),
         }
 
@@ -141,4 +150,14 @@ class User(Entity):
         if not new_hash:
             raise DomainException("Password hash cannot be empty.")
         self.password_hash = new_hash
+        self._touch(now)
+
+    def deactivate(self, now: datetime) -> None:
+        """Business logic for deactivating a user account."""
+        self.is_active = False
+        self._touch(now)
+
+    def activate(self, now: datetime) -> None:
+        """Business logic for reactivating a user account."""
+        self.is_active = True
         self._touch(now)
