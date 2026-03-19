@@ -5,6 +5,12 @@ description = "Core domain and application rules for Axiom Task Manager"
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
 
+packages = [
+    { include = "a_core" },
+    { include = "b_domain" },
+    { include = "c_application" },
+]
+
 [tool.poetry.dependencies]
 python = ">=3.12,<3.15"
 
