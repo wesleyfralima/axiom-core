@@ -68,6 +68,7 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             user: User = User.create(
                 now=self.clock.now(),
                 username=dto.username,
+                email=dto.email,
                 password_hash=password_hash,
             )
 
