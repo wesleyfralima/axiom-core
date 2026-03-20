@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from typing import List, Optional
 
 from b_domain.entities.time_entry import TimeEntry
+from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.value_objects.identifiers import TaskId, UserId, TimeEntryId
 
 
@@ -49,4 +50,9 @@ class TimeEntryRepository(ABC):
     @abstractmethod
     async def find_by_user(self, user_id: UserId) -> List[TimeEntry]:
         """Retrieves the full time tracking history for a user."""
+        raise NotImplementedError
+
+    @abstractmethod
+    async def search(self, filters: TimeEntryFilter) -> List[TimeEntry]:
+        """Searches for time entries matching the given filters."""
         raise NotImplementedError
