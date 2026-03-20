@@ -1,12 +1,13 @@
 from abc import ABC, abstractmethod
 from typing import List, Optional
 
+from a_core import BaseRepository, tracks_entity
 from b_domain.entities import Task
 from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.value_objects.identifiers import TaskId, UserId
 
 
-class TaskRepository(ABC):
+class TaskRepository(ABC, BaseRepository):
     """Contract for persistence operations on tasks.
 
     Any database adapter (e.g., SQLiteTaskRepository, PostgresTaskRepository)
@@ -14,6 +15,7 @@ class TaskRepository(ABC):
     """
 
     @abstractmethod
+    @tracks_entity
     async def add(self, task: Task) -> Task:
         """Persist a new task.
 
@@ -57,6 +59,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def get_by_id(self, task_id: TaskId, user_id: Optional[UserId] = None) -> Optional[Task]:
         """Retrieve a task by its exact ID.
 
@@ -72,6 +75,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def list(self, filters: TaskFilter) -> List[Task]:
         """Return a paginated list of tasks based on provided filters.
 
@@ -101,6 +105,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def get_subtasks(self, parent_id: TaskId, limit: int = 100, offset: int = 0) -> List[Task]:
         """Retrieve direct children of a task.
 
@@ -116,6 +121,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def find_by_id_prefix(self, id_prefix: str, user_id: UserId = None) -> List[Task]:
         """Find tasks by matching an ID prefix.
 
@@ -128,6 +134,7 @@ class TaskRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def find_tasks_blocked_by(self, target_id: TaskId) -> List[Task]:
         """Retrieve all tasks that depend on the given task ID.
 
