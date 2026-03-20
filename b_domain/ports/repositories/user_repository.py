@@ -1,13 +1,13 @@
 from abc import abstractmethod, ABC
-from typing import List, Optional, TYPE_CHECKING
+from typing import List, Optional
 
-if TYPE_CHECKING:
-    from b_domain.entities import User
-    from b_domain.ports.repositories.filters import UserFilter
-    from b_domain.value_objects.identifiers import UserId
+from a_core import BaseRepository, tracks_entity
+from b_domain.entities import User
+from b_domain.ports.repositories.filters import UserFilter
+from b_domain.value_objects.identifiers import UserId
 
 
-class UserRepository(ABC):
+class UserRepository(ABC, BaseRepository):
     """Contract for User persistence operations.
 
     Any database adapter must implement these methods to be injected
@@ -15,6 +15,7 @@ class UserRepository(ABC):
     """
 
     @abstractmethod
+    @tracks_entity
     async def add(self, user: "User") -> None:
         """Add a new user.
 
@@ -42,6 +43,7 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def get_by_id(self, user_id: "UserId") -> Optional["User"]:
         """Retrieve a user by their unique ID.
 
@@ -53,6 +55,7 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
     async def get_by_username(self, username: str) -> Optional["User"]:
         """Retrieve a user by their username.
 
@@ -64,6 +67,16 @@ class UserRepository(ABC):
         """
 
     @abstractmethod
+    @tracks_entity
+    async def get_by_email(self, email: str) -> Optional[User]:
+        """Retrieve a user by their email address.
+
+        Args:
+            email (str): The unique email address.
+        """
+
+    @abstractmethod
+    @tracks_entity
     async def list(self, filters: "UserFilter") -> List["User"]:
         """Return a paginated list of users based on provided filters.
 
