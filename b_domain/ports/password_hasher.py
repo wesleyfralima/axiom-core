@@ -1,13 +1,14 @@
-from typing import Protocol
+from abc import ABC, abstractmethod
 
 
-class PasswordHasher(Protocol):
+class PasswordHasher(ABC):
     """Contract for secure password hashing and verification.
 
     This port allows the domain to hash and verify passwords without
     depending on specific cryptographic libraries (like bcrypt or argon2).
     """
 
+    @abstractmethod
     def hash(self, password: str) -> str:
         """Hash a plaintext password securely.
 
@@ -18,6 +19,7 @@ class PasswordHasher(Protocol):
             str: The resulting secure hash.
         """
 
+    @abstractmethod
     def verify(self, plain_password: str, hashed_password: str) -> bool:
         """Verify a plaintext password against a stored hash.
 
