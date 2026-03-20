@@ -56,6 +56,7 @@ class UserPrefsInputDTO(DTO):
 class CreateUserInputDTO(DTO):
     """DTO for creating a new user with secure password handling."""
     username: str
+    email: str
     password: str
 
 
