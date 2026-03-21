@@ -1,9 +1,10 @@
 from abc import ABC, abstractmethod
-from typing import Sequence, Type, Callable, Awaitable
+from typing import Sequence, Type, Callable, Awaitable, TypeVar
 
 from a_core import DomainEvent
 
-EventHandlerType = Callable[[DomainEvent], Awaitable[None]]
+T = TypeVar("T", bound=DomainEvent, contravariant=True)
+EventHandlerType = Callable[[T], Awaitable[None]]
 
 
 class EventBus(ABC):
