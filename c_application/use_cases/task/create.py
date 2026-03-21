@@ -63,10 +63,10 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
         now_system: datetime = self.clock.now()
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 2. User resolution & preference fetching
-            user: User = await self.uow.users.get_by_id(user_id_vo)
+            user: User = await uow.users.get_by_id(user_id_vo)
             if not user:
                 raise ValidationException(f"User with ID {dto.user_id} not found.")
 
@@ -74,7 +74,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             parent_id_vo: Optional[TaskId] = None
             if dto.parent_id:
                 try:
-                    parent: Task | None = await self.uow.tasks.get_by_id(TaskId(UUID(dto.parent_id)))
+                    parent: Task | None = await uow.tasks.get_by_id(TaskId(UUID(dto.parent_id)))
                     if not parent or parent.user_id != user_id_vo:
                         raise ValidationException("Parent task not found or access denied.")
                     parent_id_vo = parent.id
@@ -148,7 +148,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 required_energy_level=energy_level_enum,
             )
 
-            await self.uow.tasks.add(task)
+            await uow.tasks.add(task)
 
         # 8. Return mapped output DTO
         return TaskMapper.to_output(task, now_system)

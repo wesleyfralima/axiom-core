@@ -43,10 +43,10 @@ class DeleteTaskUseCase(UseCase[TaskByUserRequest, None]):
         except (ValueError, TypeError):
             raise ValidationException("The provided user_id is invalid.")
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 2. Search by prefix
-            tasks_found: list[Task] = await self.uow.tasks.find_by_id_prefix(
+            tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=task_id_prefix,
                 user_id=user_id,
             )
@@ -64,4 +64,4 @@ class DeleteTaskUseCase(UseCase[TaskByUserRequest, None]):
             task_to_delete: Task = tasks_found[0]
 
             # 3. Safe deletion
-            await self.uow.tasks.delete(task_to_delete.id)
+            await uow.tasks.delete(task_to_delete.id)

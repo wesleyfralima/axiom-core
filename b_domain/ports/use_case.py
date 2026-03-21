@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import TypeVar, Generic
+from typing import Callable, Generic, TypeVar
 
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unity_of_work import UnitOfWork
@@ -7,6 +7,8 @@ from b_domain.ports.unity_of_work import UnitOfWork
 # Generic types for Use Case Input (Request) and Output (Response)
 TRequest: TypeVar = TypeVar("TRequest")
 TResponse: TypeVar = TypeVar("TResponse")
+
+UowFactoryType = Callable[[], UnitOfWork]
 
 
 class UseCase(ABC, Generic[TRequest, TResponse]):
@@ -18,11 +20,25 @@ class UseCase(ABC, Generic[TRequest, TResponse]):
 
     def __init__(
             self,
-            uow: "UnitOfWork",
-            clock: "ClockProvider",
+            uow_factory: UowFactoryType,
+            clock: ClockProvider,
     ):
-        self.uow = uow
+        self._uow_factory = uow_factory
         self.clock = clock
+
+    @property
+    def uow(self) -> UnitOfWork:
+        """Return a new UnitOfWork instance.
+
+        This property creates a fresh UnitOfWork every time it is accessed.
+        It ensures that constructs like `async with self.uow` in subclasses
+        always open a new transactional context, preventing reuse of stale
+        sessions and guaranteeing isolation.
+
+        Returns:
+            UnitOfWork: A newly created UnitOfWork instance.
+        """
+        return self._uow_factory()
 
     @abstractmethod
     def execute(self, request: TRequest) -> TResponse:

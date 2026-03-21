@@ -35,10 +35,10 @@ class UpdateUserPreferencesUseCase(UseCase[UserPrefsInputDTO, UserOutputDTO]):
             DomainException: If the user does not exist.
         """
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 1. Retrieve user aggregate
-            user: User = await self.uow.users.get_by_username(request.username)
+            user: User = await uow.users.get_by_username(request.username)
             if not user:
                 raise DomainException(f"User '{request.username}' not found.")
 
@@ -58,7 +58,7 @@ class UpdateUserPreferencesUseCase(UseCase[UserPrefsInputDTO, UserOutputDTO]):
 
             # 4. Persistence
             # Repository saves the full state of preferences
-            await self.uow.users.update(user)
+            await uow.users.update(user)
 
         # 5. Centralized output mapping
         return UserMapper.to_output(user)

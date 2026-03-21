@@ -4,8 +4,7 @@ from b_domain.entities import User
 from b_domain.exceptions import SecurityException
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import TokenProvider, ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork
-from b_domain.ports.use_case import UseCase
+from b_domain.ports.use_case import UseCase, UowFactoryType
 from c_application.dtos.auth_dtos import LoginInputDTO, TokenOutputDTO
 
 
@@ -20,7 +19,7 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
 
     def __init__(
             self,
-            uow: UnitOfWork,
+            uow_factory: UowFactoryType,
             clock: ClockProvider,
             hasher: PasswordHasher,
             token_provider: TokenProvider,
@@ -28,12 +27,12 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
         """Initialize the authentication use case.
 
         Args:
-            uow (UnitOfWork): Unit of Work for managing repositories and transactions.
+            uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
             clock (ClockProvider): Provides current time for token claims.
             hasher (PasswordHasher): Service for verifying password hashes.
             token_provider (TokenProvider): Service for generating JWT access tokens.
         """
-        super().__init__(uow, clock)
+        super().__init__(uow_factory, clock)
         self.hasher = hasher
         self.token_provider = token_provider
 
@@ -56,10 +55,10 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
             SecurityException: If the username does not exist or the password is invalid.
         """
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 1. Identity lookup
-            user: User = await self.uow.users.get_by_username(dto.username)
+            user: User = await uow.users.get_by_username(dto.username)
 
             # 2. Security validation
             # `hasher.verify` protects against timing attacks and raw hash leaks

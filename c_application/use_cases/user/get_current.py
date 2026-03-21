@@ -4,7 +4,7 @@ from b_domain.entities import User
 from b_domain.exceptions.security import ExpiredTokenError, InvalidTokenError
 from b_domain.ports.providers import TokenProvider, ClockProvider
 from b_domain.ports.unity_of_work import UnitOfWork
-from b_domain.ports.use_case import UseCase
+from b_domain.ports.use_case import UseCase, UowFactoryType
 from c_application.dtos.user_dtos import UserOutputDTO
 from c_application.mappers.user_mapper import UserMapper
 
@@ -19,18 +19,18 @@ class GetCurrentUserFromTokenUseCase(UseCase[str, Optional[UserOutputDTO]]):
 
     def __init__(
             self,
-            uow: UnitOfWork,
+            uow_factory: UowFactoryType,
             clock: ClockProvider,
             token_provider: TokenProvider,
     ):
         """Initialize the use case.
 
         Args:
-            uow (UnitOfWork): Unit of Work for managing repositories and transactions.
+            uow_factory (UnitOfWork): Unit of Work factory for managing repositories and transactions.
             clock (ClockProvider): Provides current time for validation (not directly used here).
             token_provider (TokenProvider): Service for decoding and validating JWT tokens.
         """
-        super().__init__(uow, clock)
+        super().__init__(uow_factory, clock)
         self.token_provider = token_provider
 
     async def execute(self, token: str) -> Optional[UserOutputDTO]:
@@ -61,8 +61,8 @@ class GetCurrentUserFromTokenUseCase(UseCase[str, Optional[UserOutputDTO]]):
             return None
 
         # 2. Existence and integrity validation
-        async with self.uow:
-            user: User | None = await self.uow.users.get_by_username(username)
+        async with self.uow as uow:
+            user: User | None = await uow.users.get_by_username(username)
             if not user:
                 return None
 

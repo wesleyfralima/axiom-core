@@ -58,10 +58,10 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         except ValueError:
             raise ValidationException("The provided priority is invalid.")
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 2. Search by prefix scoped to user
-            tasks_found: List[Task] = await self.uow.tasks.find_by_id_prefix(
+            tasks_found: List[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=request.task_id_prefix,
                 user_id=user_id
             )
@@ -91,7 +91,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 task.update_due_date(now, request.due_date)
 
             # 4. Persistence
-            await self.uow.tasks.update(task)
+            await uow.tasks.update(task)
 
         # 5. Return mapped output DTO
         return TaskMapper.to_output(task, now)

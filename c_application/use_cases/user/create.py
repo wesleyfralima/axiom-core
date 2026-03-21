@@ -2,8 +2,7 @@ from a_core.exceptions import DomainException
 from b_domain.entities.user import User
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork
-from b_domain.ports.use_case import UseCase
+from b_domain.ports.use_case import UseCase, UowFactoryType
 from c_application.dtos.user_dtos import CreateUserInputDTO, UserOutputDTO
 from c_application.mappers.user_mapper import UserMapper
 
@@ -20,18 +19,18 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
 
     def __init__(
             self,
-            uow: UnitOfWork,
+            uow_factory: UowFactoryType,
             clock: ClockProvider,
             hasher: PasswordHasher,
     ):
         """Initialize the CreateUserUseCase.
 
         Args:
-            uow (UnitOfWork): Unit of Work for managing repositories and transactions.
+            uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
             clock (ClockProvider): Provides current time for entity creation.
             hasher (PasswordHasher): Service for hashing user passwords.
         """
-        super().__init__(uow, clock)
+        super().__init__(uow_factory, clock)
         self.hasher = hasher
 
     async def execute(self, dto: CreateUserInputDTO) -> UserOutputDTO:
@@ -54,10 +53,10 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             DomainException: If the username is already in use.
         """
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 1. Business rule validation (uniqueness)
-            existing_user: User | None = await self.uow.users.get_by_username(dto.username)
+            existing_user: User | None = await uow.users.get_by_username(dto.username)
             if existing_user:
                 raise DomainException(f"Username '{dto.username}' can not be used.")
 
@@ -73,7 +72,7 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             )
 
             # 4. Persistence
-            await self.uow.users.add(user)
+            await uow.users.add(user)
 
         # 5. Centralized output mapping
         return UserMapper.to_output(user)

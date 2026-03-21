@@ -50,9 +50,10 @@ class GetTaskUseCase(UseCase[None, TaskOutputDTO]):
         except (ValueError, TypeError):
             raise ValidationException("The provided user_id is invalid.")
 
-        async with self.uow:
+        async with self.uow as uow:
+
             # 2. Search with prefix support, scoped by user_id
-            tasks_found: list[Task] = await self.uow.tasks.find_by_id_prefix(
+            tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=task_id_prefix,
                 user_id=user_id
             )

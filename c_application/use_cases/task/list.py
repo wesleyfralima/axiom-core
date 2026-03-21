@@ -38,7 +38,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
             ValidationException: If the user ID is invalid.
         """
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 1. Validation and resolution of value objects
             try:
@@ -75,7 +75,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
             )
 
             # 3. Query repository
-            tasks: List[Task] = await self.uow.tasks.list(filters)
+            tasks: List[Task] = await uow.tasks.list(filters)
 
             # 4. Centralized mapping
             now: datetime = self.clock.now()

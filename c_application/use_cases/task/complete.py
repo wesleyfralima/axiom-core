@@ -4,7 +4,6 @@ from typing import Optional
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException, InvalidStateTransition
 from b_domain.entities import Task, TimeEntry
-from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unity_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskStatus, UserId
@@ -25,15 +24,6 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
     and dependency unlocking are delegated to event handlers.
     """
 
-    def __init__(self, uow: UnitOfWork, clock: ClockProvider):
-        """Initialize the use case.
-
-        Args:
-            uow (UnitOfWork): Unit of Work for transaction handling.
-            clock (ClockProvider): Provides current time.
-        """
-        super().__init__(uow, clock)
-
     async def execute(self, request: TaskByUserRequest) -> CompleteTaskOutputDTO:
         """Execute the task completion workflow.
 
@@ -48,31 +38,32 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         user_id: UserId = UserId.from_string(request.user_id)
         now: datetime = request.completed_at or self.clock.now()
 
-        async with self.uow:
+        async with self.uow as uow:
 
             # 1. Resolve the task by prefix
-            task: Task = await self._resolve_task(task_id_prefix, user_id)
+            task: Task = await self._resolve_task(uow, task_id_prefix, user_id)
 
             # 2. Close active timers and compute actual duration
-            actual_duration: int = await self._close_active_timers(task, now, request)
+            actual_duration: int = await self._close_active_timers(uow, task, now, request)
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
             task.mark_as_done(now, actual_minutes=actual_duration)
 
             # 4. Persist changes
-            await self.uow.tasks.update(task)
+            await uow.tasks.update(task)
 
             # Next occurrence will be generated asynchronously by CreateRecurringTaskHandler
             return self._build_response(task, None, now)
 
-    async def _resolve_task(self, prefix: str, user_id: UserId) -> Task:
+    @staticmethod
+    async def _resolve_task(uow: UnitOfWork, prefix: str, user_id: UserId) -> Task:
         """Resolve a task by ID prefix and validate its state for completion.
 
         Raises:
             ValidationException: If no task or multiple ambiguous tasks are found.
             InvalidStateTransition: If the task is already done or blocked.
         """
-        tasks_found: list[Task] = await self.uow.tasks.find_by_id_prefix(
+        tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
             id_prefix=prefix,
             user_id=user_id,
         )
@@ -97,7 +88,8 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
         return task
 
-    async def _close_active_timers(self, task: Task, now: datetime, request: TaskByUserRequest) -> int:
+    @staticmethod
+    async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest) -> int:
         """Close active timers for a task and compute actual duration.
 
         Args:
@@ -109,7 +101,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             int: Total elapsed minutes from timers.
         """
 
-        active_timers: list[TimeEntry] = await self.uow.time_entries.get_actives_for_task(task.id)
+        active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(task.id)
         if not active_timers:
             return 0
 
@@ -120,7 +112,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             timer.stop(effective_now)
             actual_duration += timer.elapsed_minutes(effective_now)
 
-        await self.uow.time_entries.update_all(active_timers)
+        await uow.time_entries.update_all(active_timers)
         return actual_duration
 
     @staticmethod

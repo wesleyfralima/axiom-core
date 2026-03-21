@@ -6,14 +6,11 @@ from c_application.dtos.context_dtos import SwitchContextRequest
 class SwitchContextUseCase(UseCase):
 
     async def execute(self, request: SwitchContextRequest) -> None:
-
-        async with self.uow:
-
-            user = await self.uow.users.get_by_id(request.user_id)
+        async with self.uow as uow:
+            user = await uow.users.get_by_id(request.user_id)
             if not user:
                 raise EntityNotFound(entity_name="User", identifier=str(request.user_id)[:8])
 
             new_prefs = user.update_prefs(active_context_id=request.context_id)
 
-            await self.uow.users.update(user)
-            await self.uow.commit()
+            await uow.users.update(user)
