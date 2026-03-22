@@ -3,7 +3,7 @@ from typing import Optional, Callable, Type, Any, TypeAlias
 from a_core import DomainEvent
 from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.ports.event_bus import EventBus
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unity_of_work import UnitOfWork, UowFactoryType
 from b_domain.services.user_behavior_learner import UserBehaviorLearner
 from b_domain.services.user_behavior_metrics_aggregator import UserBehaviorMetricsAggregator
 from c_application.handlers.task_handlers.create_recurring_task_handler import CreateRecurringTaskHandler
@@ -11,7 +11,6 @@ from c_application.handlers.task_handlers.unlock_task_dependencies_handler impor
 from c_application.handlers.user_handlers.update_user_behavior_handler import UpdateUserBehaviorHandler
 
 HandlerFactoryType: TypeAlias = Callable[[UnitOfWork], Any]
-UowFactoryType: TypeAlias = Callable[[], UnitOfWork]
 
 
 def register_essential_handlers(

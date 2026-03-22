@@ -1,7 +1,7 @@
 import logging
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Optional, Self, Type
+from typing import Optional, Self, Type, Protocol
 
 from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
@@ -13,6 +13,29 @@ from b_domain.ports.repositories.user_behavior_metrics_repository import UserBeh
 from b_domain.ports.repositories.user_behavior_profile_repository import UserBehaviorProfileRepository
 
 logger: logging.Logger = logging.getLogger(__name__)
+
+
+class UowFactoryType(Protocol):
+    """Protocol representing a UnitOfWork factory callable.
+
+    This protocol exists **only** for type hints. It defines the expected
+    signature of a UnitOfWork factory: a callable that may receive an
+    optional `trigger_relay` flag and returns a `UnitOfWork`.
+
+    Note:
+        We cannot use a simple `TypeAlias` here because Python type aliases
+        do not support optional parameters in call signatures. Using a
+        `Protocol` allows us to express the callable type with an optional
+        argument in a precise and type-safe way.
+
+    Example:
+        def my_uow_factory(trigger_relay: bool = True) -> UnitOfWork:
+            ...
+
+        factory: UowFactoryType = my_uow_factory
+    """
+
+    def __call__(self, trigger_relay: bool = ...) -> "UnitOfWork": ...
 
 
 class UnitOfWork(ABC):

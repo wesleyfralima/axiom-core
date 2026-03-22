@@ -1,14 +1,12 @@
 from abc import ABC, abstractmethod
-from typing import Callable, Generic, TypeVar
+from typing import Generic, TypeVar
 
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unity_of_work import UnitOfWork, UowFactoryType
 
 # Generic types for Use Case Input (Request) and Output (Response)
 TRequest: TypeVar = TypeVar("TRequest")
 TResponse: TypeVar = TypeVar("TResponse")
-
-UowFactoryType = Callable[[], UnitOfWork]
 
 
 class UseCase(ABC, Generic[TRequest, TResponse]):
