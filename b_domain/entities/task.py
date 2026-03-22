@@ -71,6 +71,7 @@ class Task(Entity):
             required_energy_level: EnergyLevel = EnergyLevel.BALANCED,
             context_id: Optional[ContextId] = None,
             parent_id: Optional[TaskId] = None,
+            depends_on: Optional[Set[TaskId]] = None,
             recurrence: Optional[RecurrenceRule] = None,
             due_date: Optional[datetime] = None,
             is_floating: bool = True,
@@ -92,6 +93,7 @@ class Task(Entity):
             required_energy_level (int): Energy required (1=Low, 2=Medium, 3=High).
             context_id (Optional[ContextId]): The focus context (e.g., 'Work', 'Home').
             parent_id (Optional[TaskId], optional): Parent task ID. Defaults to None.
+            depends_on (Optional[Set[TaskId]], optional): List of IDs of tasks that this depends on.
             recurrence (Optional[RecurrenceRule], optional): Recurrence rule. Defaults to None.
             due_date (Optional[datetime], optional): Due date. Defaults to None.
             is_floating (bool): Task floating. Defaults to True.
@@ -127,6 +129,9 @@ class Task(Entity):
                     "Fixed task must have an aware (UTC) recurrence start_date"
                 )
 
+        if depends_on is None:
+            depends_on = set()
+
         created: "Task" = cls(
             id=TaskId(),
             user_id=user_id,
@@ -140,6 +145,7 @@ class Task(Entity):
             created_at=now,
             updated_at=now,
             parent_id=parent_id,
+            depends_on=depends_on,
             recurrence=recurrence,
             complexity=complexity,
             estimated_duration_minutes=estimated_duration_minutes,
