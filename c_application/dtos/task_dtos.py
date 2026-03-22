@@ -31,6 +31,9 @@ class CreateTaskInputDTO(DTO):
     # Parent task ID for subtasks
     parent_id: Optional[str] = None
 
+    # List of other tasks ID's that this task depend on
+    depends_on: set[str] = field(default_factory=set)
+
     # Recurrence configuration
     recurrence: Optional[RecurrenceInputDTO] = None
 
