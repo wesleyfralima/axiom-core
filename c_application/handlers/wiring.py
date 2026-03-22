@@ -1,3 +1,4 @@
+import inspect
 from typing import Optional, Callable, Type, Any, TypeAlias
 
 from a_core import DomainEvent
@@ -105,6 +106,20 @@ def _subscribe(
     async def handler(event: DomainEvent):
         async with uow_factory() as uow:
             instance = handler_cls(uow, **extras)
-            await instance(event)
+
+            # 1. Try to get the 'handle' method; if not present, use the instance itself
+            target = getattr(instance, "handle", instance)
+
+            # 2. Verify that the target is callable and check if it's async
+            if callable(target):
+                if inspect.iscoroutinefunction(target):
+                    await target(event)
+                else:
+                    # If synchronous, decide whether to execute or raise an error
+                    target(event)
+            else:
+                raise TypeError(
+                    f"The handler '{handler_cls.__name__}' is not callable and does not contain a 'handle' method.'."
+                )
 
     bus.subscribe(event_type, handler)
