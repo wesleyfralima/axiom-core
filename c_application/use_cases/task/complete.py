@@ -2,11 +2,11 @@ from datetime import datetime
 from typing import Optional
 
 from a_core import IdPrefix
-from a_core.exceptions import ValidationException, InvalidStateTransition
+from a_core.exceptions import ValidationException
 from b_domain.entities import Task, TimeEntry
 from b_domain.ports.unity_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import TaskStatus, UserId
+from b_domain.value_objects import TaskId, UserId
 from c_application.dtos.task_dtos import CompleteTaskOutputDTO, TaskByUserRequest
 from c_application.mappers.task_mapper import TaskMapper
 
@@ -34,14 +34,21 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             CompleteTaskOutputDTO: DTO with details of the completed task.
         """
 
-        task_id_prefix: str = IdPrefix(request.task_id_prefix).value
-        user_id: UserId = UserId.from_string(request.user_id)
+        try:
+            task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
+            user_id: UserId = UserId.from_string(request.user_id)
+        except ValidationException as e:
+            raise ValidationException(str(e)) from e
+
         now: datetime = request.completed_at or self.clock.now()
 
         async with self.uow as uow:
 
             # 1. Resolve the task by prefix
-            task: Task = await self._resolve_task(uow, task_id_prefix, user_id)
+            try:
+                task: Task = await self._resolve_task(uow, task_id_prefix, user_id)
+            except ValueError as e:
+                raise ValidationException(str(e)) from e
 
             # 2. Close active timers and compute actual duration
             actual_duration: int = await self._close_active_timers(uow, task, now, request)
@@ -56,37 +63,27 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             return self._build_response(task, None, now)
 
     @staticmethod
-    async def _resolve_task(uow: UnitOfWork, prefix: str, user_id: UserId) -> Task:
+    async def _resolve_task(uow: UnitOfWork, prefix: IdPrefix, user_id: UserId) -> Task:
         """Resolve a task by ID prefix and validate its state for completion.
+
+        Args:
+            uow (UnitOfWork): UnitOfWork used to resolve the task.
+            prefix (IdPrefix): Prefix used to resolve the task.
+            user_id (UserId): User ID used to resolve the task.
 
         Raises:
             ValidationException: If no task or multiple ambiguous tasks are found.
             InvalidStateTransition: If the task is already done or blocked.
         """
-        tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
-            id_prefix=prefix,
+
+        # Despite going twice to the database, this method is corrected and safe
+
+        id_iterable = [prefix]
+        ids_found: list[TaskId] = await uow.tasks.task_ids_from_id_prefixes(id_iterable)
+        return await uow.tasks.get_by_id(
+            task_id=ids_found[0],
             user_id=user_id,
         )
-
-        if not tasks_found:
-            raise ValidationException(f"No task found with ID prefix '{prefix}'.")
-
-        if len(tasks_found) > 1:
-            conflicting_ids = ", ".join([str(t.id)[:8] for t in tasks_found])
-            raise ValidationException(
-                f"Ambiguous ID. Found {len(tasks_found)} tasks: [{conflicting_ids}]. "
-                "Please provide a more specific prefix."
-            )
-
-        task: Task = tasks_found[0]
-
-        if task.status == TaskStatus.DONE:
-            raise InvalidStateTransition("Task is already completed.")
-
-        if task.is_blocked:
-            raise InvalidStateTransition("Task is blocked by dependencies.")
-
-        return task
 
     @staticmethod
     async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest) -> int:
