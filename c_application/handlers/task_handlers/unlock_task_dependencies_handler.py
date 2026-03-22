@@ -1,5 +1,6 @@
 from b_domain.entities import Task
 from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unity_of_work import UnitOfWork
 
 
@@ -10,13 +11,15 @@ class UnlockTaskDependenciesHandler:
     depended on it, ensuring that blocked tasks can now proceed.
     """
 
-    def __init__(self, uow: UnitOfWork):
+    def __init__(self, uow: UnitOfWork, clock: ClockProvider):
         """Initialize the handler with a UnitOfWork.
 
         Args:
             uow (UnitOfWork): Unit of Work instance for transactional consistency.
+            clock (ClockProvider): Clock instance to manage transactional consistency.
         """
         self.uow = uow
+        self.clock = clock
 
     async def handle(self, event: TaskCompletedEvent) -> None:
         """Handle a TaskCompletedEvent.
@@ -40,7 +43,7 @@ class UnlockTaskDependenciesHandler:
 
             # Remove dependency from each blocked task
             for task in blocked_tasks:
-                task.remove_dependency(event.task_id)
+                task.remove_dependency(event.task_id, self.clock.now())
 
             # Bulk update all unlocked tasks
             await self.uow.tasks.update_many(blocked_tasks)

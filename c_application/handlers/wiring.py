@@ -4,6 +4,7 @@ from typing import Optional, Callable, Type, Any, TypeAlias
 from a_core import DomainEvent
 from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.ports.event_bus import EventBus
+from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unity_of_work import UnitOfWork, UowFactoryType
 from b_domain.services.user_behavior_learner import UserBehaviorLearner
 from b_domain.services.user_behavior_metrics_aggregator import UserBehaviorMetricsAggregator
@@ -17,6 +18,7 @@ HandlerFactoryType: TypeAlias = Callable[[UnitOfWork], Any]
 def register_essential_handlers(
         bus: EventBus,
         uow_factory: UowFactoryType,
+        clock: ClockProvider,
 ):
     """Register essential event handlers required for system integrity.
 
@@ -27,20 +29,32 @@ def register_essential_handlers(
     Args:
         bus (EventBus): The event bus instance used for publishing and subscribing events.
         uow_factory (UowFactoryType): Factory of UnitOfWork instances to manage transactional consistency.
+        clock (Clock): Clock instance to manage transactional consistency.
     """
 
     # Unlocking task dependencies is vital for task flow:
     # When a task is completed, dependent tasks must be unlocked so that
     # users can continue progressing. Without this, blocked tasks would
     # remain inaccessible, breaking the GTD workflow and halting productivity.
-    _subscribe(bus, uow_factory, TaskCompletedEvent, UnlockTaskDependenciesHandler)
+    _subscribe(
+        bus,
+        uow_factory,
+        TaskCompletedEvent,
+        UnlockTaskDependenciesHandler,
+        clock=clock,
+    )
 
     # Recurrence is a core business rule:
     # Completing a recurring task should automatically generate the next
     # occurrence. This ensures that recurring commitments (e.g., weekly
     # reports, daily routines) are preserved without manual intervention.
     # Without this handler, recurring tasks would stop after the first completion.
-    _subscribe(bus, uow_factory, TaskCompletedEvent, CreateRecurringTaskHandler)
+    _subscribe(
+        bus,
+        uow_factory,
+        TaskCompletedEvent,
+        CreateRecurringTaskHandler,
+    )
 
 
 def register_optional_handlers(
