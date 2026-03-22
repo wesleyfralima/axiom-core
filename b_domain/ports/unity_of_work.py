@@ -31,14 +31,20 @@ class UnitOfWork(ABC):
     user_behavior_metrics: UserBehaviorMetricsRepository
     user_behavior_profiles: UserBehaviorProfileRepository
 
-    def __init__(self, event_bus: EventBus):
+    def __init__(
+            self,
+            event_bus: EventBus,
+            trigger_relay: bool = True,
+    ):
         """Initialize the UnitOfWork with an event bus.
 
         Args:
             event_bus (EventBus): Event bus used to publish domain events.
+            trigger_relay (bool): If true, trigger relay events when published.
         """
         self.event_bus = event_bus
         self._seen_entities: set[Entity] = set()
+        self._trigger_relay = trigger_relay
 
     async def __aenter__(self) -> Self:
         """Enter the UnitOfWork context.
@@ -77,10 +83,11 @@ class UnitOfWork(ABC):
 
             # Notify the system that new events are available in the outbox.
             # If this fails, background workers will eventually pick them up.
-            try:
-                await self.event_bus.trigger_relay()
-            except Exception as e:
-                logger.exception(f"Unknown exception while triggering relay: {e}")
+            if self._trigger_relay:
+                try:
+                    await self.event_bus.trigger_relay()
+                except Exception as e:
+                    logger.exception(f"Unknown exception while triggering relay: {e}")
 
         except Exception:
             # If commit fails (e.g., network failure, integrity error),
