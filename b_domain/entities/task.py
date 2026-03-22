@@ -137,7 +137,7 @@ class Task(Entity):
             user_id=user_id,
             title=title,
             description=description,
-            status=TaskStatus.PENDING,
+            status=TaskStatus.BLOCKED if depends_on else TaskStatus.PENDING,
             priority=Priority(priority),
             required_energy_level=EnergyLevel(required_energy_level),
             context_id=context_id,
