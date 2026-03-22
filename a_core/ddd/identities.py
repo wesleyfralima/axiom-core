@@ -1,7 +1,7 @@
 from dataclasses import dataclass, field
 from uuid import UUID, uuid4
 
-from a_core.ddd.value_objects import ValueObject
+from a_core.ddd.value_objects import TextValueObject, ValueObject
 from a_core.exceptions import ValidationException
 
 
@@ -32,16 +32,12 @@ class UniqueId(ValueObject):
 
 
 @dataclass(frozen=True)
-class IdPrefix(ValueObject):
+class IdPrefix(TextValueObject):
     """Strong identifier for IDs prefixes."""
 
     value: str
 
-    def __post_init__(self):
-        if len(self.value) < 4:
-            raise ValidationException(
-                "The ID prefix must be at least 4 characters long."
-            )
-
-    def __str__(self) -> str:
-        return self.value
+    ALLOW_NONE = False
+    STRIP = True
+    MIN_LENGTH = 4
+    MAX_LENGTH = 32
