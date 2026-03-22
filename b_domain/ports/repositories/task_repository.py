@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
-from typing import List, Optional
+from typing import Iterable, List, Optional
 
-from a_core import BaseRepository, tracks_entity
+from a_core import BaseRepository, IdPrefix, tracks_entity
 from b_domain.entities import Task
 from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.value_objects.identifiers import TaskId, UserId
@@ -144,3 +144,25 @@ class TaskRepository(ABC, BaseRepository):
         Returns:
             List[Task]: Tasks that have target_id in their depends_on set.
         """
+
+    @abstractmethod
+    async def task_ids_from_id_prefixes(self, partial_ids: Iterable[IdPrefix]) -> List[TaskId]:
+        """Retrieve TaskId objects from a list of ID prefixes.
+
+        This method resolves each provided `IdPrefix` into its corresponding
+        `TaskId`. It guarantees a strict 1:1 mapping: every prefix must match
+        exactly one task identifier. This is useful for cases where only partial
+        IDs are available (e.g., user input, autocomplete) and the system needs
+        to resolve them into full task identifiers.
+
+        Args:
+            partial_ids (Iterable[IdPrefix]): Iterable of ID prefix objects to
+                resolve into full TaskIds.
+
+        Returns:
+            List[TaskId]: List of TaskIds whose IDs start with the given prefix.
+
+        Raises:
+            ValueError: If any ID prefix does not correspond to exactly one TaskId.
+        """
+        raise NotImplementedError
