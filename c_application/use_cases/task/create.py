@@ -47,7 +47,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
         # 1. Data validation
         try:
-            user_id_vo: UserId = UserId(UUID(dto.user_id)) if dto.user_id else None
+            user_id_vo: UserId = UserId.from_string(dto.user_id)
             title_vo: Title = Title(dto.title)
             description_vo: Description = Description(dto.description if dto.description else None)
 
@@ -60,6 +60,11 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
         except ValidationException as e:
             raise ValidationException(str(e))
+
+        try:
+            depends_on_vo: set[TaskId] = set([TaskId.from_string(tid) for tid in dto.depends_on])
+        except (ValueError, TypeError) as e:
+            raise ValidationException("'depends_on' parameter contains invalid UUIDs") from e
 
         now_system: datetime = self.clock.now()
 
@@ -140,6 +145,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 description=description_vo,
                 priority=priority,
                 parent_id=parent_id_vo,
+                depends_on=depends_on_vo,
                 context_id=context_id_vo,
                 recurrence=recurrence_vo,
                 due_date=due_date,
