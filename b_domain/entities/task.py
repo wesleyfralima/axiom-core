@@ -273,7 +273,7 @@ class Task(Entity):
 
         # Rebuild DueDate VO preserving floating/fixed semantics
         if self.due_date.is_floating:
-            new_due_vo = DueDate.floating(new_date, source_tz=self.due_date.timezone)
+            new_due_vo = DueDate.floating(new_date.replace(tzinfo=None), source_tz=self.due_date.timezone)
         else:
             new_due_vo = DueDate.fixed(new_date)
 
