@@ -72,7 +72,10 @@ class OutboxRelayService:
             except Exception as e:
                 # Apply retry logic with exponential backoff
                 self._handle_failure(entry, str(e))
-                logger.error(f"Failed to dispatch event {entry.event_name} with ID {entry.event_id}: {e}")
+                logger.error(
+                    f"Failed to dispatch event {entry.event_name} with ID {entry.event_id}: {e}",
+                    exc_info=True,
+                )
 
             finally:
                 # Persist updated state (success or failure)
