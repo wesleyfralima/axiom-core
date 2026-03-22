@@ -72,7 +72,7 @@ class OutboxRelayService:
             except Exception as e:
                 # Apply retry logic with exponential backoff
                 self._handle_failure(entry, str(e))
-                logger.error(f"Failed to dispatch event {entry.event_id}: {e}")
+                logger.error(f"Failed to dispatch event {entry.event_name} with ID {entry.event_id}: {e}")
 
             finally:
                 # Persist updated state (success or failure)
@@ -120,5 +120,5 @@ class OutboxRelayService:
 
         # Exponential backoff strategy:
         # 1st retry = 1min, 2nd = 2min, 3rd = 4min, etc.
-        wait_minutes = entry.retry_count ** 2
+        wait_minutes: int = entry.retry_count ** 2
         entry.scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=wait_minutes)
