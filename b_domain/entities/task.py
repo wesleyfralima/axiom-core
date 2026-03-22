@@ -186,8 +186,10 @@ class Task(Entity):
             raise ValidationException("A task cannot depend on itself.")
         self.depends_on.add(target_id)
 
-    def remove_dependency(self, target_id: TaskId):
+    def remove_dependency(self, target_id: TaskId, now: datetime):
         self.depends_on.discard(target_id)
+        if not self.depends_on:
+            self.change_status(now, TaskStatus.PENDING)
 
     @property
     def is_blocked(self) -> bool:
