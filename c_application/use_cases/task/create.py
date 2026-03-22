@@ -49,7 +49,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
         try:
             user_id_vo: UserId = UserId(UUID(dto.user_id)) if dto.user_id else None
             title_vo: Title = Title(dto.title)
-            description_vo: Description = Description(dto.description) if dto.description else None
+            description_vo: Description = Description(dto.description if dto.description else None)
 
             energy_level_enum: EnergyLevel | None = None
             if dto.required_energy_level:
