@@ -6,19 +6,19 @@ from a_core.exceptions import EntityNotFound, ValidationException
 from b_domain.entities import Task
 from b_domain.ports.repositories import TaskFilter
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import TaskId, TaskStatus, Priority, UserId
-from c_application.dtos.task_dtos import TaskOutputDTO, ListTasksRequest
+from b_domain.value_objects import Priority, TaskId, TaskStatus, UserId
+from c_application.dtos.task_dtos import ListTasksRequest, TaskListOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 
 
-class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
+class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
     """Use case for listing tasks with filtering and domain mapping.
 
     This use case applies filters such as status, priority, parent ID,
     tags, and root-only flag, then maps the results into output DTOs.
     """
 
-    async def execute(self, request: ListTasksRequest) -> List[TaskOutputDTO]:
+    async def execute(self, request: ListTasksRequest) -> TaskListOutputDTO:
         """Execute the task listing workflow.
 
         Steps:
@@ -31,7 +31,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
             request (ListTasksRequest): Request object containing filter criteria.
 
         Returns:
-            List[TaskOutputDTO]: List of tasks matching the filters.
+            TaskListOutputDTO: List of tasks matching the filters.
 
         Raises:
             EntityNotFound: If status or priority values are invalid.
@@ -62,7 +62,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
                     f_parent_id = TaskId(UUID(request.parent_id))
                 except (ValueError, TypeError):
                     # Safe behavior: return empty list if parent ID is invalid
-                    return []
+                    return TaskListOutputDTO(tasks=[])
 
             # 2. Build domain filter
             filters: TaskFilter = TaskFilter(
@@ -79,4 +79,6 @@ class ListTasksUseCase(UseCase[ListTasksRequest, List[TaskOutputDTO]]):
 
             # 4. Centralized mapping
             now: datetime = self.clock.now()
-            return [TaskMapper.to_output(task, now) for task in tasks]
+            return TaskListOutputDTO(
+                tasks=[TaskMapper.to_output(task, now) for task in tasks],
+            )

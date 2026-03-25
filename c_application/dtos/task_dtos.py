@@ -97,8 +97,25 @@ class TaskOutputDTO(DTO):
     is_in_focus: bool = False
 
 
+@dataclass(frozen=True, kw_only=True)
+class CreateTaskOutputDTO(TaskOutputDTO):
+    """Output DTO for task creation.
+
+    Represents the result of creating a new task.
+    Inherits all fields from TaskOutputDTO.
+    """
+    pass
+
+
 @dataclass(frozen=True)
 class TaskByUserRequest(DTO):
+    """Request DTO for fetching a task by user.
+
+    Attributes:
+        task_id_prefix (str): Prefix of the task ID used for lookup.
+        user_id (str): Identifier of the user associated with the task.
+        completed_at (Optional[datetime]): Completion timestamp, if available.
+    """
     task_id_prefix: str
     user_id: str
     completed_at: Optional[datetime] = None
@@ -139,3 +156,13 @@ class ListTasksRequest(DTO):
 
     tags: List[str] = field(default_factory=list)
     only_roots: bool = False
+
+
+@dataclass(frozen=True)
+class TaskListOutputDTO(DTO):
+    """Output DTO representing a list of tasks.
+
+    Attributes:
+        tasks (List[TaskOutputDTO]): Collection of task output DTOs.
+    """
+    tasks: List[TaskOutputDTO]
