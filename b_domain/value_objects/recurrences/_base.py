@@ -226,8 +226,6 @@ class RecurrenceRule(ValueObject, ABC):
     # UTILITIES FOR SUBCLASSES
     # --------------------------------------------------------------------------
 
-    from datetime import datetime, date
-
     def normalize_comparison_date(self, dt: datetime) -> datetime:
         """Normalize a datetime for comparison with recurrence rules.
 
