@@ -20,53 +20,43 @@ class WeeklyByDaysRule(RecurrenceRule):
     days_of_week: Set[int]
 
     def __post_init__(self) -> None:
-        """Validate the specific invariants for weekly rules."""
+        """Validate the specific invariants for weekly rules.
+
+        Raises:
+            InvalidWeekDayValue: If `days_of_week` is empty or contains invalid values.
+        """
+
         super().__post_init__()
+        object.__setattr__(self, "_freq", "WEEKLY")
 
         if not self.days_of_week:
             raise InvalidWeekDayValue("days_of_week cannot be empty.")
 
-        invalids = [d for d in self.days_of_week if not (0 <= d <= 6)]
+        invalids: list[int] = [d for d in self.days_of_week if not (0 <= d <= 6)]
         if invalids:
             raise InvalidWeekDayValue(str(invalids))
 
-    @property
-    def rrule_string(self) -> str:
-        """Generates the RFC 5545 string specifically for weekly recurrence."""
-
-        parts = ["FREQ=WEEKLY"]
-
-        if self.interval > 1:
-            parts.append(f"INTERVAL={self.interval}")
-
-        if self.count:
-            parts.append(f"COUNT={self.count}")
-        elif self.end_date:
-            dt_str = self.end_date.strftime("%Y%m%dT%H%M%S")
-            if self.end_date.tzinfo is not None:
-                dt_str += "Z"
-            parts.append(f"UNTIL={dt_str}")
-
-        # Map Python's 0-6 (Monday-Sunday) to RFC 5545 days
+    def _rrule_extra_parts(self) -> list[str]:
+        """Generate BYDAY part for RFC 5545 RRULE string."""
         day_map = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
         days_str = ",".join(day_map[d] for d in sorted(self.days_of_week))
-        parts.append(f"BYDAY={days_str}")
-
-        return f"RRULE:{';'.join(parts)}"
+        return [f"BYDAY={days_str}"]
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Calcula a primeira ocorrência válida.
-        Pode ser a própria start_date ou o próximo dia permitido na semana.
+        Calculate the first valid occurrence.
+        It may be the start_date itself or the next allowed weekday.
         """
 
-        # 1. Normalizamos a data de início para a lógica de comparação
-        start_norm = self._normalize_comparison_date(self.start_date)
+        base_dt: datetime = self.start_date.materialize()
 
-        # 2. Encontramos o início da semana (segunda-feira) da start_date
+        # 1. Normalize start_date for comparison logic
+        start_norm = self._normalize_comparison_date(base_dt)
+
+        # 2. Find the start of the week (Monday) for start_date
         week_start = start_norm - timedelta(days=start_norm.weekday())
 
-        # 3. Procuramos o primeiro dia da lista 'days_of_week' que seja maior ou igual a start_date
+        # 3. Search for the first allowed weekday >= start_date
         valid_days = sorted(self.days_of_week)
         for day_idx in valid_days:
             candidate_date = (week_start + timedelta(days=day_idx)).date()
@@ -75,14 +65,16 @@ class WeeklyByDaysRule(RecurrenceRule):
             if candidate >= start_norm:
                 return candidate
 
-        # 4. Caso a start_date seja após todos os dias selecionados naquela semana,
-        # avançamos para a próxima semana válida baseada no intervalo.
+        # 4. If start_date is after all selected days in that week,
+        # advance to the next valid week based on interval
         next_week_start = week_start + timedelta(weeks=self.interval)
         candidate_date = (next_week_start + timedelta(days=valid_days[0])).date()
         return self._combine_with_start_time(candidate_date)
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the next occurrence considering the specified weekdays."""
+        """Calculate the next occurrence considering the specified weekdays."""
+
+        base_dt: datetime = self.start_date.materialize()
 
         # 1. Base case: First occurrence
         if last_occurrence is None:
@@ -98,11 +90,11 @@ class WeeklyByDaysRule(RecurrenceRule):
         # 3. Find week boundaries (Monday as start of week)
         last_week_start = last - timedelta(days=last.weekday())
 
-        # Normalizamos também a start_date para encontrar a semana âncora
-        start_norm = self._normalize_comparison_date(self.start_date)
+        # Normalize start_date to find anchor week
+        start_norm = self._normalize_comparison_date(base_dt)
         start_week_start = start_norm - timedelta(days=start_norm.weekday())
 
-        # 4. Calculate how many full weeks have passed since the anchor week
+        # 4. Calculate how many full weeks have passed since anchor week
         weeks_diff = (last_week_start.date() - start_week_start.date()).days // 7
 
         # 5. Try to find a valid day later in the CURRENT week
@@ -116,7 +108,7 @@ class WeeklyByDaysRule(RecurrenceRule):
                         return None
                     return candidate
 
-        # 6. Advance to the NEXT valid week based on the interval
+        # 6. Advance to the NEXT valid week based on interval
         remainder = weeks_diff % self.interval
         weeks_to_advance = self.interval - remainder
         next_week_start = last_week_start + timedelta(weeks=weeks_to_advance)

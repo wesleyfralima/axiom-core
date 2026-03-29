@@ -1,7 +1,7 @@
 import calendar
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Callable, List, Optional
+from typing import Callable, Optional
 
 from a_core import ValidationException
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -22,14 +22,15 @@ class BusinessDayRule(RecurrenceRule):
     """
 
     nth_day: int
-
-    # Injeção de dependência inteligente: não afeta a comparação (==) do Value Object
-    # e não polui o print() ou logs (repr=False)
     is_business_day: Callable[[date], bool] = field(compare=False, repr=False)
 
     def __post_init__(self) -> None:
-        """Validate the specific invariants for business days."""
+        """Validate the specific invariants for business days.
 
+        Raises:
+            ValidationException: If nth_day is 0, outside realistic bounds,
+            or if the callback is missing.
+        """
         super().__post_init__()
 
         if self.nth_day == 0:
@@ -42,9 +43,13 @@ class BusinessDayRule(RecurrenceRule):
             raise ValidationException("Callback is_business_day missing.")
 
     def supports_native_sync(self) -> bool:
-        """
-        Regras de dias úteis não são suportadas nativamente por RRULEs RFC 5545
-        devido à dependência de calendários de feriados variáveis.
+        """Business day rules are not natively supported by RFC 5545 RRULEs.
+
+        This is because they depend on variable holiday calendars and
+        require external logic to determine valid business days.
+
+        Returns:
+            bool: Always False, since RFC 5545 cannot represent business day rules.
         """
         return False
 
@@ -65,21 +70,34 @@ class BusinessDayRule(RecurrenceRule):
         return ""
 
     def get_first_valid_occurrence(self) -> datetime | None:
-        """
-        Localiza o primeiro N-ésimo dia útil válido a partir da start_date.
+        """Locate the first valid N-th business day occurrence starting from `start_date`.
+
+        This method scans month by month (up to 12 months ahead) to find the
+        first valid occurrence that matches the requested business day index
+        (`nth_day`). It uses the injected `is_business_day` callback to filter
+        valid business days and applies the recurrence interval logic to skip
+        months when necessary.
+
+        Returns:
+            Optional[datetime]: The first valid occurrence datetime if found,
+            otherwise None.
+
+        Raises:
+            IndexError: If the requested `nth_day` exceeds the number of business
+            days in a given month (caught internally and skipped).
         """
 
-        start_norm = self._normalize_comparison_date(self.start_date)
+        base_dt: datetime = self.start_date.materialize()
+        start_norm = self._normalize_comparison_date(base_dt)
 
         scan_year = start_norm.year
         scan_month = start_norm.month
 
-        # Horizonte de busca de 12 meses (impossível avançar
-        # mais de um ano, pois a lógica é mensal)
+        # Search horizon: 12 months (cannot advance more than a year since logic is monthly)
         for _ in range(12):
             last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
 
-            # 1. Coletar dias úteis do mês de scan
+            # 1. Collect business days for the current month
             business_days = [
                 date(scan_year, scan_month, d)
                 for d in range(1, last_day_of_month + 1)
@@ -88,31 +106,45 @@ class BusinessDayRule(RecurrenceRule):
 
             if business_days:
                 try:
-                    # 2. Aplicar o índice (Ex: 5º dia útil ou último -1)
+                    # 2. Apply index (e.g., 5th business day or last = -1)
                     idx = self.nth_day - 1 if self.nth_day > 0 else self.nth_day
                     target_date = business_days[idx]
                     candidate = self._combine_with_start_time(target_date)
 
-                    # 3. A ocorrência deve ser maior ou igual start_date
+                    # 3. Occurrence must be >= start_date
                     if candidate >= start_norm:
                         return candidate
                 except IndexError:
-                    # Mês com menos dias úteis que o nth_day solicitado
+                    # Month has fewer business days than requested nth_day
                     pass
 
-            # 4. Cálculo de avanço de mês respeitando o intervalo (Anchor Date logic)
-            months_since_start = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
+            # 4. Advance month respecting interval (Anchor Date logic)
+            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
             scan_year = scan_year + (total_months // 12)
             scan_month = (total_months % 12) + 1
 
-        # Fallback de segurança (embora a lógica acima seja exaustiva)
+        # Safety fallback (though the above logic is exhaustive)
         return None
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the next occurrence scanning only valid business days."""
+        """Calculate the next valid business day occurrence.
+
+        This method scans month by month to find the next valid occurrence
+        based on the N-th business day rule. It uses the injected
+        `is_business_day` callback to filter valid business days and applies
+        recurrence interval logic to skip months when necessary.
+
+        Args:
+            last_occurrence (Optional[datetime], optional): The last occurrence
+                to continue from. If None, the first valid occurrence is returned.
+
+        Returns:
+            Optional[datetime]: The next valid occurrence datetime if found,
+            otherwise None.
+        """
 
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()
@@ -123,37 +155,36 @@ class BusinessDayRule(RecurrenceRule):
         scan_year = last.year
         scan_month = last.month
 
-        # Limite de segurança (2 meses)
+        # Safety limit: scan up to 12 months
         for _ in range(12):
             last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
-            business_days_in_month: List[date] = []
+            business_days_in_month: list[date] = []
 
-            # 1. Coleta todos os dias úteis deste mês usando a função injetada
+            # 1. Collect all business days of this month
             for day_num in range(1, last_day_of_month + 1):
                 d = date(scan_year, scan_month, day_num)
                 if self.is_business_day(d):
                     business_days_in_month.append(d)
 
-            # 2. Tenta aceder ao índice (positivo ou negativo)
+            # 2. Try to access the requested index (positive or negative)
             try:
-                # Converter índice 1-based para 0-based nas listas de Python
                 idx = self.nth_day - 1 if self.nth_day > 0 else self.nth_day
                 target_date = business_days_in_month[idx]
                 candidate = self._combine_with_start_time(target_date)
 
-                # Se o candidato for no futuro, encontramos!
+                # If candidate is in the future, return it
                 if candidate > last:
                     if self._is_exhausted(candidate):
                         return None
                     return candidate
 
             except IndexError:
-                # Exemplo: Pediu o 25º dia útil, mas o mês só teve 21 dias úteis.
-                # Ignoramos este mês e tentamos no próximo.
+                # Example: requested 25th business day, but month only had 21
                 pass
 
-            # 3. Avançar para o próximo mês válido respeitando o intervalo
-            months_diff = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
+            # 3. Advance to the next valid month respecting the interval
+            base_dt: datetime = self.start_date.materialize()
+            months_diff = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
             remainder = months_diff % self.interval
             months_to_advance = self.interval - remainder
 

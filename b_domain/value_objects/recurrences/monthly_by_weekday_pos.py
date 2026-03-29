@@ -25,125 +25,144 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
     set_pos: int
 
     def __post_init__(self) -> None:
-        """Validate the specific invariants for positioned weekdays."""
+        """Validate the specific invariants for positioned weekdays.
+
+        Raises:
+            InvalidWeekDayValue: If `days_of_week` is empty or contains invalid values.
+            ValidationException: If `set_pos` is 0 or outside the valid range (-5 to 5).
+        """
 
         super().__post_init__()
+        object.__setattr__(self, "_freq", "MONTHLY")
 
         if not self.days_of_week:
             raise InvalidWeekDayValue("days_of_week cannot be empty.")
 
+        # Ensure all weekdays are within 0–6 (Monday–Sunday)
         if any(d < 0 or d > 6 for d in self.days_of_week):
             raise InvalidWeekDayValue(f"Invalid weekdays: {self.days_of_week}. Must be 0-6.")
 
         if self.set_pos == 0:
             raise ValidationException("Positional index (set_pos) cannot be 0.")
 
+        # A month can have at most 5 occurrences of a specific weekday
         if self.set_pos < -5 or self.set_pos > 5:
-            # A month can have at most 5 occurrences of a specific weekday.
             raise ValidationException("Positional weekday index must be between -5 and 5.")
 
-    @property
-    def rrule_string(self) -> str:
-        """Generates the RFC 5545 string.
+    def _rrule_extra_parts(self) -> list[str]:
+        """Generate BYDAY part for RFC 5545 RRULE string.
 
-        Correctly maps the human logic of "2nd Monday and 2nd Friday" to
-        the RFC compliant BYDAY=2MO,2FR (instead of using BYSETPOS, which
-        has a different global filtering meaning in the spec).
+        This method maps the numeric weekdays (0=Monday, 6=Sunday) into
+        RFC 5545 weekday abbreviations (MO, TU, WE, TH, FR, SA, SU),
+        and combines them with the positional index (`set_pos`).
+
+        Returns:
+            list[str]: A list containing the BYDAY clause with positional weekdays.
         """
 
-        parts = ["FREQ=MONTHLY"]
+        # Mapping from numeric weekdays (0–6) to RFC 5545 abbreviations
+        day_map: list[str] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
-        if self.interval > 1:
-            parts.append(f"INTERVAL={self.interval}")
+        # Build the BYDAY string with positional index applied to each weekday
+        days_str: str = ",".join(
+            f"{self.set_pos}{day_map[d]}"
+            for d in sorted(self.days_of_week)
+        )
 
-        if self.count:
-            parts.append(f"COUNT={self.count}")
-        elif self.end_date:
-            dt_str = self.end_date.strftime("%Y%m%dT%H%M%S")
-            if self.end_date.tzinfo is not None:
-                dt_str += "Z"
-            parts.append(f"UNTIL={dt_str}")
-
-        # Map Python's 0-6 to RFC 5545 days and prefix with the set_pos
-        # e.g., set_pos=2 and days={0, 4} becomes "2MO,2FR"
-        day_map = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
-        days_str = ",".join(f"{self.set_pos}{day_map[d]}" for d in sorted(self.days_of_week))
-        parts.append(f"BYDAY={days_str}")
-
-        return f"RRULE:{';'.join(parts)}"
+        return [f"BYDAY={days_str}"]
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Localiza a primeira ocorrência que satisfaz a posição ordinal (set_pos)
-        nos dias da semana escolhidos, a partir da start_date.
+        Locate the first occurrence that satisfies the ordinal position (set_pos)
+        on the chosen weekdays, starting from start_date.
         """
-        start_norm = self._normalize_comparison_date(self.start_date)
 
-        scan_year = start_norm.year
-        scan_month = start_norm.month
+        base_dt: datetime = self.start_date.materialize()
+        start_norm: datetime = self._normalize_comparison_date(base_dt)
 
-        # Buscamos em um horizonte de tempo razoável (considerando o intervalo)
+        scan_year: int = start_norm.year
+        scan_month: int = start_norm.month
+
+        # Search within a reasonable horizon (considering the interval)
         for _ in range(120):
-            last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
+
+            last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
             candidates: List[datetime] = []
 
             for wd in self.days_of_week:
-                # Todos os dias do mês que caem no dia da semana 'wd'
-                days_matching = [
+                # All days in the month that fall on the weekday 'wd'
+                days_matching: list[int] = [
                     day for day in range(1, last_day_of_month + 1)
                     if date(scan_year, scan_month, day).weekday() == wd
                 ]
 
                 try:
-                    # Aplica o set_pos (ex: 2 para segunda ocorrência, -1 para última)
-                    idx = self.set_pos - 1 if self.set_pos > 0 else self.set_pos
-                    target_day = days_matching[idx]
+                    # Apply set_pos (e.g., 2 for second occurrence, -1 for last)
+                    idx: int = self.set_pos - 1 if self.set_pos > 0 else self.set_pos
+                    target_day: int = days_matching[idx]
 
-                    candidate_dt = date(scan_year, scan_month, target_day)
-                    candidate = self._combine_with_start_time(candidate_dt)
+                    candidate_dt: date = date(scan_year, scan_month, target_day)
+                    candidate: datetime = self._combine_with_start_time(candidate_dt)
 
-                    # A ocorrência deve ser maior ou igual a start_date
+                    # The occurrence must be greater than or equal to start_date
                     if candidate >= start_norm:
                         candidates.append(candidate)
                 except IndexError:
+                    # If the requested position does not exist in this month, skip
                     continue
 
             if candidates:
-                # Retornamos a mais próxima (ex: entre 2ª segunda e 2ª sexta)
+                # Return the closest occurrence (e.g., between 2nd Monday and 2nd Friday)
                 return min(candidates)
 
-            # Se não houver data válida neste mês, avança conforme o intervalo
-            # (Lógica de salto de meses para garantir alinhamento com a start_date)
-            months_since_start = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
-            months_to_advance = self.interval - (months_since_start % self.interval)
+            # If no valid date exists in this month, advance according to the interval
+            # (Month skipping logic to ensure alignment with start_date)
+            months_since_start: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_to_advance: int = self.interval - (months_since_start % self.interval)
 
-            total_months = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (total_months // 12)
+            total_months: int = scan_month - 1 + months_to_advance
+            scan_year += total_months // 12
             scan_month = (total_months % 12) + 1
 
-        return self.start_date  # Fallback de segurança
+        return base_dt  # Safety fallback
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the next occurrence by finding the N-th target weekdays."""
+        """Calculate the next occurrence by finding the N-th target weekdays.
+
+        If no `last_occurrence` is provided, the first valid occurrence is returned.
+        Otherwise, the method scans month by month (up to 120 months ahead) to
+        find the next valid weekday occurrence based on the positional index (`set_pos`).
+
+        Args:
+            last_occurrence (Optional[datetime], optional): The last occurrence
+                to continue from. Defaults to None.
+
+        Returns:
+            Optional[datetime]: The next valid occurrence if available,
+            otherwise None.
+        """
+
+        base_dt: datetime = self.start_date.materialize()
 
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last = self._normalize_comparison_date(last_occurrence)
+        last: datetime = self._normalize_comparison_date(last_occurrence)
 
-        scan_year = last.year
-        scan_month = last.month
+        scan_year: int = last.year
+        scan_month: int = last.month
 
-        # Safety limit (120 months)
+        # Safety limit (120 months) to prevent infinite loops
         for _ in range(120):
-            last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
+
+            last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
             month_candidates: List[datetime] = []
 
-            # Find the N-th occurrence for EACH requested weekday in this month
+            # 1. Find the N-th occurrence for EACH requested weekday in this month
             for wd in self.days_of_week:
                 # Gather all dates in the month that fall on this specific weekday
-                days_matching = [
+                days_matching: list[int] = [
                     day_num for day_num in range(1, last_day_of_month + 1)
                     if date(scan_year, scan_month, day_num).weekday() == wd
                 ]
@@ -155,34 +174,35 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
                     else:
                         target_day = days_matching[self.set_pos]
 
-                    candidate_date = date(scan_year, scan_month, target_day)
-                    candidate = self._combine_with_start_time(candidate_date)
+                    candidate_date: date = date(scan_year, scan_month, target_day)
+                    candidate: datetime = self._combine_with_start_time(candidate_date)
 
                     # Only keep candidates strictly in the future
                     if candidate > last:
                         month_candidates.append(candidate)
 
                 except IndexError:
-                    # e.g., looking for the 5th Monday, but this month only has 4.
+                    # Example: looking for the 5th Monday, but this month only has 4.
                     # Safe to ignore and continue.
                     continue
 
             if month_candidates:
-                # If we found valid candidates in this month (e.g. 2nd Monday and 2nd Friday)
-                # we must return the EARLIEST one to maintain chronological order.
-                best_candidate = min(month_candidates)
+                # 2. If valid candidates were found in this month (e.g., 2nd Monday and 2nd Friday),
+                # return the EARLIEST one to maintain chronological order.
+                best_candidate: datetime = min(month_candidates)
 
                 if self._is_exhausted(best_candidate):
                     return None
+
                 return best_candidate
 
-            # Advance to the next valid month based on interval
-            months_diff = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
-            remainder = months_diff % self.interval
-            months_to_advance = self.interval - remainder
+            # 3. Advance to the next valid month based on interval
+            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            remainder: int = months_diff % self.interval
+            months_to_advance: int = self.interval - remainder
 
-            new_month = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (new_month // 12)
+            new_month: int = scan_month - 1 + months_to_advance
+            scan_year += new_month // 12
             scan_month = (new_month % 12) + 1
 
         return None

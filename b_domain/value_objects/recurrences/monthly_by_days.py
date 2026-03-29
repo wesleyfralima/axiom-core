@@ -13,125 +13,139 @@ class MonthlyByDaysRule(RecurrenceRule):
 
     Handles recurrences like "Every 10th and 20th of the month".
     If a specified day exceeds the number of days in a given month
-    (e.g., day 31 in February), that specific day is safely ignored for that month.
+    (e.g., day 31 in February), that specific day is safely ignored
+    for that month.
 
     Attributes:
-        days_of_month (Set[int]): Numeric days of the month (1-31).
+        days_of_month (Set[int]): Numeric days of the month (1–31).
+
     """
 
     days_of_month: Set[int]
 
     def __post_init__(self) -> None:
-        """Validate the invariants for numeric month days."""
+        """Validate the invariants for numeric month days.
+
+        Raises:
+            InvalidMonthDayValue: If `days_of_month` is empty or contains
+            values outside the valid range (1–31).
+        """
 
         super().__post_init__()
+        object.__setattr__(self, "_freq", "MONTHLY")
 
         if not self.days_of_month:
             raise InvalidMonthDayValue("days_of_month cannot be empty.")
 
+        # Validate that all provided days are within 1–31
         invalids: list[int] = [d for d in self.days_of_month if not (1 <= d <= 31)]
         if invalids:
             raise InvalidMonthDayValue(str(invalids))
 
-    @property
-    def rrule_string(self) -> str:
-        """Generates the RFC 5545 string specifically for monthly day recurrence."""
-        parts = ["FREQ=MONTHLY"]
+    def _rrule_extra_parts(self) -> list[str]:
+        """Generate BYMONTHDAY part for RFC 5545 RRULE string.
 
-        if self.interval > 1:
-            parts.append(f"INTERVAL={self.interval}")
-
-        if self.count:
-            parts.append(f"COUNT={self.count}")
-        elif self.end_date:
-            dt_str = self.end_date.strftime("%Y%m%dT%H%M%S")
-            if self.end_date.tzinfo is not None:
-                dt_str += "Z"
-            parts.append(f"UNTIL={dt_str}")
-
-        # Add the specific month days, ordered
+        Returns:
+            list[str]: A list containing the BYMONTHDAY clause with
+            the specified days of the month.
+        """
         days_str = ",".join(str(d) for d in sorted(self.days_of_month))
-        parts.append(f"BYMONTHDAY={days_str}")
-
-        return f"RRULE:{';'.join(parts)}"
+        return [f"BYMONTHDAY={days_str}"]
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Localiza a primeira data permitida (dia do mês) igual ou posterior à start_date.
+        Locate the first allowed date (day of the month) equal to or later than start_date.
         """
 
-        # Normalizamos para garantir comparação correta (timezone/naive)
-        start_norm = self._normalize_comparison_date(self.start_date)
+        base_dt: datetime = self.start_date.materialize()
+
+        # Normalize to ensure correct comparison (timezone/naive)
+        start_norm = self._normalize_comparison_date(base_dt)
 
         scan_year = start_norm.year
         scan_month = start_norm.month
 
-        # Horizonte de busca de 120 meses
+        # Search horizon of 120 months
         for _ in range(120):
             max_days = calendar.monthrange(scan_year, scan_month)[1]
-            # Dias selecionados que existem neste mês específico
+            # Selected days that exist in this specific month
             valid_days = sorted([d for d in self.days_of_month if d <= max_days])
 
             for day in valid_days:
                 candidate_date = date(scan_year, scan_month, day)
                 candidate = self._combine_with_start_time(candidate_date)
 
-                # A primeira ocorrência deve ser maior ou igual a start_date
+                # The first occurrence must be greater than or equal to start_date
                 if candidate >= start_norm:
                     return candidate
 
-            # Se nenhum dia do mês atual servir, calcula o próximo mês válido pelo intervalo
-            months_since_start = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
+            # If no day in the current month is valid, calculate the next valid month based on the interval
+            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
             scan_year = scan_year + (total_months // 12)
             scan_month = (total_months % 12) + 1
 
-        return self.start_date
+        return base_dt
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the next occurrence scanning through valid month days."""
+        """Calculate the next occurrence scanning through valid month days.
+
+        If no `last_occurrence` is provided, the first valid occurrence is returned.
+        Otherwise, the method scans month by month (up to 120 months ahead) to
+        find the next valid day of the month that matches the recurrence rule.
+
+        Args:
+            last_occurrence (Optional[datetime], optional): The last occurrence
+                to continue from. Defaults to None.
+
+        Returns:
+            Optional[datetime]: The next valid occurrence if available,
+            otherwise None.
+        """
+
+        base_dt: datetime = self.start_date.materialize()
 
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last = self._normalize_comparison_date(last_occurrence)
+        last: datetime = self._normalize_comparison_date(last_occurrence)
 
-        # Inicia a busca a partir do mês da última ocorrência
-        scan_year = last.year
-        scan_month = last.month
+        # Start scanning from the month of the last occurrence
+        scan_year: int = last.year
+        scan_month: int = last.month
 
-        # Limite de segurança (120 meses = 10 anos) para evitar loops infinitos
+        # Safety limit (120 months = 10 years) to avoid infinite loops
         for _ in range(120):
-            max_days_in_month = calendar.monthrange(scan_year, scan_month)[1]
-            valid_days = sorted(self.days_of_month)
+            max_days_in_month: int = calendar.monthrange(scan_year, scan_month)[1]
+            valid_days: list[int] = sorted(self.days_of_month)
 
-            # 1. Procura um dia válido no mês atual do loop
+            # 1. Look for a valid day in the current month of the loop
             for day in valid_days:
-                # Ignora dias que não existem neste mês (ex: 30/02)
+                # Ignore days that do not exist in this month (e.g., Feb 30)
                 if day <= max_days_in_month:
-                    candidate_date = date(scan_year, scan_month, day)
-                    candidate = self._combine_with_start_time(candidate_date)
+                    candidate_date: date = date(scan_year, scan_month, day)
+                    candidate: datetime = self._combine_with_start_time(candidate_date)
 
-                    # O candidato tem de ser estritamente no futuro
+                    # Candidate must be strictly in the future
                     if candidate > last:
                         if self._is_exhausted(candidate):
                             return None
                         return candidate
 
-            # 2. Se não encontrou nenhum dia válido neste mês, avança para o próximo
-            # mês válido, respeitando o `interval` (ex: a cada 2 meses)
+            # 2. If no valid day was found in this month, advance to the next
+            # valid month, respecting the `interval` (e.g., every 2 months)
 
-            # Calcula a diferença de meses em relação à start_date para manter a cadência correta
-            months_diff = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
-            remainder = months_diff % self.interval
-            months_to_advance = self.interval - remainder
+            # Calculate the difference in months relative to start_date to maintain cadence
+            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            remainder: int = months_diff % self.interval
+            months_to_advance: int = self.interval - remainder
 
-            # Matemática segura para transbordar anos se necessário
+            # Safe math to overflow into years if necessary
             new_month = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (new_month // 12)
+            scan_year += new_month // 12
             scan_month = (new_month % 12) + 1
 
         return None

@@ -23,100 +23,107 @@ class MonthlyPositionalRule(RecurrenceRule):
     set_pos: int
 
     def __post_init__(self) -> None:
-        """Validate the positional invariant."""
+        """Validate the positional invariant.
+
+        Raises:
+            ValidationException: If `set_pos` is 0 or outside the valid range (-31 to 31).
+        """
 
         super().__post_init__()
+        object.__setattr__(self, "_freq", "MONTHLY")
 
         if self.set_pos == 0:
             raise ValidationException("Positional index (set_pos) cannot be 0.")
 
+        # Ensure the positional index is within realistic bounds
         if self.set_pos < -31 or self.set_pos > 31:
             raise ValidationException("Positional index must be between -31 and 31.")
 
-    @property
-    def rrule_string(self) -> str:
-        """Generates the RFC 5545 string.
+    def _rrule_extra_parts(self) -> list[str]:
+        """Generate BYMONTHDAY part for RFC 5545 RRULE string.
 
-        Note: According to RFC 5545, a simple positional day of the month
-        translates to BYMONTHDAY, not BYSETPOS (which requires another BY-rule).
+        Returns:
+            list[str]: A list containing the BYMONTHDAY clause with the positional index.
         """
-
-        parts = ["FREQ=MONTHLY"]
-
-        if self.interval > 1:
-            parts.append(f"INTERVAL={self.interval}")
-
-        if self.count:
-            parts.append(f"COUNT={self.count}")
-        elif self.end_date:
-            dt_str = self.end_date.strftime("%Y%m%dT%H%M%S")
-            if self.end_date.tzinfo is not None:
-                dt_str += "Z"
-            parts.append(f"UNTIL={dt_str}")
-
-        # Map the positional logic to BYMONTHDAY (e.g., -1 for last day)
-        parts.append(f"BYMONTHDAY={self.set_pos}")
-
-        return f"RRULE:{';'.join(parts)}"
+        return [f"BYMONTHDAY={self.set_pos}"]
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Calcula a primeira data válida baseada na posição relativa (ex: último dia).
-        Garante que a data seja igual ou posterior à start_date.
+        Calculate the first valid date based on the relative position (e.g., last day).
+        Ensures that the date is equal to or later than start_date.
         """
 
-        start_norm = self._normalize_comparison_date(self.start_date)
+        base_dt: datetime = self.start_date.materialize()
+        start_norm = self._normalize_comparison_date(base_dt)
 
         scan_year = start_norm.year
         scan_month = start_norm.month
 
-        # Busca em um horizonte de 120 meses
+        # Search horizon of 120 months
         for _ in range(120):
             last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
 
-            # 1. Calcula o dia real baseado no set_pos
+            # 1. Calculate the actual day based on set_pos
             if self.set_pos > 0:
-                # Se pedir dia 31 em fevereiro, clamp para o dia 28/29
+                # If requesting day 31 in February, clamp to day 28/29
                 day = min(self.set_pos, last_day_of_month)
             else:
-                # Lógica negativa: -1 vira o último dia do mês
+                # Negative logic: -1 becomes the last day of the month
                 day = last_day_of_month + self.set_pos + 1
 
             if day >= 1:
                 candidate_date = date(scan_year, scan_month, day)
                 candidate = self._combine_with_start_time(candidate_date)
 
-                # A primeira ocorrência deve ser maior ou igual a start_date
+                # The first occurrence must be greater than or equal to start_date
                 if candidate >= start_norm:
                     return candidate
 
-            # 2. Se a posição calculada para este mês já passou, avança pelo intervalo
-            months_since_start = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
+            # 2. If the calculated position for this month has already passed,
+            # advance by the interval
+            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
             scan_year = scan_year + (total_months // 12)
             scan_month = (total_months % 12) + 1
 
-        return self.start_date
+        return base_dt
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the next occurrence based on relative month positioning."""
+        """Calculate the next occurrence based on relative month positioning.
+
+        If no `last_occurrence` is provided, the first valid occurrence is returned.
+        Otherwise, the method scans month by month (up to 120 months ahead) to
+        find the next valid date based on the positional index (`set_pos`).
+
+        Args:
+            last_occurrence (Optional[datetime], optional): The last occurrence
+                to continue from. Defaults to None.
+
+        Returns:
+            Optional[datetime]: The next valid occurrence if available,
+            otherwise None.
+        """
+
+        base_dt: datetime = self.start_date.materialize()
 
         if last_occurrence is None:
-            first = self.get_first_valid_occurrence()
+            first: datetime = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last = self._normalize_comparison_date(last_occurrence)
+        last: datetime = self._normalize_comparison_date(last_occurrence)
 
-        scan_year = last.year
-        scan_month = last.month
+        scan_year: int = last.year
+        scan_month: int = last.month
+        day: int
 
         # Safety limit (120 months = 10 years) to prevent infinite loops
         for _ in range(120):
-            last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
 
-            # Calculate the exact calendar day based on the positional index
+            last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
+
+            # 1. Calculate the exact calendar day based on the positional index
             if self.set_pos > 0:
                 # Clamp to the end of the month if the position exceeds it
                 # (e.g., 31st position in February becomes the 28th/29th)
@@ -125,25 +132,26 @@ class MonthlyPositionalRule(RecurrenceRule):
                 # Negative indexing (e.g., -1 is the last day)
                 day = last_day_of_month + self.set_pos + 1
 
-            # If the negative index asks for a day that doesn't exist (e.g. -35),
-            # we skip this month.
+            # If the negative index asks for a day that doesn't exist (e.g., -35),
+            # skip this month
             if day >= 1:
                 candidate_date = date(scan_year, scan_month, day)
                 candidate = self._combine_with_start_time(candidate_date)
 
-                # Check if we found a valid candidate strictly in the future
+                # 2. Check if we found a valid candidate strictly in the future
                 if candidate > last:
                     if self._is_exhausted(candidate):
                         return None
                     return candidate
 
-            # Advance to the next valid month based on the interval
-            months_diff = (scan_year - self.start_date.year) * 12 + (scan_month - self.start_date.month)
-            remainder = months_diff % self.interval
-            months_to_advance = self.interval - remainder
+            # 3. Advance to the next valid month based on the interval
+            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            remainder: int = months_diff % self.interval
+            months_to_advance: int = self.interval - remainder
 
-            new_month = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (new_month // 12)
+            # Safe math to overflow into years if necessary
+            new_month: int = scan_month - 1 + months_to_advance
+            scan_year += new_month // 12
             scan_month = (new_month % 12) + 1
 
         return None

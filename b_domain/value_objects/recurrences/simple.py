@@ -8,8 +8,21 @@ from b_domain.value_objects.recurrences import RecurrenceRule
 
 
 def add_months(source_date: datetime, months: int, target_day: Optional[int] = None) -> datetime:
-    """Add months to a given date, handling end-of-month overflows."""
+    """Add months to a given date, handling end-of-month overflows.
 
+    Args:
+        source_date (datetime): The original date to adjust.
+        months (int): Number of months to add.
+        target_day (Optional[int], optional): Preferred day of the month to anchor.
+            If None, defaults to the day of `source_date`.
+
+    Returns:
+        datetime: The adjusted date, clamped to the last valid day of the target month if necessary.
+
+    Example:
+        >>> add_months(datetime(2026, 1, 31), 1)
+        datetime(2026, 2, 28)
+    """
     month: int = source_date.month - 1 + months
     year: int = source_date.year + month // 12
     month: int = month % 12 + 1
@@ -29,14 +42,14 @@ class SimpleIntervalRule(RecurrenceRule):
     or "every month on the exact same numerical day".
 
     Attributes:
-        frequency (RecurrenceInterval): The unit of the interval (DAILY, WEEKLY, etc.).
+        frequency (RecurrenceInterval): The unit of the interval (HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY).
     """
 
     frequency: RecurrenceInterval
 
-    @property
-    def rrule_string(self) -> str:
-        """Generates the RFC 5545 string for simple intervals."""
+    def __post_init__(self):
+        """Initialize frequency mapping for RRULE string."""
+        super().__post_init__()
 
         freq_map = {
             RecurrenceInterval.HOURLY: "HOURLY",
@@ -46,38 +59,34 @@ class SimpleIntervalRule(RecurrenceRule):
             RecurrenceInterval.YEARLY: "YEARLY",
         }
 
-        parts = [f"FREQ={freq_map[self.frequency]}"]
-
-        if self.interval > 1:
-            parts.append(f"INTERVAL={self.interval}")
-
-        if self.count:
-            parts.append(f"COUNT={self.count}")
-        elif self.end_date:
-            dt_str = self.end_date.strftime("%Y%m%dT%H%M%S")
-            if self.end_date.tzinfo is not None:
-                dt_str += "Z"
-            parts.append(f"UNTIL={dt_str}")
-
-        return f"RRULE:{';'.join(parts)}"
+        object.__setattr__(self, "_freq", freq_map[self.frequency])
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Para intervalos simples, a primeira ocorrência é a própria data de início.
-        Diferente de regras semanais ou mensais complexas, não há filtros que
-        possam 'empurrar' a primeira data para frente.
+        For simple intervals, the first occurrence is the start_date itself.
+        Unlike complex weekly or monthly rules, there are no filters that
+        could push the first date forward.
         """
-        return self.start_date
+        return self.start_date.materialize()
 
     def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
-        """Calculates the exact next occurrence by adding the interval unit."""
+        """Calculate the exact next occurrence by adding the interval unit.
+
+        Args:
+            last_occurrence (Optional[datetime], optional): The last occurrence
+                to continue from. Defaults to None.
+
+        Returns:
+            Optional[datetime]: The next valid occurrence if available,
+            otherwise None.
+        """
 
         # 1. Base case: First occurrence
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()
             if self._is_exhausted(first):
                 return None
-            return first
+            return first.replace(microsecond=0)
 
         # 2. Normalize timezone
         last = self._normalize_comparison_date(last_occurrence)
@@ -89,10 +98,19 @@ class SimpleIntervalRule(RecurrenceRule):
         if self._is_exhausted(candidate):
             return None
 
-        return candidate
+        return candidate.replace(microsecond=0)
 
     def _add_interval(self, current: datetime) -> datetime:
-        """Executes the specific timedelta math based on the frequency type."""
+        """Execute the specific timedelta math based on the frequency type.
+
+        Args:
+            current (datetime): The current occurrence.
+
+        Returns:
+            datetime: The next occurrence after applying the interval.
+        """
+
+        base_dt: datetime = self.start_date.materialize()
 
         if self.frequency == RecurrenceInterval.HOURLY:
             dt = current + timedelta(hours=self.interval)
@@ -104,15 +122,15 @@ class SimpleIntervalRule(RecurrenceRule):
             dt = current + timedelta(weeks=self.interval)
 
         elif self.frequency == RecurrenceInterval.MONTHLY:
-            # Preserva o dia original da start_date como âncora para evitar degradação de datas
-            # (Ex: 31 jan -> 28 fev -> volta a tentar o dia 31 em março).
-            dt = add_months(current, self.interval, target_day=self.start_date.day)
+            # Preserve the original day of start_date as anchor to avoid date degradation
+            # (e.g., Jan 31 -> Feb 28 -> back to 31 in March).
+            dt = add_months(current, self.interval, target_day=base_dt.day)
 
         elif self.frequency == RecurrenceInterval.YEARLY:
-            dt = add_months(current, self.interval * 12, target_day=self.start_date.day)
+            dt = add_months(current, self.interval * 12, target_day=base_dt.day)
 
         else:
             dt = current
 
-        # Garante que o horário original e o timezone (naive/aware) permanecem inalterados
+        # Ensure the original time and timezone (naive/aware) remain unchanged
         return self._combine_with_start_time(dt.date())
