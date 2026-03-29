@@ -12,14 +12,11 @@ from b_domain.ports.repositories.time_entry_repository import TimeEntryRepositor
 from b_domain.ports.repositories.user_behavior_metrics_repository import UserBehaviorMetricsRepository
 from b_domain.ports.repositories.user_behavior_profile_repository import UserBehaviorProfileRepository
 from b_domain.ports.unity_of_work import UnitOfWork
-from b_domain.services.user_behavior_learner import UserBehaviorLearner
-from b_domain.services.user_behavior_metrics_aggregator import UserBehaviorMetricsAggregator
 from b_domain.value_objects import UserId, TaskId
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.identifiers import ContextId, TimeEntryId
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
-from d_fake_infra import uow
 
 
 class FakeClock(ClockProvider):

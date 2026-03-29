@@ -25,7 +25,7 @@ class TaskMapper:
             id=str(task.id),
             title=str(task.title),
             description=str(task.description),
-            status=task.status.value,
+            status=task.status,
             priority=task.priority.name,
             required_energy_level=task.required_energy_level.value,
             due_date=task.due_date.value if task.due_date else None,
