@@ -89,7 +89,7 @@ class SimpleIntervalRule(RecurrenceRule):
             return first.replace(microsecond=0)
 
         # 2. Normalize timezone
-        last = self._normalize_comparison_date(last_occurrence)
+        last = self.normalize_comparison_date(last_occurrence)
 
         # 3. Apply the specific mathematical interval
         candidate = self._add_interval(last)

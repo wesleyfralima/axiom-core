@@ -51,7 +51,7 @@ class WeeklyByDaysRule(RecurrenceRule):
         base_dt: datetime = self.start_date.materialize()
 
         # 1. Normalize start_date for comparison logic
-        start_norm = self._normalize_comparison_date(base_dt)
+        start_norm = self.normalize_comparison_date(base_dt)
 
         # 2. Find the start of the week (Monday) for start_date
         week_start = start_norm - timedelta(days=start_norm.weekday())
@@ -84,14 +84,14 @@ class WeeklyByDaysRule(RecurrenceRule):
             return first
 
         # 2. Normalize timezone for math
-        last = self._normalize_comparison_date(last_occurrence)
+        last = self.normalize_comparison_date(last_occurrence)
         valid_days = sorted(self.days_of_week)
 
         # 3. Find week boundaries (Monday as start of week)
         last_week_start = last - timedelta(days=last.weekday())
 
         # Normalize start_date to find anchor week
-        start_norm = self._normalize_comparison_date(base_dt)
+        start_norm = self.normalize_comparison_date(base_dt)
         start_week_start = start_norm - timedelta(days=start_norm.weekday())
 
         # 4. Calculate how many full weeks have passed since anchor week

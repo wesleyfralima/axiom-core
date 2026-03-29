@@ -170,7 +170,7 @@ class RecurrenceRule(ValueObject, ABC):
         """Find the closest occurrence relative to a reference datetime."""
 
         if reference:
-            reference = self._normalize_comparison_date(reference)
+            reference = self.normalize_comparison_date(reference)
 
         candidate: Optional[datetime]
         last_candidate: Optional[datetime] = None
@@ -228,7 +228,7 @@ class RecurrenceRule(ValueObject, ABC):
 
     from datetime import datetime, date
 
-    def _normalize_comparison_date(self, dt: datetime) -> datetime:
+    def normalize_comparison_date(self, dt: datetime) -> datetime:
         """Normalize a datetime for comparison with recurrence rules.
 
         Ensures consistent comparison between floating (naive) and fixed
@@ -242,6 +242,7 @@ class RecurrenceRule(ValueObject, ABC):
         Returns:
             datetime: A normalized datetime suitable for comparison.
         """
+
         rule_dt: datetime = self.start_date.materialize()
         is_rule_naive: bool = self.start_date.is_floating is None
         is_dt_naive: bool = dt.tzinfo is None
@@ -291,8 +292,8 @@ class RecurrenceRule(ValueObject, ABC):
             limit: datetime = self.end_date.materialize()
 
             # Normalize candidate and limit for consistent comparison
-            normalized_dt: datetime = self._normalize_comparison_date(dt)
-            normalized_limit: datetime = self._normalize_comparison_date(limit)
+            normalized_dt: datetime = self.normalize_comparison_date(dt)
+            normalized_limit: datetime = self.normalize_comparison_date(limit)
 
             if normalized_dt > normalized_limit:
                 return False

@@ -54,7 +54,7 @@ class MonthlyPositionalRule(RecurrenceRule):
         """
 
         base_dt: datetime = self.start_date.materialize()
-        start_norm = self._normalize_comparison_date(base_dt)
+        start_norm = self.normalize_comparison_date(base_dt)
 
         scan_year = start_norm.year
         scan_month = start_norm.month
@@ -112,7 +112,7 @@ class MonthlyPositionalRule(RecurrenceRule):
             first: datetime = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last: datetime = self._normalize_comparison_date(last_occurrence)
+        last: datetime = self.normalize_comparison_date(last_occurrence)
 
         scan_year: int = last.year
         scan_month: int = last.month

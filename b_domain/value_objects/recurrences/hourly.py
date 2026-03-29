@@ -83,7 +83,7 @@ class HourlyWindowRule(RecurrenceRule):
         """
 
         base_dt: datetime = self.start_date.materialize()
-        start_norm = self._normalize_comparison_date(base_dt)
+        start_norm = self.normalize_comparison_date(base_dt)
         start_time = start_norm.time()
 
         # 1. If start_date is before the window on the same day:
@@ -125,7 +125,7 @@ class HourlyWindowRule(RecurrenceRule):
             return first if not self._is_exhausted(first) else None
 
         # 2. Increment logic (original steps)
-        last = self._normalize_comparison_date(last_occurrence)
+        last = self.normalize_comparison_date(last_occurrence)
         candidate = last + timedelta(hours=self.interval)
 
         # 3. Wrap-around logic

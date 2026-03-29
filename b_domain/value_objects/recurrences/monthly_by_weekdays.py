@@ -67,7 +67,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
         """
 
         base_dt: datetime = self.start_date.materialize()
-        start_norm = self._normalize_comparison_date(base_dt)
+        start_norm = self.normalize_comparison_date(base_dt)
 
         scan_year = start_norm.year
         scan_month = start_norm.month
@@ -121,7 +121,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
             first = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last = self._normalize_comparison_date(last_occurrence)
+        last = self.normalize_comparison_date(last_occurrence)
 
         scan_year = last.year
         scan_month = last.month
