@@ -71,7 +71,7 @@ def format_task_recurrence(recurrence: RecurrenceRule) -> Optional[str]:
     if recurrence.count:
         parts.append(f"for {recurrence.count} times")
     elif recurrence.end_date:
-        parts.append(f"until {recurrence.end_date:%Y-%m-%d}")
+        parts.append(f"until {recurrence.end_date.value:%Y-%m-%d} {recurrence.end_date.timezone}")
 
     # Unimos tudo com espaços e adicionamos o ponto final
     return " ".join(parts).strip() + "."
