@@ -100,11 +100,12 @@ class TaskStatus(StrEnum):
             cls.ARCHIVED: set(),  # Estado Terminal
         }
 
-    def can_transition_to(self, new_status: "TaskStatus") -> bool:
+    def can_transition_to(self, new_status: "TaskStatus", allow_same: bool = True) -> bool:
         """Check if a task can transition from the current status to a new status.
 
         Args:
             new_status (TaskStatus): Target status.
+            allow_same (bool, optional): Whether the ``new_status`` can be ``self``or not.
 
         Returns:
             bool: True if transition is valid, False otherwise.
@@ -112,7 +113,7 @@ class TaskStatus(StrEnum):
 
         # Allow same-status transitions as a no-op
         if self == new_status:
-            return True
+            return allow_same
 
         transitions = self._get_transitions()
         return new_status in transitions[self]
