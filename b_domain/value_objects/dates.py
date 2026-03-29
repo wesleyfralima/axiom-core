@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
-from enum import Enum
+from enum import StrEnum
 from typing import Optional
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from a_core.exceptions import ValidationException
 
 
-class DateKind(str, Enum):
+class DateKind(StrEnum):
     """
     Define the semantic nature of a date.
 
