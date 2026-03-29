@@ -12,6 +12,7 @@ class FakeUnitOfWork(UnitOfWork):
     """
 
     def __init__(self) -> None:
+        self._trigger_relay = False
         self.committed: bool = False
         self.rolled_back: bool = False
         self._seen_entities = set()

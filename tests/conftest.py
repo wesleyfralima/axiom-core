@@ -1,12 +1,13 @@
 from datetime import datetime, timezone
-from typing import Dict, Optional, List
+from typing import Dict, Optional, List, Iterable
 
 import pytest
 
+from a_core import tracks_entity, IdPrefix
 from b_domain.entities import Task, TimeEntry, User
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.repositories import TaskRepository, UserRepository, TaskFilter
-from b_domain.ports.repositories.filters import UserFilter
+from b_domain.ports.repositories.filters import UserFilter, TimeEntryFilter
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
 from b_domain.ports.repositories.user_behavior_metrics_repository import UserBehaviorMetricsRepository
 from b_domain.ports.repositories.user_behavior_profile_repository import UserBehaviorProfileRepository
@@ -18,6 +19,7 @@ from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.identifiers import ContextId, TimeEntryId
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
+from d_fake_infra import uow
 
 
 class FakeClock(ClockProvider):
@@ -32,19 +34,19 @@ class FakeClock(ClockProvider):
 
 
 class FakeTaskRepository(TaskRepository):
-    def __init__(self):
+    def __init__(self, tasks: Dict[str, Task] = None):
         # Usamos uma lista para manter a ordem de inserção (útil para testes de listagem)
-        self.tasks: List[Task] = []
+        self.tasks = tasks if tasks is not None else {}
+        self._seen_entities = set()
 
+    @tracks_entity
     async def add(self, task: Task) -> Task:
-        self.tasks.append(task)
+        self.tasks[str(task.id)] = task
         return task
 
     async def update(self, task: Task) -> None:
-        for i, t in enumerate(self.tasks):
-            if t.id == task.id:
-                self.tasks[i] = task
-                return
+        if str(task.id) in self.tasks:
+            self.tasks[str(task.id)] = task
 
     async def update_many(self, tasks: List[Task]) -> None:
         """Simula o update em lote no repositório fake."""
@@ -52,25 +54,29 @@ class FakeTaskRepository(TaskRepository):
             await self.update(task)
 
     async def delete(self, task_id: TaskId) -> None:
-        self.tasks = [t for t in self.tasks if t.id != task_id]
+        del self.tasks[str(task_id)]
 
+    @tracks_entity
     async def get_by_id(self, task_id: TaskId, user_id: Optional[UserId] = None) -> Optional[Task]:
-        for task in self.tasks:
-            if task.id == task_id:
-                if user_id is None or task.user_id == user_id:
-                    return task
-        return None
+        found = self.tasks.get(str(task_id), None)
 
+        if user_id is not None:
+            return found if str(found.user_id) == str(user_id) else None
+
+        return found
+
+    @tracks_entity
     async def find_by_id_prefix(self, id_prefix: str, user_id: UserId = None) -> List[Task]:
-        return [
-            t for t in self.tasks
-            if str(t.id).startswith(id_prefix) and (user_id is None or t.user_id == user_id)
-        ]
+        found_tasks: List[Task] = []
+        for key, value in self.tasks.items():
+            if key.startswith(id_prefix):
+                found_tasks.append(value)
+        return found_tasks
 
     def _apply_filters(self, filters: TaskFilter) -> List[Task]:
         """Método auxiliar interno para reutilizar a lógica de filtro."""
 
-        results = self.tasks
+        results = [t for t in self.tasks.values()]
 
         if filters.user_id:
             results = [t for t in results if t.user_id == filters.user_id]
@@ -81,6 +87,7 @@ class FakeTaskRepository(TaskRepository):
 
         return results
 
+    @tracks_entity
     async def list(self, filters: TaskFilter) -> List[Task]:
         filtered = self._apply_filters(filters)
         # Aplica OFFSET e LIMIT (Paginação em memória)
@@ -94,22 +101,25 @@ class FakeTaskRepository(TaskRepository):
 
     # --- Hierarquia e Dependências ---
 
+    @tracks_entity
     async def get_subtasks(self, parent_id: TaskId, limit: int = 100, offset: int = 0) -> List[Task]:
-        subs = [t for t in self.tasks if t.parent_id == parent_id]
+        subs = [t for t in self.tasks.values() if t.parent_id == parent_id]
         return subs[offset: offset + limit]
 
+    @tracks_entity
     async def find_tasks_blocked_by(self, task_id: TaskId) -> List[Task]:
-        return [t for t in self.tasks if task_id in t.depends_on]
+        return [t for t in self.tasks.values() if task_id in t.depends_on]
 
     # --- Método utilitário para o Axiom Context/Energy logic ---
 
+    @tracks_entity
     async def find_by_user(
             self,
             user_id: UserId,
             context_id: Optional[ContextId] = None,
             max_energy: Optional[EnergyLevel] = None
     ) -> List[Task]:
-        results = [t for t in self.tasks if t.user_id == user_id]
+        results = [t for t in self.tasks.values() if t.user_id == user_id]
 
         if context_id:
             results = [t for t in results if t.context_id == context_id]
@@ -120,12 +130,36 @@ class FakeTaskRepository(TaskRepository):
 
         return results
 
+    async def task_ids_from_id_prefixes(self, partial_ids: Iterable[IdPrefix]) -> List[TaskId]:
+
+        # Convertemos para tupla, pois startswith() aceita uma tupla de strings
+        # para verificar múltiplas possibilidades de uma vez.
+        prefixes = tuple(str(p) for p in partial_ids)
+
+        result: list[TaskId] = []
+
+        # Se não houver prefixos, retornamos lista vazia para evitar processamento
+        if not prefixes:
+            return []
+
+        for prefix in prefixes:
+            found_tasks: list[Task] = await self.find_by_id_prefix(prefix)
+
+            if not len(found_tasks) == 1:
+                raise ValueError(f"Ambiguous prefix: {prefix}.")
+
+            result.append(found_tasks[0].id)
+
+        return result
+
 
 class FakeUserRepository(UserRepository):
-    def __init__(self):
+    def __init__(self, users: Dict[str, User] = None):
         # Usamos um dicionário para busca rápida por ID (O(1))
-        self.users: Dict[str, User] = {}
+        self.users: Dict[str, User] = users if users is not None else {}
+        self._seen_entities = set()
 
+    @tracks_entity
     async def add(self, user: User) -> None:
         self.users[str(user.id)] = user
 
@@ -137,9 +171,11 @@ class FakeUserRepository(UserRepository):
         if str(user_id) in self.users:
             del self.users[str(user_id)]
 
+    @tracks_entity
     async def get_by_id(self, user_id: UserId) -> Optional[User]:
-        return self.users.get(str(user_id))
+        return self.users.get(str(user_id), None)
 
+    @tracks_entity
     async def get_by_username(self, username: str) -> Optional[User]:
         """Busca linear por username (simula UNIQUE constraint)."""
         return next(
@@ -158,12 +194,13 @@ class FakeUserRepository(UserRepository):
                 if filters.username.lower() in u.username.lower()
             ]
 
-        # Se você decidir adicionar um campo 'is_active' na entidade User no futuro:
+        # Se houver um campo 'is_active' na entidade User no futuro:
         # if filters.is_active is not None:
         #     results = [u for u in results if u.is_active == filters.is_active]
 
         return results
 
+    @tracks_entity
     async def list(self, filters: UserFilter) -> List[User]:
         filtered = self._apply_filters(filters)
 
@@ -175,6 +212,10 @@ class FakeUserRepository(UserRepository):
     async def count(self, filters: UserFilter) -> int:
         # Ignora offset/limit para retornar o total absoluto
         return len(self._apply_filters(filters))
+
+    @tracks_entity
+    async def get_by_email(self, email: str) -> Optional[User]:
+        return None
 
 
 class FakeTimeEntryRepository(TimeEntryRepository):
@@ -228,10 +269,13 @@ class FakeTimeEntryRepository(TimeEntryRepository):
         """Retorna todo o histórico de trackings do usuário."""
         return [e for e in self.entries if e.user_id == user_id]
 
+    async def search(self, filters: TimeEntryFilter) -> List[TimeEntry]:
+        return []
+
 
 class FakeContextRepository:
-    def __init__(self):
-        self.contexts: Dict[str, any] = {}
+    def __init__(self, contexts: Dict[str, any] = None):
+        self.contexts = contexts if contexts is not None else {}
 
     async def get_by_id(self, context_id):
         return self.contexts.get(str(context_id))
@@ -281,17 +325,19 @@ class FakeUserBehaviorProfileRepository(UserBehaviorProfileRepository):
 
 
 class FakeUnitOfWork(UnitOfWork):
-    def __init__(self):
-        self.tasks = FakeTaskRepository()
-        self.users = FakeUserRepository()
-        # Adicione estas duas linhas:
+    def __init__(self, users_dict=None, tasks_dict=None, contexts_dict=None):
+        # Passamos os dicionários compartilhados para os repositórios
+        self.users = FakeUserRepository(users=users_dict)
+        self.tasks = FakeTaskRepository(tasks=tasks_dict)
+        self.contexts = FakeContextRepository(contexts=contexts_dict)
+
         self.time_entries = FakeTimeEntryRepository()
-        self.contexts = FakeContextRepository()
 
         self.user_behavior_metrics = FakeUserBehaviorMetricsRepository()
         self.user_behavior_profiles = FakeUserBehaviorProfileRepository()
 
         self._seen_entities = set()
+        self._trigger_relay = False
 
         self.committed = False
         self.rolled_back = False
@@ -309,23 +355,38 @@ def fake_clock():
 
 
 @pytest.fixture
-def fake_uow():
-    return FakeUnitOfWork()
+def fake_uow_factory():
+    # Estado compartilhado (uma única vez por teste)
+    shared_users = {}
+    shared_tasks = {}
+    shared_contexts = {}
+
+    # incluir outros se necessário
+
+    def factory():
+        # Cada UOW é uma instância nova, mas aponta para os mesmos dicts
+        return FakeUnitOfWork(
+            users_dict=shared_users,
+            tasks_dict=shared_tasks,
+            contexts_dict=shared_contexts
+        )
+
+    return factory
 
 
 @pytest.fixture
-def use_case_context(fake_uow, fake_clock):
+def use_case_context(fake_uow_factory, fake_clock):
     """Retorna um dicionário com todas as dependências prontas para um UseCase (genérico)."""
     return {
-        "uow": fake_uow,
+        "uow_factory": fake_uow_factory,
         "clock": fake_clock,
     }
 
 
 @pytest.fixture
-def create_use_case_context(fake_uow, fake_clock):
+def create_use_case_context(fake_uow_factory, fake_clock):
     """Retorna um dicionário com todas as dependências prontas para um CompleteTaskUseCase."""
     return {
-        "uow": fake_uow,
+        "uow_factory": fake_uow_factory,
         "clock": fake_clock,
     }

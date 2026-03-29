@@ -19,6 +19,7 @@ def user() -> User:
         now=datetime.now(),
         username="test_user",
         password_hash="fake_hash",
+        email="test@test.com",
     )
 
 

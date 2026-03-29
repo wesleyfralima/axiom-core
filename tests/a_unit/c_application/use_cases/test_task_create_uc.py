@@ -13,10 +13,13 @@ from c_application.use_cases import CreateTaskUseCase
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_successfully(use_case_context, fake_uow):
-    # 1. Setup
-    user = User.create(username="wesley")
-    await fake_uow.users.add(user)
+async def test_create_task_successfully(fake_clock, fake_uow_factory):
+
+    async with fake_uow_factory() as uow:
+
+        # 1. Setup
+        user = User.create(username="wesley", email="wesley@test.com")
+        await uow.users.add(user)
 
     dto = CreateTaskInputDTO(
         user_id=str(user.id),
@@ -26,7 +29,7 @@ async def test_create_task_successfully(use_case_context, fake_uow):
     )
 
     # 2. Execução
-    use_case = CreateTaskUseCase(**use_case_context)
+    use_case = CreateTaskUseCase(uow_factory=fake_uow_factory, clock=fake_clock)
     result = await use_case.execute(dto)
 
     # 3. Asserções
@@ -36,9 +39,9 @@ async def test_create_task_successfully(use_case_context, fake_uow):
 
     # Valida persistência e atomicidade
     task_id: TaskId = TaskId(UUID(result.id))
-    task_in_db = await fake_uow.tasks.get_by_id(task_id)
+    task_in_db = await uow.tasks.get_by_id(task_id)
     assert task_in_db is not None
-    assert fake_uow.committed is True
+    assert uow.committed is True
 
 
 @pytest.mark.asyncio
@@ -58,7 +61,7 @@ async def test_create_task_fails_if_title_is_invalid(use_case_context):
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_fails_if_user_not_found(use_case_context, fake_uow):
+async def test_create_task_fails_if_user_not_found(use_case_context, fake_uow_factory):
     use_case = CreateTaskUseCase(**use_case_context)
     dto = CreateTaskInputDTO(
         user_id=str(uuid4()),  # ID aleatório que não está no fake_uow
@@ -71,13 +74,13 @@ async def test_create_task_fails_if_user_not_found(use_case_context, fake_uow):
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_inherits_active_context_from_user(use_case_context, fake_uow):
+async def test_create_task_inherits_active_context_from_user(use_case_context, fake_uow_factory):
     # 1. Setup: Usuário com contexto ativo "Trabalho"
     work_context_id: ContextId = ContextId(uuid4())
     prefs = UserPrefs(active_context_id=work_context_id)
-    user = User.create(username="wesley", preferences=prefs)
+    user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
 
-    await fake_uow.users.add(user)
+    await fake_uow_factory().users.add(user)
 
     # DTO sem contexto explícito
     dto = CreateTaskInputDTO(
@@ -92,16 +95,16 @@ async def test_create_task_inherits_active_context_from_user(use_case_context, f
 
     # 3. Asserção: Verificação no "banco" se herdou o contexto
     task_id: TaskId = TaskId(UUID(result.id))
-    task_in_db = await fake_uow.tasks.get_by_id(task_id)
+    task_in_db = await fake_uow_factory().tasks.get_by_id(task_id)
     assert task_in_db.context_id == work_context_id
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_with_recurrence_calculates_initial_due_date(use_case_context, fake_uow):
+async def test_create_task_with_recurrence_calculates_initial_due_date(use_case_context, fake_uow_factory):
     clock = use_case_context["clock"]
-    user = User.create(username="wesley")
-    await fake_uow.users.add(user)
+    user = User.create(username="wesley", email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
 
     # DTO de recorrência diária
     recurrence_dto = RecurrenceInputDTO(frequency=RecurrenceInterval.DAILY, interval=1, start_date=clock.now())
@@ -123,27 +126,28 @@ async def test_create_task_with_recurrence_calculates_initial_due_date(use_case_
 
     # Verifica se a data faz sentido
     task_id: TaskId = TaskId(UUID(result.id))
-    task_in_db = await fake_uow.tasks.get_by_id(task_id)
+    task_in_db = await fake_uow_factory().tasks.get_by_id(task_id)
     assert task_in_db.recurrence is not None
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_context, fake_uow):
+async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_context, fake_uow_factory):
     clock = use_case_context["clock"]
-    wesley = User.create(username="wesley")
-    outro = User.create(username="outro")
+    wesley = User.create(username="wesley", email="wesley@test.com")
+    outro = User.create(username="outro", email="outro@test.com")
 
     # Tarefa que pertence ao 'outro'
     task_do_outro = Task.create(title=Title("Tarefa Secreta"), user_id=outro.id, now=clock.now())
 
-    await fake_uow.users.add(wesley)
-    await fake_uow.tasks.add(task_do_outro)
+    async with fake_uow_factory() as uow:
+        await uow.users.add(wesley)
+        await uow.tasks.add(task_do_outro)
 
     dto = CreateTaskInputDTO(
         user_id=str(wesley.id),
         title="Minha Sub-tarefa",
-        parent_id=str(task_do_outro.id)  # Tentando anexar na tarefa do outro
+        parent_id=str(task_do_outro.id),  # Tentando anexar na tarefa do outro
     )
 
     use_case = CreateTaskUseCase(**use_case_context)
@@ -154,14 +158,14 @@ async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_cont
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_floating_task_inherits_timezone_from_user_prefs(use_case_context, fake_uow):
+async def test_create_floating_task_inherits_timezone_from_user_prefs(use_case_context, fake_uow_factory):
     clock = use_case_context["clock"]
     # Floating must not have a timezone
     now = clock.now().replace(tzinfo=None)
 
     prefs = UserPrefs(timezone="America/Sao_Paulo")
-    user = User.create(username="wesley", preferences=prefs)
-    await fake_uow.users.add(user)
+    user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
 
     dto = CreateTaskInputDTO(
         user_id=str(user.id),
@@ -176,20 +180,20 @@ async def test_create_floating_task_inherits_timezone_from_user_prefs(use_case_c
 
     # Verifica na entidade se o fuso foi aplicado
     task_id: TaskId = TaskId(UUID(result.id))
-    task_in_db = await fake_uow.tasks.get_by_id(task_id)
+    task_in_db = await fake_uow_factory().tasks.get_by_id(task_id)
     assert task_in_db.due_date.timezone == "America/Sao_Paulo"
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_fixed_task_user_utc(use_case_context, fake_uow):
+async def test_create_fixed_task_user_utc(use_case_context, fake_uow_factory):
     clock = use_case_context["clock"]
     # Floating must have UTC timezone
     now = clock.now().replace(tzinfo=timezone.utc)
 
     prefs = UserPrefs(timezone="America/Sao_Paulo")
-    user = User.create(username="wesley", preferences=prefs)
-    await fake_uow.users.add(user)
+    user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
 
     dto = CreateTaskInputDTO(
         user_id=str(user.id),
@@ -204,20 +208,22 @@ async def test_create_fixed_task_user_utc(use_case_context, fake_uow):
 
     # Verifica na entidade se o fuso foi aplicado
     task_id: TaskId = TaskId(UUID(result.id))
-    task_in_db = await fake_uow.tasks.get_by_id(task_id)
+    task_in_db = await fake_uow_factory().tasks.get_by_id(task_id)
     assert task_in_db.due_date.timezone == "UTC"
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_type(use_case_context, fake_uow):
+async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_type(use_case_context, fake_uow_factory):
     """
     Valida que o Use Case tem sucesso se tentarmos criar uma tarefa flutuante (naive)
     mas passarmos um end_date com fuso horário (aware) na recorrência.
     """
 
-    user = User.create(username="wesley")
-    await fake_uow.users.add(user)
+    user = User.create(username="wesley", email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
+
+    assert user.id is not None
 
     # Tarefa Flutuante (is_floating=True) -> Deve ser Naive
     # Mas enviamos um end_date Aware (com UTC)

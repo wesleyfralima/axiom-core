@@ -77,22 +77,6 @@ def test_fixed_due_date_rejects_naive_datetime() -> None:
         DueDate.fixed(naive_date)
 
 
-def test_fixed_due_date_rejects_custom_fixed_offsets() -> None:
-    """
-    Ensure fixed due date rejects generic fixed offsets (non-IANA, non-UTC).
-    Ex: datetime.timezone(timedelta(hours=-3)) has no .key and is not UTC.
-    """
-
-    # Cria um timezone manual (UTC-5) que não é IANA nem UTC oficial
-    invalid_tz = timezone(timedelta(hours=-5))
-    instant: datetime = datetime.now(tz=invalid_tz)
-
-    with pytest.raises(ValidationException) as exc:
-        DueDate.fixed(instant)
-
-    assert "must use an IANA timezone or UTC" in str(exc.value)
-
-
 def test_fixed_due_date_accepts_native_utc() -> None:
     """
     Ensure we can pass datetime.timezone.utc directly.

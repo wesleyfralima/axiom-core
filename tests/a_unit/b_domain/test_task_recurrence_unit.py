@@ -3,6 +3,7 @@ from uuid import uuid4
 
 from b_domain.entities import Task
 from b_domain.value_objects import RecurrenceInterval, DueDate, UserId, Title
+from b_domain.value_objects.dates import AxiomDate
 from b_domain.value_objects.recurrences.simple import SimpleIntervalRule
 
 
@@ -20,24 +21,62 @@ def create_task_with_recurrence(
 ) -> Task:
     """Helper para criar uma tarefa com recorrência rapidamente."""
 
-    # Configura a regra
-    # Para Fixed, o start_date deve ser Aware. Para Floating, Naive.
-    start_date = due_date
-    if not is_floating and start_date.tzinfo is None:
-        start_date = start_date.replace(tzinfo=timezone.utc)
+    # ------------------------------------------------------------------
+    # 1. Construir AxiomDate corretamente
+    # ------------------------------------------------------------------
+
+    if is_floating:
+        start_axiom = AxiomDate.floating(
+            due_date.replace(tzinfo=None),
+            tz_name,
+        )
+    else:
+        if due_date.tzinfo is None:
+            due_date = due_date.replace(tzinfo=timezone.utc)
+        start_axiom = AxiomDate.fixed(due_date)
+
+    # ------------------------------------------------------------------
+    # 2. Converter end_date (se existir)
+    # ------------------------------------------------------------------
+
+    end_axiom = None
+    if end_date:
+        if is_floating:
+            end_axiom = AxiomDate.floating(
+                end_date.replace(tzinfo=None),
+                tz_name,
+            )
+        else:
+            if end_date.tzinfo is None:
+                end_date = end_date.replace(tzinfo=timezone.utc)
+            end_axiom = AxiomDate.fixed(end_date)
+
+    # ------------------------------------------------------------------
+    # 3. Criar regra de recorrência
+    # ------------------------------------------------------------------
 
     recurrence = SimpleIntervalRule(
         frequency=freq,
         interval=interval,
-        start_date=start_date,
-        end_date=end_date
+        start_date=start_axiom,
+        end_date=end_axiom
     )
 
-    # Configura o DueDate
+    # ------------------------------------------------------------------
+    # 4. DueDate (mantém compatibilidade com seu domínio atual)
+    # ------------------------------------------------------------------
+
     if is_floating:
-        due = DueDate.floating(due_date.replace(tzinfo=None), tz_name)
+        due = DueDate.floating(
+            due_date.replace(tzinfo=None),
+            tz_name,
+        )
     else:
         due = DueDate.fixed(due_date)
+
+    # ------------------------------------------------------------------
+    # 5. Criar Task
+    # ------------------------------------------------------------------
 
     return Task.create(
         now=datetime.now(),
@@ -59,6 +98,7 @@ def test_next_occurrence_simple_daily():
     Cenário: Tarefa vence hoje (01/Jan). Concluo hoje.
     Expectativa: Próxima tarefa para amanhã (02/Jan).
     """
+
     # 01/Jan às 09:00
     due_dt = datetime(2026, 1, 1, 9, 0)
     now = datetime(2026, 1, 1, 10, 0)  # 1 hora depois do vencimento
