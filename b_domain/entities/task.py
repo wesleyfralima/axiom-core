@@ -113,20 +113,20 @@ class Task(Entity):
         if due_date is None:
             due = DueDate.empty()
         elif is_floating:
-            due = DueDate.floating(due_date, tz_name)
+            due = DueDate.floating(due_date.replace(tzinfo=None), tz_name)
         else:
             due = DueDate.fixed(due_date)
 
         if recurrence and due.value:
             # Ensure recurrence aligns with the task's due date type.
             # If they differ, enforce consistency between floating/fixed rules.
-            if due.is_floating and recurrence.start_date.tzinfo is not None:
+            if due.is_floating and not recurrence.start_date.is_floating:
                 raise ValidationException(
-                    "Floating task must have a naive recurrence start_date"
+                    "Floating task must have a floating recurrence start_date"
                 )
-            if not due.is_floating and recurrence.start_date.tzinfo is None:
+            if due.is_fixed and not recurrence.start_date.is_fixed:
                 raise ValidationException(
-                    "Fixed task must have an aware (UTC) recurrence start_date"
+                    "Fixed task must have a fixed recurrence start_date"
                 )
 
         if depends_on is None:
@@ -181,10 +181,11 @@ class Task(Entity):
         """Verifica se a tarefa cabe no nível de energia atual do usuário."""
         return self.required_energy_level <= current_energy
 
-    def add_dependency(self, target_id: TaskId):
+    def add_dependency(self, target_id: TaskId, now: datetime):
         if target_id == self.id:
             raise ValidationException("A task cannot depend on itself.")
         self.depends_on.add(target_id)
+        self.change_status(now=now, new_status=TaskStatus.BLOCKED)
 
     def remove_dependency(self, target_id: TaskId, now: datetime):
         self.depends_on.discard(target_id)
@@ -237,6 +238,7 @@ class Task(Entity):
         # Strategy 2: Catch-up mode (Habit)
         # -------------------------------------------------------
         while True:
+
             next_dt = self.recurrence.get_next_occurrence(last_occurrence=last_reference)
 
             # End of recurrence (Count/Until reached)
@@ -244,13 +246,7 @@ class Task(Entity):
                 return None
 
             # Normalize timezone for comparison
-            comparison_now: datetime = now
-            if next_dt.tzinfo is None and now.tzinfo is not None:
-                comparison_now = now.replace(tzinfo=None)
-            elif next_dt.tzinfo is not None and now.tzinfo is None:
-                comparison_now = now.replace(tzinfo=next_dt.tzinfo)
-
-            # Found a future date?
+            comparison_now: datetime = self.recurrence.normalize_comparison_date(now)
             if next_dt > comparison_now:
                 return self._recreate_task_with_date(now, next_dt)
 
@@ -277,7 +273,7 @@ class Task(Entity):
         else:
             new_due_vo = DueDate.fixed(new_date)
 
-        new_recurrence = replace(self.recurrence, start_date=new_due_vo.value)
+        new_recurrence: RecurrenceRule = replace(self.recurrence, start_date=new_due_vo)
 
         return Task.create(
             now=now,
@@ -338,8 +334,8 @@ class Task(Entity):
         self.description = Description(new_description)
         self._touch(now)
 
-    def change_status(self, now: datetime, new_status: "TaskStatus"):
-        if not self.status.can_transition_to(new_status):
+    def change_status(self, now: datetime, new_status: "TaskStatus", allow_same: bool = True) -> None:
+        if not self.status.can_transition_to(new_status, allow_same):
             raise InvalidStateTransition(
                 f"Cannot change task status from {self.status} to {new_status}"
             )
@@ -404,7 +400,7 @@ class Task(Entity):
 
     def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:
         """Mark the task as completed."""
-        self.change_status(now, TaskStatus.DONE)
+        self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.add_event(TaskCompletedEvent(
             task_id=self.id,
             user_id=self.user_id,
