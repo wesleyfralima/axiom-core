@@ -60,6 +60,10 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             if existing_user:
                 raise DomainException(f"Username '{dto.username}' can not be used.")
 
+            existing_user = await uow.users.get_by_email(dto.email)
+            if existing_user:
+                raise DomainException(f"Email '{dto.email}' can not be used.")
+
             # 2. Security: password hashing
             password_hash: str = self.hasher.hash(dto.password)
 
