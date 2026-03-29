@@ -1,8 +1,8 @@
-from enum import Enum, IntEnum
+from enum import IntEnum, StrEnum
 from functools import cache
 
 
-class TaskStatus(str, Enum):
+class TaskStatus(StrEnum):
     """Enumeration of possible Task statuses.
 
     Represents the lifecycle of a task across planning, execution,
@@ -133,7 +133,7 @@ class Priority(IntEnum):
         return self.name.capitalize()
 
 
-class RecurrenceInterval(str, Enum):
+class RecurrenceInterval(StrEnum):
     """Enumeration of possible recurrence intervals for tasks."""
     HOURLY = "HO"
     DAILY = "DA"
@@ -171,7 +171,7 @@ class TaskComplexity(IntEnum):
         return self.name.capitalize()
 
 
-class MomentumTrend(str, Enum):
+class MomentumTrend(StrEnum):
     """Represents the trend of user momentum in task execution."""
 
     RISING = "rising"           # User is "on fire", can handle higher complexity
