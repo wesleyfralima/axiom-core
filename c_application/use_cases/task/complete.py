@@ -76,14 +76,23 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             InvalidStateTransition: If the task is already done or blocked.
         """
 
-        # Despite going twice to the database, this method is corrected and safe
+        # Despite going twice to the database, this method is correct and safe
 
-        id_iterable = [prefix]
+        id_iterable: list[IdPrefix] = [prefix]
         ids_found: list[TaskId] = await uow.tasks.task_ids_from_id_prefixes(id_iterable)
-        return await uow.tasks.get_by_id(
+
+        if not len(ids_found) == 1:
+            raise ValueError("Ambiguous IDs found")
+
+        task_found: Task = await uow.tasks.get_by_id(
             task_id=ids_found[0],
             user_id=user_id,
         )
+
+        if not task_found:
+            raise ValidationException("No task found with ID prefix")
+
+        return task_found
 
     @staticmethod
     async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest) -> int:

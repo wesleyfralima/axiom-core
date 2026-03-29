@@ -6,7 +6,14 @@ from a_core.exceptions import EntityNotFound, ValidationException
 from b_domain.entities import Task
 from b_domain.ports.repositories import TaskFilter
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import Priority, TaskId, TaskStatus, UserId
+from b_domain.value_objects import (
+    Priority,
+    TaskId,
+    TaskStatus,
+    UserId,
+    ContextId,
+)
+from b_domain.value_objects.enums import TaskComplexity, EnergyLevel
 from c_application.dtos.task_dtos import ListTasksRequest, TaskListOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 
@@ -14,8 +21,8 @@ from c_application.mappers.task_mapper import TaskMapper
 class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
     """Use case for listing tasks with filtering and domain mapping.
 
-    This use case applies filters such as status, priority, parent ID,
-    tags, and root-only flag, then maps the results into output DTOs.
+    This use case applies comprehensive filters including GTD attributes,
+    temporal ranges, and pagination, then maps the results into output DTOs.
     """
 
     async def execute(self, request: ListTasksRequest) -> TaskListOutputDTO:
@@ -42,19 +49,24 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
 
             # 1. Validation and resolution of value objects
             try:
-                f_status: TaskStatus = TaskStatus(request.status) if request.status else None
+                f_user_id: UserId = UserId.from_string(request.user_id)
+            except (ValueError, TypeError):
+                raise ValidationException("The provided user_id is invalid.")
+
+            try:
+                f_status: TaskStatus | None = TaskStatus(request.status) if request.status else None
             except ValueError:
                 raise EntityNotFound(entity_name="TaskStatus", identifier=request.status)
 
             try:
-                f_priority: Priority = Priority(request.priority) if request.priority else None
+                f_priority: Priority | None = Priority(request.priority) if request.priority else None
             except ValueError:
                 raise EntityNotFound(entity_name="Priority", identifier=request.priority)
 
             try:
-                f_user_id: UserId = UserId(UUID(request.user_id))
-            except (ValueError, TypeError):
-                raise ValidationException("The provided user_id is invalid.")
+                f_complexity: TaskComplexity | None = TaskComplexity(request.complexity) if request.complexity else None
+            except ValueError:
+                raise EntityNotFound(entity_name="TaskComplexity", identifier=request.complexity)
 
             f_parent_id: TaskId | None = None
             if request.parent_id:
@@ -64,14 +76,59 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                     # Safe behavior: return empty list if parent ID is invalid
                     return TaskListOutputDTO(tasks=[])
 
-            # 2. Build domain filter
+            f_context_id: ContextId | None = None
+            if request.context_id:
+                try:
+                    f_context_id = ContextId.from_string(request.context_id)
+                except (ValueError, TypeError):
+                    raise ValidationException("The provided context_id is invalid.")
+
+            f_ids: List[TaskId] | None = None
+            if request.ids:
+                try:
+                    f_ids = [TaskId.from_string(i) for i in request.ids]
+                except (ValueError, TypeError):
+                    raise ValidationException("One or more IDs in the list are invalid.")
+
+            energy_level: EnergyLevel | None = None
+            if request.max_energy:
+                try:
+                    energy_level = EnergyLevel(request.max_energy)
+                except (ValueError, TypeError):
+                    raise ValidationException("The provided max_energy is invalid.")
+
+            # 2. Build complete domain filter (Mapping DTO -> TaskFilter)
             filters: TaskFilter = TaskFilter(
+
+                # Identifiers & Pagination
                 user_id=f_user_id,
+                parent_id=f_parent_id,
+                ids=f_ids,
+                limit=request.limit,
+                offset=request.offset,
+
+                # Core attributes
                 status=f_status,
                 priority=f_priority,
-                parent_id=f_parent_id,
+                context_id=f_context_id,
                 tags=request.tags,
+
+                # GTD specific
+                max_energy_level=energy_level,
+                complexity=f_complexity,
+
+                # Behavior flags
+                is_blocked=None if request.include_blocked else False,
+                is_recurring=request.is_recurring,
                 only_roots=request.only_roots,
+
+                # Temporal filters
+                due_before=request.due_before,
+                due_after=request.due_after,
+                created_before=request.created_before,
+                created_after=request.created_after,
+                updated_before=request.updated_before,
+                updated_after=request.updated_after,
             )
 
             # 3. Query repository

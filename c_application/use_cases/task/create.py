@@ -1,4 +1,4 @@
-from datetime import timezone, datetime
+from datetime import datetime
 from typing import Optional
 from uuid import UUID
 
@@ -6,12 +6,14 @@ from a_core.exceptions import ValidationException
 from b_domain.entities import Task, User
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId, ContextId, Title, Description, RecurrenceRule
+from b_domain.value_objects.dates import build_axiom_date
 from b_domain.value_objects.enums import EnergyLevel, Priority
 from b_domain.value_objects.recurrences import RecurrenceFactory
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 
 
+# TODO: better system of id prefix when needed, because passing UUID strings are too costly to user
 class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
     """Use case for orchestrating the creation of a new Task.
 
@@ -107,23 +109,24 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             due_date: datetime | None = dto.due_date
 
             if dto.recurrence:
-                start_base: datetime = dto.recurrence.start_date or dto.due_date or now_system
-                end_date_clean: datetime | None = dto.recurrence.end_date
-
-                # Handle timezone awareness
-                if dto.is_floating:
-                    start_base = start_base.replace(tzinfo=None)
-                    if end_date_clean:
-                        end_date_clean = end_date_clean.replace(tzinfo=None)
-                else:
-                    if start_base.tzinfo is None:
-                        start_base = start_base.replace(tzinfo=timezone.utc)
-                    if end_date_clean and end_date_clean.tzinfo is None:
-                        end_date_clean = end_date_clean.replace(tzinfo=timezone.utc)
+                start_axiom = build_axiom_date(
+                    dto.recurrence.start_date or dto.due_date,
+                    is_floating=dto.is_floating,
+                    tz=tz_to_use,
+                    fallback_now=now_system,
+                )
+                end_axiom = None
+                if dto.recurrence.end_date:
+                    end_axiom = build_axiom_date(
+                        dto.recurrence.end_date,
+                        is_floating=dto.is_floating,
+                        tz=tz_to_use,
+                        fallback_now=now_system,
+                    )
 
                 recurrence_vo = RecurrenceFactory.create_from_input(
-                    start_date=start_base,
-                    end_date=end_date_clean,
+                    start_date=start_axiom,
+                    end_date=end_axiom,
                     frequency=dto.recurrence.frequency,
                     interval=dto.recurrence.interval,
                     count=dto.recurrence.count,
@@ -135,6 +138,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 )
 
                 # First occurrence becomes the due date
+                # TODO: must add catch_up param
                 due_date = recurrence_vo.get_next_occurrence()
 
             # 7. Instantiate and persist domain entity
