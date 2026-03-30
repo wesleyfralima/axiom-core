@@ -1,8 +1,8 @@
 class DomainException(Exception):
     """Base class for all business rule exceptions in Axiom."""
 
-    def __init__(self, message: str):
-        self.message = message
+    def __init__(self, message: str | Exception) -> None:
+        self.message = str(message)
         super().__init__(self.message)
 
 
