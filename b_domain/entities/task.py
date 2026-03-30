@@ -1,7 +1,6 @@
 from dataclasses import dataclass, field, replace
 from datetime import datetime, timezone
 from typing import Optional, List, Set
-from zoneinfo import ZoneInfo
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
@@ -109,16 +108,7 @@ class Task(Entity):
             Task: A new Task instance.
         """
 
-        due: DueDate
-
-        if due_date is None:
-            due = DueDate.empty()
-        elif is_floating:
-            due = DueDate.floating(due_date.replace(tzinfo=None), tz_name)
-        else:
-            if due_date.tzinfo is None:
-                due_date = due_date.replace(tzinfo=ZoneInfo(tz_name))
-            due = DueDate.fixed(due_date.astimezone(ZoneInfo("UTC")))
+        due: DueDate = DueDate.from_params(due_date, is_floating, tz_name)
 
         if recurrence and due.value:
             # Ensure recurrence aligns with the task's due date type.

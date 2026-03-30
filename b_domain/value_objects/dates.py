@@ -135,6 +135,32 @@ class AxiomDate:
         """Convenient factory to create 'now' as a fixed date in UTC."""
         return cls.fixed(datetime.now(timezone.utc))
 
+    @classmethod
+    def from_params(
+            cls,
+            dt: datetime | None,
+            is_floating: bool,
+            tz_name: str,
+    ) -> "AxiomDate":
+        """Build an AxiomDate from params.
+
+        Args:
+            dt (datetime | None): A datetime representing date.
+            is_floating (bool): Whether the date represented as a floating date. If false, it is fixed.
+            tz_name (str): The timezone identifier.
+        """
+
+        if dt is None:
+            return cls.empty()
+
+        if is_floating:
+            return cls.floating(dt.replace(tzinfo=None), tz_name)
+
+        if dt.tzinfo is None:
+            dt = dt.replace(tzinfo=ZoneInfo(tz_name))
+
+        return cls.fixed(dt.astimezone(ZoneInfo("UTC")))
+
     # ------------------------------------------------------------------
     # Useful checks
     # ------------------------------------------------------------------
@@ -208,6 +234,7 @@ class AxiomDate:
     def __str__(self) -> str:
         """Default string representation of AxiomDate."""
         return self.format()
+
 
 @dataclass(frozen=True)
 class DueDate(AxiomDate):
@@ -305,11 +332,11 @@ class DueDate(AxiomDate):
 
 
 def build_axiom_date(
-    dt: Optional[datetime],
-    *,
-    is_floating: bool,
-    tz: Optional[str],
-    fallback_now: datetime
+        dt: Optional[datetime],
+        *,
+        is_floating: bool,
+        tz: Optional[str],
+        fallback_now: datetime
 ) -> AxiomDate:
     """Factory function to build an AxiomDate instance.
 
