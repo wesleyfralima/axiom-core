@@ -34,11 +34,12 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             CompleteTaskOutputDTO: DTO with details of the completed task.
         """
 
+        # Fail fast: UX safeguard
         try:
             task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
-            user_id: UserId = UserId.from_string(request.user_id)
+            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
         except ValidationException as e:
-            raise ValidationException(str(e)) from e
+            raise ValidationException(e) from e
 
         now: datetime = request.completed_at or self.clock.now()
 
@@ -48,7 +49,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             try:
                 task: Task = await self._resolve_task(uow, task_id_prefix, user_id)
             except ValueError as e:
-                raise ValidationException(str(e)) from e
+                raise ValidationException(e) from e
 
             # 2. Close active timers and compute actual duration
             actual_duration: int = await self._close_active_timers(uow, task, now, request)
@@ -73,7 +74,6 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
         Raises:
             ValidationException: If no task or multiple ambiguous tasks are found.
-            InvalidStateTransition: If the task is already done or blocked.
         """
 
         # Despite going twice to the database, this method is correct and safe
@@ -82,7 +82,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         ids_found: list[TaskId] = await uow.tasks.task_ids_from_id_prefixes(id_iterable)
 
         if not len(ids_found) == 1:
-            raise ValueError("Ambiguous IDs found")
+            raise ValidationException("Ambiguous IDs found")
 
         task_found: Task = await uow.tasks.get_by_id(
             task_id=ids_found[0],

@@ -63,10 +63,10 @@ class FakeTaskRepository(TaskRepository):
         return found
 
     @tracks_entity
-    async def find_by_id_prefix(self, id_prefix: str, user_id: UserId = None) -> List[Task]:
+    async def find_by_id_prefix(self, id_prefix: IdPrefix, user_id: UserId = None) -> List[Task]:
         found_tasks: List[Task] = []
         for key, value in self.tasks.items():
-            if key.startswith(id_prefix):
+            if key.startswith(str(id_prefix)):
                 found_tasks.append(value)
         return found_tasks
 
@@ -140,7 +140,7 @@ class FakeTaskRepository(TaskRepository):
             return []
 
         for prefix in prefixes:
-            found_tasks: list[Task] = await self.find_by_id_prefix(prefix)
+            found_tasks: list[Task] = await self.find_by_id_prefix(IdPrefix(prefix))
 
             if not len(found_tasks) == 1:
                 raise ValueError(f"Ambiguous prefix: {prefix}.")

@@ -1,5 +1,4 @@
-from uuid import UUID
-
+from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
@@ -32,16 +31,12 @@ class DeleteTaskUseCase(UseCase[TaskByUserRequest, None]):
             no tasks are found, or multiple ambiguous matches exist.
         """
 
-        task_id_prefix: str = request.task_id_prefix
-
         # 1. Fail fast: UX safeguard
-        if len(task_id_prefix) < 4:
-            raise ValidationException("Task ID prefix must have at least 4 characters.")
-
         try:
-            user_id: UserId = UserId(UUID(request.user_id))
-        except (ValueError, TypeError):
-            raise ValidationException("The provided user_id is invalid.")
+            task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
+            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+        except ValidationException as e:
+            raise ValidationException(e) from e
 
         async with self.uow as uow:
 

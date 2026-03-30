@@ -1,7 +1,7 @@
 from datetime import datetime
 from typing import List
-from uuid import UUID
 
+from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
@@ -42,27 +42,23 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             priority is invalid, task not found, or multiple ambiguous matches exist.
         """
 
-        now: datetime = self.clock.now()
-
-        # 1. Prefix validation (consistent UX with Delete/Complete/Get use cases)
-        if len(request.task_id_prefix) < 4:
-            raise ValidationException("Task ID prefix must have at least 4 characters.")
-
+        # 1. Fail fast: UX safeguard
         try:
-            user_id: UserId = UserId(UUID(request.user_id))
-        except (ValueError, TypeError):
-            raise ValidationException("The provided user_id is invalid.")
+            task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
+            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+        except ValidationException as e:
+            raise ValidationException(e) from e
 
         try:
             priority: Priority = Priority(request.priority)
-        except ValueError:
-            raise ValidationException("The provided priority is invalid.")
+        except ValueError as e:
+            raise ValidationException(f"Invalid priority: {request.priority}") from e
 
         async with self.uow as uow:
 
             # 2. Search by prefix scoped to user
             tasks_found: List[Task] = await uow.tasks.find_by_id_prefix(
-                id_prefix=request.task_id_prefix,
+                id_prefix=task_id_prefix,
                 user_id=user_id
             )
 
@@ -76,6 +72,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             task: Task = tasks_found[0]
 
             # 3. Apply partial updates
+            now: datetime = self.clock.now()
             # Each update is delegated to the Task entity to enforce domain rules
             if request.title is not None:
                 task.rename(now, request.title)

@@ -152,7 +152,7 @@ async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_cont
 
     use_case = CreateTaskUseCase(**use_case_context)
 
-    with pytest.raises(ValidationException, match="access denied"):
+    with pytest.raises(ValidationException, match="Parent task not found"):
         await use_case.execute(dto)
 
 

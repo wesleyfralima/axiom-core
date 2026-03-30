@@ -1,6 +1,5 @@
 from datetime import datetime
 from typing import Optional
-from uuid import UUID
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task, User
@@ -49,7 +48,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
         # 1. Data validation
         try:
-            user_id_vo: UserId = UserId.from_string(dto.user_id)
+            user_id_vo: UserId = UserId.from_string(dto.user_id, error_msg="Invalid user ID.")
             title_vo: Title = Title(dto.title)
             description_vo: Description = Description(dto.description if dto.description else None)
 
@@ -57,15 +56,12 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             if dto.required_energy_level:
                 energy_level_enum = EnergyLevel(dto.required_energy_level)
 
-        except (ValueError, TypeError):
-            raise ValidationException("Invalid user ID format.")
-
         except ValidationException as e:
-            raise ValidationException(str(e))
+            raise ValidationException(e)
 
         try:
             depends_on_vo: set[TaskId] = set([TaskId.from_string(tid) for tid in dto.depends_on])
-        except (ValueError, TypeError) as e:
+        except ValidationException as e:
             raise ValidationException("'depends_on' parameter contains invalid UUIDs") from e
 
         now_system: datetime = self.clock.now()
@@ -81,9 +77,10 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             parent_id_vo: Optional[TaskId] = None
             if dto.parent_id:
                 try:
-                    parent: Task | None = await uow.tasks.get_by_id(TaskId(UUID(dto.parent_id)))
+                    parent_id: TaskId = TaskId.from_string(dto.parent_id, error_msg="Invalid parent ID.")
+                    parent: Task | None = await uow.tasks.get_by_id(parent_id)
                     if not parent or parent.user_id != user_id_vo:
-                        raise ValidationException("Parent task not found or access denied.")
+                        raise ValidationException("Parent task not found.")
                     parent_id_vo = parent.id
                 except (ValueError, TypeError):
                     raise ValidationException("Invalid parent task ID format.")
@@ -91,7 +88,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             # 4. Smart context resolution
             context_id_vo: ContextId | None = None
             if dto.context_id:
-                context_id_vo = ContextId(UUID(dto.context_id))
+                context_id_vo = ContextId.from_string(dto.context_id, error_msg="Invalid context ID.")
             elif user.preferences.active_context_id:
                 context_id_vo = user.preferences.active_context_id
 
@@ -134,7 +131,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     days_of_month=set(dto.recurrence.by_month_days) if dto.recurrence.by_month_days else None,
                     set_pos=dto.recurrence.by_set_pos,
                     nth_business_day=dto.recurrence.nth_business_day,
-                    is_business_day_checker=lambda dt: dt.weekday() < 5,  # Simple weekday check
+                    is_business_day_checker=lambda dt: dt.weekday() < 5,  # Simple weekday check  TODO: change this
                 )
 
                 # First occurrence becomes the due date
