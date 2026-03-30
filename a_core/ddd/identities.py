@@ -1,4 +1,5 @@
 from dataclasses import dataclass, field
+from typing import Optional
 from uuid import UUID, uuid4
 
 from a_core.ddd.value_objects import TextValueObject, ValueObject
@@ -16,11 +17,12 @@ class UniqueId(ValueObject):
         return str(self.value)
 
     @classmethod
-    def from_string(cls, value: str) -> "UniqueId":
+    def from_string(cls, value: str, *, error_msg: Optional[str] = None) -> "UniqueId":
         """Create a UniqueId from a string.
 
         Args:
             value (str): The string representation of the VALID UUID.
+            error_msg (Optional[str]): Optional error message if the UUID is invalid.
 
         Raises:
             ValidationException: If the string representation is not a valid UUID.
@@ -28,7 +30,7 @@ class UniqueId(ValueObject):
         try:
             return cls(UUID(value))
         except ValueError:
-            raise ValidationException(f"The provided value is not a valid UUID: {value}")
+            raise ValidationException(error_msg or f"The provided value is not a valid UUID: {value}")
 
 
 @dataclass(frozen=True)
