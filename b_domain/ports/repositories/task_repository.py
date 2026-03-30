@@ -122,11 +122,11 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def find_by_id_prefix(self, id_prefix: str, user_id: UserId = None) -> List[Task]:
+    async def find_by_id_prefix(self, id_prefix: IdPrefix, user_id: UserId = None) -> List[Task]:
         """Find tasks by matching an ID prefix.
 
         Args:
-            id_prefix (str): Prefix string to match against task IDs.
+            id_prefix (IdPrefix): Prefix string to match against task IDs.
             user_id (UserId, optional): Scope search to a specific user.
 
         Returns:
