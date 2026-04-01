@@ -39,7 +39,7 @@ class UseCase(ABC, Generic[TRequest, TResponse]):
         return self._uow_factory()
 
     @abstractmethod
-    def execute(self, request: TRequest) -> TResponse:
+    async def execute(self, request: TRequest) -> TResponse:
         """Executes the business logic of the use case.
 
         Args:
