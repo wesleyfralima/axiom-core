@@ -1,20 +1,52 @@
+from dataclasses import dataclass, field
 from typing import Dict
 
+from a_core import DTO
 from b_domain.entities import User
 from b_domain.exceptions import SecurityException
 from b_domain.ports.password_hasher import PasswordHasher
-from b_domain.ports.providers import TokenProvider, ClockProvider
-from b_domain.ports.use_case import UseCase, UowFactoryType
-from c_application.dtos.auth_dtos import LoginInputDTO, TokenOutputDTO
+from b_domain.ports.providers import ClockProvider, TokenProvider
+from b_domain.ports.use_case import UowFactoryType, UseCase
 
 
-class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
+@dataclass(frozen=True)
+class LoginInputDTO(DTO):
+    """Input DTO for user login requests.
+
+    Encapsulates the credentials provided by the user during
+    the authentication process.
+
+    Attributes:
+        username (str): The username of the user attempting to log in.
+        password (str): The raw password provided by the user.
+            Marked as `repr=False` to avoid accidental logging.
+    """
+    username: str
+    password: str = field(repr=False)
+
+
+@dataclass(frozen=True)
+class LoginOutputDTO(DTO):
+    """Output DTO for successful authentication responses.
+
+    Represents the result of a successful login, containing
+    the generated access token and its type.
+
+    Attributes:
+        access_token (str): The JWT access token issued to the user.
+        token_type (str): The type of token, typically "bearer".
+    """
+    access_token: str
+    token_type: str = "bearer"
+
+
+class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
     """Use case for authenticating a user.
 
-    Orchestrates the authentication process:
-    1. Identity verification.
-    2. Password validation (hash comparison).
-    3. Token generation (JWT).
+    This use case orchestrates the authentication process:
+    1. Identity verification (lookup by username).
+    2. Password validation using secure hash comparison.
+    3. Token generation (JWT) with claims for session management.
     """
 
     def __init__(
@@ -29,14 +61,14 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
         Args:
             uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
             clock (ClockProvider): Provides current time for token claims.
-            hasher (PasswordHasher): Service for verifying password hashes.
+            hasher (PasswordHasher): Service for verifying password hashes securely.
             token_provider (TokenProvider): Service for generating JWT access tokens.
         """
         super().__init__(uow_factory, clock)
         self.hasher = hasher
         self.token_provider = token_provider
 
-    async def execute(self, dto: LoginInputDTO) -> TokenOutputDTO:
+    async def execute(self, dto: LoginInputDTO) -> LoginOutputDTO:
         """Validate user credentials and issue an access token.
 
         Steps:
@@ -49,7 +81,7 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
             dto (LoginInputDTO): Input data containing username and password.
 
         Returns:
-            TokenOutputDTO: Output containing the access token and token type.
+            LoginOutputDTO: Output containing the access token and token type.
 
         Raises:
             SecurityException: If the username does not exist or the password is invalid.
@@ -61,15 +93,13 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
             user: User = await uow.users.get_by_username(dto.username)
 
             # 2. Security validation
-            # `hasher.verify` protects against timing attacks and raw hash leaks
             if not user or not self.hasher.verify(dto.password, user.password_hash):
                 # Generic error to prevent user enumeration
                 raise SecurityException("Invalid username or password.")
 
             # 3. JWT payload
-            # 'sub' is used for subject (user ID), plus useful claims for frontend
             payload: Dict[str, str] = {
-                "sub": str(user.id),
+                "sub": str(user.id),  # Subject claim (user ID)
                 "username": user.username,
                 "iat": str(int(self.clock.now().timestamp())),  # Issued At
             }
@@ -77,7 +107,7 @@ class AuthenticateUserUseCase(UseCase[LoginInputDTO, TokenOutputDTO]):
         # 4. Token generation
         token: str = self.token_provider.create_access_token(payload)
 
-        return TokenOutputDTO(
+        return LoginOutputDTO(
             access_token=token,
             token_type="bearer"
         )
