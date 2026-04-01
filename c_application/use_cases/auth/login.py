@@ -3,7 +3,7 @@ from typing import Dict
 
 from a_core import DTO
 from b_domain.entities import User
-from b_domain.exceptions import SecurityException
+from b_domain.exceptions.security import InvalidCredentialsError
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
@@ -84,18 +84,18 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
             LoginOutputDTO: Output containing the access token and token type.
 
         Raises:
-            SecurityException: If the username does not exist or the password is invalid.
+            InvalidCredentialsError: If the username does not exist or the password is invalid.
         """
 
         async with self.uow as uow:
 
             # 1. Identity lookup
-            user: User = await uow.users.get_by_username(dto.username)
+            user: User | None = await uow.users.get_by_username(dto.username)
 
             # 2. Security validation
             if not user or not self.hasher.verify(dto.password, user.password_hash):
                 # Generic error to prevent user enumeration
-                raise SecurityException("Invalid username or password.")
+                raise InvalidCredentialsError()
 
             # 3. JWT payload
             payload: Dict[str, str] = {

@@ -1,8 +1,8 @@
 from dataclasses import dataclass, field
 
 from a_core import DTO
-from a_core.exceptions import DomainException
 from b_domain.entities.user import User
+from b_domain.exceptions.user import UsernameAlreadyExistsError, EmailAlreadyExistsError
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
@@ -79,7 +79,8 @@ class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
             RegisterUserOutputDTO: Output data representing the newly created user.
 
         Raises:
-            DomainException: If the username or email is already in use.
+            UsernameAlreadyExistsError: If the username is already in use.
+            EmailAlreadyExistsError: If the email is already in use.
         """
 
         async with self.uow as uow:
@@ -87,11 +88,11 @@ class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
             # 1. Business rule validation (uniqueness)
             existing_user: User | None = await uow.users.get_by_username(dto.username)
             if existing_user:
-                raise DomainException(f"Username '{dto.username}' can not be used.")
+                raise UsernameAlreadyExistsError(dto.username)
 
             existing_user = await uow.users.get_by_email(dto.email)
             if existing_user:
-                raise DomainException(f"Email '{dto.email}' can not be used.")
+                raise EmailAlreadyExistsError(dto.email)
 
             # 2. Security: password hashing
             password_hash: str = self.hasher.hash(dto.password)
