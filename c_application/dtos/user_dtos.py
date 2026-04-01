@@ -26,7 +26,6 @@ class UserPrefsInputDTO(DTO):
     default_task_status: Optional[str] = None
     auto_schedule_tasks: Optional[bool] = None
     allow_overdue_tasks: Optional[bool] = None
-    inherit_project_settings: Optional[bool] = None
 
     # ------------------------------------------------------------------
     # Notifications
@@ -53,11 +52,50 @@ class UserPrefsInputDTO(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
-class CreateUserInputDTO(DTO):
-    """DTO for creating a new user with secure password handling."""
-    username: str
-    email: str
-    password: str
+class UserPrefsOutputDTO(DTO):
+    """Detailed user configuration settings."""
+
+    # ------------------------------------------------------------------
+    # Calendar & time
+    # ------------------------------------------------------------------
+    timezone: str
+    week_start: str  # monday | sunday
+    working_hours_start: int
+    working_hours_end: int
+    skip_weekends: bool
+
+    default_task_duration_minutes: int
+
+    # ------------------------------------------------------------------
+    # Task behavior
+    # ------------------------------------------------------------------
+    default_task_priority: str
+    default_task_status: str
+    auto_schedule_tasks: bool
+    allow_overdue_tasks: bool
+
+    # ------------------------------------------------------------------
+    # Notifications
+    # ------------------------------------------------------------------
+    notify_due_soon: bool
+    notify_overdue: bool
+    notify_task_completed: bool
+
+    daily_summary_enabled: bool
+    daily_summary_time: str  # HH:MM
+
+    # ------------------------------------------------------------------
+    # Recurrence & automation
+    # ------------------------------------------------------------------
+    auto_create_next_recurrence: bool
+    recurring_tasks_visible_ahead_days: int
+
+    # ------------------------------------------------------------------
+    # Localization
+    # ------------------------------------------------------------------
+    language: str
+    date_format: str
+    time_format_24h: bool
 
 
 @dataclass
@@ -71,10 +109,3 @@ class UserOutputDTO(DTO):
     # UX essentials
     timezone: str
     language: str
-
-
-@dataclass(frozen=True, kw_only=True)
-class UpdateUserPreferencesRequest(DTO):
-    """Dados de entrada para atualizar preferências de forma parcial."""
-    username: str
-    preferences: UserPrefsInputDTO
