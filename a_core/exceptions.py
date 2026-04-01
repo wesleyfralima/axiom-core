@@ -23,6 +23,15 @@ class EntityNotFound(DomainException):
         super().__init__(f"{entity_name} with identifier '{identifier}' was not found.")
 
 
+class EntityAlreadyExists(DomainException):
+    """Raised when attempting to create an entity that already exists."""
+
+    def __init__(self, conflicting_field: str, identifier: str):
+        self.conflicting_field = conflicting_field
+        self.identifier = identifier
+        super().__init__(f"The {conflicting_field} '{identifier}' is already taken.")
+
+
 class InvalidValueError(DomainException):
     """Raised when an invalid value is provided for a specific domain concept."""
 
