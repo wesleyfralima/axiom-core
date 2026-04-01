@@ -5,7 +5,6 @@ and focuses solely on pure python logic and domain rules.
 """
 
 from a_core.application.dtos import DTO, PaginatedResponse
-from a_core.application.result import Result
 
 from a_core.ddd.entities import Entity
 from a_core.ddd.events import DomainEvent
@@ -29,7 +28,6 @@ __all__ = [
     "Entity",
     "IdPrefix",
     "PaginatedResponse",
-    "Result",
     "TextValueObject",
     "tracks_entity",
     "UniqueId",
