@@ -1,20 +1,56 @@
+from dataclasses import dataclass
 from typing import Any, Dict
 
+from a_core import DTO
 from a_core.exceptions import DomainException
 from b_domain.entities.user import User
 from b_domain.ports.use_case import UseCase
-from c_application.dtos.user_dtos import UserOutputDTO, UserPrefsInputDTO, UpdateUserPreferencesRequest
+from c_application.dtos.user_dtos import UserPrefsInputDTO, UserPrefsOutputDTO
 from c_application.mappers.user_mapper import UserMapper
 
 
-class UpdateUserPreferencesUseCase(UseCase[UserPrefsInputDTO, UserOutputDTO]):
+@dataclass(frozen=True, kw_only=True)
+class UpdateUserPreferencesInputDTO(DTO):
+    """Input DTO for updating user preferences.
+
+    Encapsulates the username and a partial set of preferences
+    to be updated. Fields set to None are ignored, allowing
+    partial updates without overwriting existing values.
+
+    Attributes:
+        username (str): The username of the user whose preferences will be updated.
+        preferences (UserPrefsInputDTO): DTO containing partial preference updates.
+    """
+    username: str
+    preferences: UserPrefsInputDTO
+
+
+@dataclass(frozen=True, kw_only=True)
+class UpdateUserPreferencesOutputDTO(DTO):
+    """Output DTO for user preferences update responses.
+
+    Represents the updated preferences of a user after a successful
+    update operation.
+
+    Attributes:
+        username (str): The username of the updated user.
+        preferences (UserPrefsOutputDTO): DTO containing the updated preferences.
+        message (str): Status message confirming the update.
+            Defaults to "preferences_updated".
+    """
+    username: str
+    preferences: UserPrefsOutputDTO
+    message: str = "preferences_updated"
+
+
+class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, UpdateUserPreferencesOutputDTO]):
     """Use case for updating user preferences.
 
     Handles partial updates to user settings, ensuring that only
     provided fields are changed while keeping others intact.
     """
 
-    async def execute(self, request: UpdateUserPreferencesRequest) -> UserOutputDTO:
+    async def execute(self, request: UpdateUserPreferencesInputDTO) -> UpdateUserPreferencesOutputDTO:
         """Execute the preference update workflow.
 
         Steps:
@@ -25,11 +61,11 @@ class UpdateUserPreferencesUseCase(UseCase[UserPrefsInputDTO, UserOutputDTO]):
             5. Map the updated entity to an output DTO.
 
         Args:
-            request (UpdateUserPreferencesRequest): Request object containing
+            request (UpdateUserPreferencesInputDTO): Request object containing
                 the username and partial preferences to update.
 
         Returns:
-            UserOutputDTO: Output DTO representing the updated user.
+            UpdateUserPreferencesOutputDTO: Output DTO representing the updated user.
 
         Raises:
             DomainException: If the user does not exist.
@@ -43,22 +79,22 @@ class UpdateUserPreferencesUseCase(UseCase[UserPrefsInputDTO, UserOutputDTO]):
                 raise DomainException(f"User '{request.username}' not found.")
 
             # 2. Prepare partial changes
-            # Filter out None values to allow partial DTO updates
             changes: Dict[str, Any] = {
                 k: v for k, v in request.preferences.__dict__.items()
                 if v is not None
             }
 
             # 3. Domain logic delegated to entity
-            # User entity internally creates a new UserPrefs via replace()
             user.update_prefs(
                 now=self.clock.now(),
                 **changes
             )
 
             # 4. Persistence
-            # Repository saves the full state of preferences
             await uow.users.update(user)
 
         # 5. Centralized output mapping
-        return UserMapper.to_output(user)
+        return UpdateUserPreferencesOutputDTO(
+            username=user.username,
+            preferences=UserMapper.prefs_from_entity(user),
+        )
