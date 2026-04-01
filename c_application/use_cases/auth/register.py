@@ -1,17 +1,46 @@
+from dataclasses import dataclass, field
+
+from a_core import DTO
 from a_core.exceptions import DomainException
 from b_domain.entities.user import User
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.use_case import UseCase, UowFactoryType
-from c_application.dtos.user_dtos import CreateUserInputDTO, UserOutputDTO
+from b_domain.ports.use_case import UowFactoryType, UseCase
+from c_application.dtos.user_dtos import UserOutputDTO
 from c_application.mappers.user_mapper import UserMapper
 
 
-class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
+@dataclass(frozen=True, kw_only=True)
+class RegisterUserInputDTO(DTO):
+    """Input DTO for user registration requests.
+
+    Encapsulates the data required to create a new user securely.
+
+    Attributes:
+        username (str): Desired username for the new account.
+        email (str): Email address associated with the user.
+        password (str): Raw password provided by the user.
+            Marked as `repr=False` to avoid accidental logging.
+    """
+    username: str
+    email: str
+    password: str = field(repr=False)
+
+
+@dataclass
+class RegisterUserOutputDTO(UserOutputDTO):
+    """Output DTO for user registration responses.
+
+    Represents the public-facing details of a newly created user,
+    including their preferences and identifiers.
+    """
+
+
+class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
     """Use case for registering a new user.
 
-    Orchestrates the registration process, including:
-    1. Unique constraint validation (username).
+    This use case orchestrates the registration process, including:
+    1. Unique constraint validation (username and email).
     2. Password hashing for security.
     3. Entity creation and persistence.
     4. Output mapping for response.
@@ -23,34 +52,34 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             clock: ClockProvider,
             hasher: PasswordHasher,
     ):
-        """Initialize the CreateUserUseCase.
+        """Initialize the RegisterUserUseCase.
 
         Args:
             uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
             clock (ClockProvider): Provides current time for entity creation.
-            hasher (PasswordHasher): Service for hashing user passwords.
+            hasher (PasswordHasher): Service for hashing user passwords securely.
         """
         super().__init__(uow_factory, clock)
         self.hasher = hasher
 
-    async def execute(self, dto: CreateUserInputDTO) -> UserOutputDTO:
+    async def execute(self, dto: RegisterUserInputDTO) -> RegisterUserOutputDTO:
         """Register a new user in the system.
 
         Steps:
-            1. Validate uniqueness of the username.
+            1. Validate uniqueness of the username and email.
             2. Hash the provided password securely.
             3. Create a new User entity via factory method.
             4. Persist the entity in the repository.
             5. Map the entity to an output DTO.
 
         Args:
-            dto (CreateUserInputDTO): Input data containing username and password.
+            dto (RegisterUserInputDTO): Input data containing username, email, and password.
 
         Returns:
-            UserOutputDTO: Output data representing the newly created user.
+            RegisterUserOutputDTO: Output data representing the newly created user.
 
         Raises:
-            DomainException: If the username is already in use.
+            DomainException: If the username or email is already in use.
         """
 
         async with self.uow as uow:
@@ -79,4 +108,7 @@ class CreateUserUseCase(UseCase[CreateUserInputDTO, UserOutputDTO]):
             await uow.users.add(user)
 
         # 5. Centralized output mapping
-        return UserMapper.to_output(user)
+        return UserMapper.to_output(
+            user,
+            dto_class=RegisterUserOutputDTO,
+        )
