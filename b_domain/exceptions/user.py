@@ -1,4 +1,4 @@
-from a_core.exceptions import EntityAlreadyExists
+from a_core.exceptions import EntityAlreadyExists, EntityNotFound
 
 
 class UsernameAlreadyExistsError(EntityAlreadyExists):
@@ -13,3 +13,10 @@ class EmailAlreadyExistsError(EntityAlreadyExists):
 
     def __init__(self, email: str):
         super().__init__(conflicting_field="email", identifier=email)
+
+
+class UserNotFoundError(EntityNotFound):
+    """Exception raised when a user does not exist."""
+
+    def __init__(self, username: str):
+        super().__init__(entity_name="User", identifier=username)

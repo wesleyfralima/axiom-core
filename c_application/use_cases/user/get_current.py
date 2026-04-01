@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Optional, Dict
+from typing import Dict
 
 from a_core import DTO
 from b_domain.entities import User
-from b_domain.exceptions.security import ExpiredTokenError, InvalidTokenError
+from b_domain.exceptions.security import InvalidTokenError
 from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.unity_of_work import UnitOfWork
 from b_domain.ports.use_case import UowFactoryType, UseCase
@@ -39,7 +39,7 @@ class GetCurrentUserOutputDTO(UserOutputDTO):
     message: str = "user_retrieved"
 
 
-class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, Optional[GetCurrentUserOutputDTO]]):
+class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutputDTO]):
     """Use case for retrieving the current authenticated user from an access token.
 
     This use case validates a JWT access token and, if valid, resolves
@@ -63,7 +63,7 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, Optional[GetCurrentU
         super().__init__(uow_factory, clock)
         self.token_provider = token_provider
 
-    async def execute(self, request: GetCurrentUserInputDTO) -> Optional[UserOutputDTO]:
+    async def execute(self, request: GetCurrentUserInputDTO) -> GetCurrentUserOutputDTO:
         """Validate the token and retrieve the current user.
 
         Steps:
@@ -76,25 +76,24 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, Optional[GetCurrentU
             request (GetCurrentUserInputDTO): Input DTO containing the raw JWT string.
 
         Returns:
-            Optional[UserOutputDTO]: The authenticated user as an output DTO,
-            or None if the token is invalid, expired, or the user does not exist.
+            GetCurrentUserOutputDTO: The authenticated user as an output DTO.
+
+        Raises:
+            InvalidTokenError: If the user could not be retrieved (invalid or expired token).
         """
 
-        try:
-            # 1. Technical validation of the token via provider
-            payload: Dict = self.token_provider.decode_access_token(request.token)
-        except (ExpiredTokenError, InvalidTokenError):
-            return None
+        # 1. Technical validation of the token via provider
+        payload: Dict = self.token_provider.decode_access_token(request.token)
 
         username: str = payload.get("username")
         if not username:
-            return None
+            raise InvalidTokenError("Token payload is missing user identity.")
 
         # 2. Existence and integrity validation
         async with self.uow as uow:
             user: User | None = await uow.users.get_by_username(username)
             if not user:
-                return None
+                raise InvalidTokenError("Could not retrieve an user from the specified token.")
 
         # 3. Output mapping
         return UserMapper.to_output(user, dto_class=GetCurrentUserOutputDTO)

@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Any, Dict
 
 from a_core import DTO
-from a_core.exceptions import DomainException
+from a_core.exceptions import InvalidValueError, ValidationException
 from b_domain.entities.user import User
+from b_domain.exceptions.user import UserNotFoundError
 from b_domain.ports.use_case import UseCase
 from c_application.dtos.user_dtos import UserPrefsInputDTO, UserPrefsOutputDTO
 from c_application.mappers.user_mapper import UserMapper
@@ -76,7 +77,7 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
             # 1. Retrieve user aggregate
             user: User = await uow.users.get_by_username(request.username)
             if not user:
-                raise DomainException(f"User '{request.username}' not found.")
+                raise UserNotFoundError(request.username)
 
             # 2. Prepare partial changes
             changes: Dict[str, Any] = {
@@ -84,11 +85,17 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
                 if v is not None
             }
 
+            if not changes:
+                raise ValidationException("No preferences were provided to update.")
+
             # 3. Domain logic delegated to entity
-            user.update_prefs(
-                now=self.clock.now(),
-                **changes
-            )
+            try:
+                user.update_prefs(
+                    now=self.clock.now(),
+                    **changes
+                )
+            except ValueError as e:
+                raise InvalidValueError(concept="Preference Value", invalid_value=str(e))
 
             # 4. Persistence
             await uow.users.update(user)
