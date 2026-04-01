@@ -1,17 +1,36 @@
+from typing import TypeVar, Type
+
 from b_domain.entities.user import User, UserPrefs
-from c_application.dtos.user_dtos import UserOutputDTO, UserPrefsInputDTO
+from c_application.dtos.user_dtos import UserOutputDTO, UserPrefsInputDTO, UserPrefsOutputDTO
+
+TUserDTO = TypeVar('TUserDTO', bound=UserOutputDTO)
 
 
 class UserMapper:
     """Centralized mapper for User transformations.
 
-    Decouples the User Domain Entity from the application Output DTOs.
+    This class decouples the User Domain Entity from the application DTOs.
+    It provides static methods to convert between domain entities and DTOs,
+    ensuring a clean separation between layers.
     """
 
     @staticmethod
-    def to_output(user: "User") -> UserOutputDTO:
-        """Maps a User entity to a UserOutputDTO."""
-        return UserOutputDTO(
+    def to_output(
+            user: User,
+            *,
+            dto_class: Type[TUserDTO] = UserOutputDTO,
+    ) -> TUserDTO:
+        """Map a User entity to a UserOutputDTO.
+
+        Args:
+            user (User): The domain User entity to be mapped.
+            dto_class (Type[TUserDTO], optional): The DTO class to instantiate.
+                Defaults to UserOutputDTO.
+
+        Returns:
+            TUserDTO: A DTO containing user information suitable for presentation.
+        """
+        return dto_class(
             id=str(user.id),
             username=user.username,
             timezone=user.preferences.timezone,
@@ -20,23 +39,61 @@ class UserMapper:
 
     @staticmethod
     def to_domain_prefs(dto: UserPrefsInputDTO) -> UserPrefs:
-        """
-        Converte o DTO de preferências para o Value Object UserPrefs.
+        """Convert a UserPrefsInputDTO into a UserPrefs Value Object.
 
-        Utiliza os valores padrão do UserPrefs caso o DTO não forneça
-        informações para campos específicos (útil para registros simplificados).
-        """
+        Args:
+            dto (UserPrefsInputDTO): Input DTO containing user preference data.
 
-        # Criamos um dicionário apenas com os campos que não são None no DTO
-        # Isso permite que o UserPrefs use seus valores default do dataclass
+        Returns:
+            UserPrefs: A domain Value Object representing user preferences.
+
+        Notes:
+            - Fields with None values are ignored, allowing UserPrefs defaults
+              to be applied automatically.
+            - Language values are normalized to lowercase.
+            - Timezone values could be validated against IANA identifiers.
+        """
         data = {k: v for k, v in dto.__dict__.items() if v is not None}
 
-        # Se você quiser garantir transformações específicas (ex: normalizar strings)
         if "language" in data:
             data["language"] = data["language"].lower()
 
         if "timezone" in data:
-            # Aqui você poderia validar se o timezone é um IANA válido
+            # Potential validation for IANA timezone identifiers could be added here
             pass
 
         return UserPrefs(**data)
+
+    @staticmethod
+    def prefs_from_entity(entity: User) -> UserPrefsOutputDTO:
+        """Extract preferences from a User entity and map them to a DTO.
+
+        Args:
+            entity (User): The domain User entity containing preferences.
+
+        Returns:
+            UserPrefsOutputDTO: A DTO with user preference details for presentation.
+        """
+        prefs: UserPrefs = entity.preferences
+        return UserPrefsOutputDTO(
+            timezone=prefs.timezone,
+            week_start=prefs.week_start,
+            working_hours_start=prefs.working_hours_start,
+            working_hours_end=prefs.working_hours_end,
+            skip_weekends=prefs.skip_weekends,
+            default_task_duration_minutes=prefs.default_task_duration_minutes,
+            default_task_priority=prefs.default_task_priority,
+            default_task_status=prefs.default_task_status,
+            auto_schedule_tasks=prefs.auto_schedule_tasks,
+            allow_overdue_tasks=prefs.allow_overdue_tasks,
+            notify_due_soon=prefs.notify_due_soon,
+            notify_overdue=prefs.notify_overdue,
+            notify_task_completed=prefs.notify_task_completed,
+            daily_summary_enabled=prefs.daily_summary_enabled,
+            daily_summary_time=prefs.daily_summary_time,
+            auto_create_next_recurrence=prefs.auto_create_next_recurrence,
+            recurring_tasks_visible_ahead_days=prefs.recurring_tasks_visible_ahead_days,
+            language=prefs.language,
+            date_format=prefs.date_format,
+            time_format_24h=prefs.time_format_24h,
+        )
