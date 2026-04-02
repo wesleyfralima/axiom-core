@@ -50,6 +50,11 @@ class UserPrefsInputDTO(DTO):
     date_format: Optional[str] = None
     time_format_24h: Optional[bool] = None
 
+    # ------------------------------------------------------------------
+    # UI/UX
+    # ------------------------------------------------------------------
+    theme: Optional[str] = None
+
 
 @dataclass(frozen=True, kw_only=True)
 class UserPrefsOutputDTO(DTO):
@@ -96,6 +101,11 @@ class UserPrefsOutputDTO(DTO):
     language: str
     date_format: str
     time_format_24h: bool
+
+    # ------------------------------------------------------------------
+    # UI/UX
+    # ------------------------------------------------------------------
+    theme: str
 
 
 @dataclass

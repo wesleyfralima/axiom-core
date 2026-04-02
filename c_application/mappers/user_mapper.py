@@ -96,4 +96,5 @@ class UserMapper:
             language=prefs.language,
             date_format=prefs.date_format,
             time_format_24h=prefs.time_format_24h,
+            theme=prefs.theme,
         )
