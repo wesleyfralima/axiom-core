@@ -40,3 +40,23 @@ class InvalidValueError(DomainException):
         if valid_options:
             msg += f" Valid options are: {', '.join(valid_options)}."
         super().__init__(msg)
+
+
+class AmbiguousIdentifierError(ValidationException):
+    """Exception raised when an identifier prefix matches multiple resources."""
+
+    def __init__(self, resource_name: str, identifier: str, matches: list[str]):
+        self.matches = matches
+        msg: str = (
+            f"Multiple {resource_name} found for prefix '{identifier}': "
+            f"{', '.join(matches)}. Please provide a more specific ID prefix."
+        )
+        super().__init__(msg)
+
+
+class InvalidIdentifierError(ValidationException):
+    """Exception raised when an identifier format is invalid."""
+
+    def __init__(self, identifier: str, details: str = ""):
+        msg: str = f"The identifier '{identifier}' is malformed. {details}"
+        super().__init__(msg)
