@@ -1,7 +1,25 @@
 from dataclasses import dataclass
-from typing import Optional
+from typing import Any, Optional
 
 from a_core import DTO
+
+
+@dataclass(frozen=True, kw_only=True)
+class PreferenceChangeDTO(DTO):
+    """DTO representing a single preference change.
+
+    Captures the details of a modification applied to a user's preferences,
+    including the specific field that changed and its old/new values.
+    Useful for auditing, logging, and providing feedback to the user.
+
+    Attributes:
+        field (str): The name of the preference field that was updated.
+        old_value (Any): The previous value of the preference before the update.
+        new_value (Any): The new value of the preference after the update.
+    """
+    field: str
+    old_value: Any
+    new_value: Any
 
 
 @dataclass(frozen=True, kw_only=True)

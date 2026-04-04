@@ -1,4 +1,4 @@
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 from typing import Any, Dict
 
 from a_core import DTO
@@ -6,7 +6,7 @@ from a_core.exceptions import InvalidValueError, ValidationException
 from b_domain.entities.user import User
 from b_domain.exceptions.user import UserNotFoundError
 from b_domain.ports.use_case import UseCase
-from c_application.dtos.user_dtos import UserPrefsInputDTO, UserPrefsOutputDTO
+from c_application.dtos.user_dtos import PreferenceChangeDTO, UserPrefsInputDTO, UserPrefsOutputDTO
 from c_application.mappers.user_mapper import UserMapper
 
 
@@ -31,16 +31,19 @@ class UpdateUserPreferencesOutputDTO(DTO):
     """Output DTO for user preferences update responses.
 
     Represents the updated preferences of a user after a successful
-    update operation.
+    update operation, including details of what changed.
 
     Attributes:
         username (str): The username of the updated user.
         preferences (UserPrefsOutputDTO): DTO containing the updated preferences.
+        changes (list[PreferenceChangeDTO]): A list of preference changes applied
+            during the update, capturing old and new values for traceability.
         message (str): Status message confirming the update.
             Defaults to "preferences_updated".
     """
     username: str
     preferences: UserPrefsOutputDTO
+    changes: list[PreferenceChangeDTO]
     message: str = "preferences_updated"
 
 
@@ -49,6 +52,8 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
 
     Handles partial updates to user settings, ensuring that only
     provided fields are changed while keeping others intact.
+    Also computes a detailed list of changes applied for auditing
+    and feedback purposes.
     """
 
     async def execute(self, request: UpdateUserPreferencesInputDTO) -> UpdateUserPreferencesOutputDTO:
@@ -56,20 +61,24 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
 
         Steps:
             1. Retrieve the user aggregate by username.
-            2. Filter out None values to allow partial updates.
+            2. Extract non-None values from the request to allow partial updates.
             3. Delegate preference update logic to the User entity.
             4. Persist the updated user entity.
-            5. Map the updated entity to an output DTO.
+            5. Compute a diff of old vs. new values to produce a list of changes.
+            6. Map the updated entity and changes to an output DTO.
 
         Args:
             request (UpdateUserPreferencesInputDTO): Request object containing
                 the username and partial preferences to update.
 
         Returns:
-            UpdateUserPreferencesOutputDTO: Output DTO representing the updated user.
+            UpdateUserPreferencesOutputDTO: Output DTO representing the updated user
+            and the list of applied preference changes.
 
         Raises:
-            DomainException: If the user does not exist.
+            UserNotFoundError: If the user does not exist.
+            ValidationException: If no preferences were provided to update.
+            InvalidValueError: If a provided preference value is invalid.
         """
 
         async with self.uow as uow:
@@ -81,12 +90,15 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
 
             # 2. Prepare partial changes
             changes: Dict[str, Any] = {
-                k: v for k, v in request.preferences.__dict__.items()
+                k: v for k, v in asdict(request.preferences).items()
                 if v is not None
             }
 
             if not changes:
                 raise ValidationException("No preferences were provided to update.")
+
+            # Snapshot BEFORE state
+            before: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)
 
             # 3. Domain logic delegated to entity
             try:
@@ -97,11 +109,37 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
             except ValueError as e:
                 raise InvalidValueError(concept="Preference Value", invalid_value=str(e))
 
+            # Snapshot AFTER state
+            after: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)
+
+            # Compute diff
+            computed_changes: list[PreferenceChangeDTO] = []
+
+            for field in changes.keys():
+
+                if not hasattr(before, field):
+                    raise ValidationException(
+                        f"Invalid preference field '{field}' not present in output DTO"
+                    )
+
+                old_value = getattr(before, field)
+                new_value = getattr(after, field)
+
+                if old_value != new_value:
+                    computed_changes.append(
+                        PreferenceChangeDTO(
+                            field=field,
+                            old_value=old_value,
+                            new_value=new_value,
+                        )
+                    )
+
             # 4. Persistence
             await uow.users.update(user)
 
         # 5. Centralized output mapping
         return UpdateUserPreferencesOutputDTO(
             username=user.username,
-            preferences=UserMapper.prefs_from_entity(user),
+            preferences=after,
+            changes=computed_changes,
         )
