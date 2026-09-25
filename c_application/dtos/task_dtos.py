@@ -3,6 +3,7 @@ from datetime import datetime
 
 from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel
+from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 
 
@@ -188,6 +189,8 @@ class ListTasksRequest(DTO):
 
     # GTD & Organization (context: its name or ID prefix)
     context_id: str | None = None
+    # Without context_id, limit the list to the user's active context (if any)
+    use_active_context: bool = False
     max_energy: int | None = None
     complexity: str | None = None
     tags: list[str] = field(default_factory=list)
@@ -223,3 +226,7 @@ class TaskListOutputDTO(DTO):
 
     # Collection of task output DTOs
     tasks: list[TaskOutputDTO]
+
+    # The context the list is limited to (requested, or the active one);
+    # None when the list spans every context
+    context: ContextOutputDTO | None = None

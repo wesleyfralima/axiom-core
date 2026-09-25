@@ -147,12 +147,13 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.4.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.5.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
-  formatter. Backlog 01 only lacks the rest of Part 5 (showcase).
-- 335 tests passing; **`make check` green**: mypy at zero (packages and
+  formatter; the active context can limit the task list (0.5.0). Backlog 01
+  only lacks the rest of Part 5 (showcase).
+- 338 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 73.1% over a 73% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
