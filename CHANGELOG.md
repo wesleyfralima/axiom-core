@@ -6,6 +6,13 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.7] — 24/09/2026
+
+### Corrigido
+- **`CreateTaskUseCase` descartava a janela horária** (`window_start`/
+  `window_end`): "a cada 2 h entre 08:00 e 20:00" virava "a cada 2 h" o dia
+  todo, em silêncio. Achado pelo mypy do CLI.
+
 ## [0.3.6] — 24/09/2026
 
 ### Corrigido
