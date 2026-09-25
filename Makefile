@@ -8,7 +8,7 @@ lint-fix:
 	poetry run ruff check . --fix
 
 typecheck:
-	poetry run mypy .
+	poetry run mypy
 
 test:
 	poetry run pytest
@@ -19,5 +19,5 @@ coverage:
 check:
 	poetry run black --check .
 	poetry run ruff check .
-	poetry run mypy .
+	poetry run mypy
 	poetry run pytest --cov=a_core --cov=b_domain --cov=c_application --cov-fail-under=95

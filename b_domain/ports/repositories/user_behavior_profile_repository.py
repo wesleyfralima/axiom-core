@@ -13,7 +13,7 @@ class UserBehaviorProfileRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, profile: UserBehaviorProfile) -> UserBehaviorProfile:
+    async def save(self, profile: UserBehaviorProfile) -> None:
         """Persist a behavioral profile for a user.
 
         Implementations must either create or update the stored profile.
@@ -23,7 +23,7 @@ class UserBehaviorProfileRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorProfile:
+    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorProfile | None:
         """Retrieve the behavioral profile for a user.
 
         Args:

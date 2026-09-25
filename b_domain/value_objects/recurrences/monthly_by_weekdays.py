@@ -123,9 +123,8 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
             otherwise None.
         """
 
-        base_dt: datetime | None = (
-            self.start_date.materialize() if self.end_date else None
-        )
+        # Anchor for the interval: months are counted from start_date
+        base_dt: datetime = self.start_date.materialize()
 
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()

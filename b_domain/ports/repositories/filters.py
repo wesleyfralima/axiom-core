@@ -1,3 +1,4 @@
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Optional
@@ -15,7 +16,8 @@ class BaseFilter:
         limit (int): Maximum number of records to return.
             Defaults to 100 to prevent OOM.
         offset (int): Number of records to skip. Defaults to 0.
-        ids (Optional[list[UniqueId]]): Batch fetching by IDs (e.g., WHERE id IN (...)).
+        ids (Optional[Sequence[UniqueId]]): Batch fetching by IDs
+            (e.g., WHERE id IN (...)). Any subtype works (``TaskId``, ``UserId``).
         created_after (Optional[datetime]): Filter records created after this timestamp.
         created_before (Optional[datetime]): Filter records created
             before this timestamp.
@@ -28,7 +30,7 @@ class BaseFilter:
     offset: int = 0
 
     # Batch fetching
-    ids: list[UniqueId] | None = None
+    ids: Sequence[UniqueId] | None = None
 
     # Time ranges (created_at)
     created_after: datetime | None = None

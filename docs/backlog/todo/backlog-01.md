@@ -69,15 +69,17 @@ staged foi feito em algum momento e o trabalho continuou por cima.
   sobre os três pacotes (o mesmo comando do `make check`).
 - [x] Alinhar versões do pre-commit com as do `pyproject`. *Resolvido em
   24/09/2026, na Parte 1 (`68076b2`).*
-- [ ] Zerar os erros do mypy (18 no levantamento; **15** depois da Parte 3).
-  Grupos:
+- [x] Zerar os erros do mypy (18 no levantamento; **15** depois da Parte 3).
+  *Resolvido em 24/09/2026 (0.3.4):* zero nos pacotes e nos testes; um dos
+  erros escondia um bug de runtime (`MonthlyAllWeekdaysRule` sem `end_date`
+  quebrava ao virar o mês) e outros, contratos de porta errados. Grupos:
   - `User | None` atribuído a `User` depois do `if not user` (create,
     get_prefs, update_prefs) — só tipagem;
   - ~~`Priority(str)` / `TaskComplexity(str)`~~ — resolvido na Parte 3;
   - `ListTasksRequest.ids` → `TaskFilter.ids` (`TaskId` × `UniqueId`);
   - `export_task_handler.py` (`str | None`, `DueDate | None`, `Task | None`);
-  - `contexts/activate_context.py` — esboço quebrado, ver Parte 4.
-- [ ] Cobertura: 57% no levantamento, **67%** depois da Parte 3. Fixar o piso **no valor real** (ex.:
+  - `contexts/activate_context.py` — esboço quebrado, ver Parte 4 (removido).
+- [ ] Cobertura: 57% no levantamento, **68%** em 24/09/2026 (0.3.4). Fixar o piso **no valor real** (ex.:
   `--cov-fail-under=57`) para o check ficar verde já, e subir o piso a cada
   parte que acrescentar teste. Os maiores buracos: engines, services de
   comportamento, handlers, use cases de auth/user.
@@ -144,7 +146,8 @@ repositório** de contexto no `UnitOfWork`, `ActivateContextUseCase` usa
   `ContextSwitchedEvent`, que já existe).
 - [ ] `TaskOutputDTO.context_name/context_icon` preenchidos (hoje sempre
   `None`).
-- [ ] Remover os dois esboços atuais.
+- [x] Remover os dois esboços atuais. *Resolvido em 24/09/2026 (0.3.4),*
+  junto com o mypy: ninguém os importava.
 
 ## Parte 5 — Vitrine
 

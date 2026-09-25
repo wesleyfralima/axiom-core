@@ -4,7 +4,6 @@ import pytest
 
 from b_domain.entities import Task
 from b_domain.events.task_events import TaskCompletedEvent
-from b_domain.ports.unit_of_work import UowFactoryType
 from b_domain.value_objects import RecurrenceInterval, Title, UserId
 from b_domain.value_objects.dates import AxiomDate
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
@@ -12,6 +11,7 @@ from b_domain.value_objects.recurrences import SimpleIntervalRule
 from c_application.handlers.task_handlers.create_recurring_task_handler import (
     CreateRecurringTaskHandler,
 )
+from tests.conftest import FakeUowFactory
 
 pytestmark = pytest.mark.asyncio
 
@@ -39,7 +39,7 @@ def _daily_task(estimate: int, average: int) -> Task:
     return task
 
 
-async def _complete(uow_factory: UowFactoryType, task: Task) -> Task:
+async def _complete(uow_factory: FakeUowFactory, task: Task) -> Task:
     async with uow_factory() as uow:
         await uow.tasks.add(task)
 
@@ -61,7 +61,7 @@ async def _complete(uow_factory: UowFactoryType, task: Task) -> Task:
 
 
 async def test_without_measured_average_the_estimate_carries_over(
-    fake_uow_factory: UowFactoryType,
+    fake_uow_factory: FakeUowFactory,
 ) -> None:
     next_task = await _complete(fake_uow_factory, _daily_task(45, average=0))
 
@@ -71,7 +71,7 @@ async def test_without_measured_average_the_estimate_carries_over(
 
 
 async def test_measured_average_becomes_the_estimate(
-    fake_uow_factory: UowFactoryType,
+    fake_uow_factory: FakeUowFactory,
 ) -> None:
     next_task = await _complete(fake_uow_factory, _daily_task(45, average=52))
 

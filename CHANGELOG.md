@@ -6,6 +6,37 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.4] — 24/09/2026
+
+mypy zerado (Backlog 01, Parte 2, item do mypy) — pacotes **e testes**.
+
+### Corrigido
+- **`MonthlyAllWeekdaysRule` quebrava ao virar o mês** quando não tinha
+  `end_date` (`base_dt` só era calculado com data de fim): "toda segunda do
+  mês" dava `AttributeError` a partir da segunda ocorrência. Achado por um
+  dos erros do mypy.
+- Portas `UserBehaviorMetricsRepository` e `UserBehaviorProfileRepository`:
+  `save` devolve `None` e `get_by_user_id` devolve `X | None` — como o
+  enterprise implementa e como o handler já usava.
+- `TaskFilter.ids` aceita `Sequence[UniqueId]` (uma lista de `TaskId` não
+  passava na tipagem).
+- `ExportTaskToCalendarHandler`: checa tarefa sumida entre as duas transações
+  e prazo ausente (antes, `task.due_date.value` com prazo `None`).
+- Fakes de teste seguem as portas: `update`/`update_many` devolvem a tarefa;
+  `get_by_id` com `user_id` não quebra quando não acha; o `FakeUnitOfWork`
+  tinha `user_behavior_profiles` com o nome colado ao tipo (o atributo não
+  existia).
+
+### Removido
+- Esboços `ActivateContextUseCase` e `SwitchContextUseCase`
+  (`c_application/use_cases/contexts/`): não funcionavam e ninguém os
+  importava. Os use cases de contexto de verdade são a Parte 4 do Backlog 01.
+
+### Alterado
+- mypy cobre `a_core`, `b_domain`, `c_application` **e `tests`**
+  (`[tool.mypy] files`); `make typecheck`, `make check` e o hook do
+  pre-commit rodam `mypy` sem argumentos. `d_fake_infra/` (local) fica fora.
+
 ## [0.3.3] — 24/09/2026
 
 ### Corrigido

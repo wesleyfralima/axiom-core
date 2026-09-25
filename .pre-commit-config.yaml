@@ -25,7 +25,7 @@ repos:
 
       - id: mypy
         name: mypy
-        entry: .venv/bin/mypy a_core b_domain c_application
+        entry: .venv/bin/mypy
         language: system
         types: [python]
         pass_filenames: false

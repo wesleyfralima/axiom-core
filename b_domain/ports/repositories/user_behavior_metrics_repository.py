@@ -13,7 +13,7 @@ class UserBehaviorMetricsRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, metrics: UserBehaviorMetrics) -> UserBehaviorMetrics:
+    async def save(self, metrics: UserBehaviorMetrics) -> None:
         """Persist metrics for a given user.
 
         Implementations must either create or update the stored metrics.
@@ -23,7 +23,7 @@ class UserBehaviorMetricsRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorMetrics:
+    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorMetrics | None:
         """Retrieve metrics associated with a user.
 
         Args:

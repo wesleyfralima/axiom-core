@@ -69,7 +69,7 @@ class GetUserPreferencesUseCase(
         async with self.uow as uow:
 
             # 1. Retrieve user aggregate
-            user: User = await uow.users.get_by_username(request.username)
+            user: User | None = await uow.users.get_by_username(request.username)
             if not user:
                 raise UserNotFoundError(request.username)
 
