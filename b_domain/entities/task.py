@@ -492,10 +492,12 @@ class Task(Entity):
         Raises:
             InvalidStateTransition: If the task is not done or cancelled.
         """
-        if self.status not in {TaskStatus.DONE, TaskStatus.CANCELLED}:
+        if self.status is TaskStatus.ARCHIVED:
+            raise InvalidStateTransition("An archived task cannot be reopened.")
+        if not self.status.is_closed:
             raise InvalidStateTransition(
-                f"Only a done or cancelled task can be reopened; this one is "
-                f"{self.status}."
+                "The task is already open: only a done or cancelled task can be "
+                "reopened."
             )
         self.change_status(now, TaskStatus.REOPENED, allow_same=False)
         self.recurrence = None
@@ -506,10 +508,11 @@ class Task(Entity):
         Raises:
             InvalidStateTransition: If the task is not done or cancelled.
         """
-        if self.status not in {TaskStatus.DONE, TaskStatus.CANCELLED}:
+        if self.status is TaskStatus.ARCHIVED:
+            raise InvalidStateTransition("The task is already archived.")
+        if not self.status.is_closed:
             raise InvalidStateTransition(
-                f"Only a done or cancelled task can be archived; this one is "
-                f"{self.status}."
+                "The task is still open: only a done or cancelled task can be archived."
             )
         self.change_status(now, TaskStatus.ARCHIVED, allow_same=False)
 

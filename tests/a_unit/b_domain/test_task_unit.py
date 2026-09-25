@@ -180,14 +180,25 @@ def test_archive_task(task: Task) -> None:
 
 @pytest.mark.unit
 def test_an_open_task_cannot_be_archived(task: Task) -> None:
-    with pytest.raises(InvalidStateTransition, match="done or cancelled"):
+    with pytest.raises(InvalidStateTransition, match="still open"):
         task.archive(datetime.now())
 
 
 @pytest.mark.unit
 def test_an_open_task_cannot_be_reopened(task: Task) -> None:
-    with pytest.raises(InvalidStateTransition, match="done or cancelled"):
+    with pytest.raises(InvalidStateTransition, match="already open"):
         task.reopen(datetime.now())
+
+
+@pytest.mark.unit
+def test_an_archived_task_stays_archived(task: Task) -> None:
+    now: datetime = datetime.now()
+    task.mark_as_done(now)
+    task.archive(now)
+    with pytest.raises(InvalidStateTransition, match="cannot be reopened"):
+        task.reopen(now)
+    with pytest.raises(InvalidStateTransition, match="already archived"):
+        task.archive(now)
 
 
 @pytest.mark.unit
