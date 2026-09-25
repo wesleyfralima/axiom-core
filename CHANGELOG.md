@@ -6,6 +6,19 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.0] — 24/09/2026
+
+Pedido pelo CLI (Backlog 01, Parte 4 de lá): `task ls` esconder o que já saiu
+do caminho.
+
+### Adicionado
+- `TaskStatus.is_closed` e `TaskStatus.closed()`: `done`, `cancelled` e
+  `archived` são os status que tiram a tarefa das listas do dia a dia.
+- `TaskFilter.exclude_statuses` (vazio = não exclui nada) e
+  `ListTasksRequest.include_closed` (padrão `True`, comportamento de antes).
+  Com `False`, a listagem esconde as encerradas — a menos que o pedido traga
+  um `status` explícito, que vence.
+
 ## [0.2.2] — 24/09/2026
 
 Fecha a Parte 3 do Backlog 01: os bugs que o levantamento achou rodando o CLI.

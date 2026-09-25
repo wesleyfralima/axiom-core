@@ -50,6 +50,8 @@ class TaskFilter(BaseFilter):
         user_id (Optional[UserId]): Filter tasks by user ID.
         parent_id (Optional[TaskId]): Filter tasks by parent task ID.
         status (Optional[TaskStatus]): Filter tasks by status.
+        exclude_statuses (frozenset[TaskStatus]): Leave out tasks in any of
+            these statuses. Empty means nothing is excluded.
         priority (Optional[Priority]): Filter tasks by priority.
         context_id (Optional[ContextId]): Filter tasks by GTD context.
         max_energy_level (Optional[EnergyLevel]): Filter tasks
@@ -66,6 +68,7 @@ class TaskFilter(BaseFilter):
     user_id: UserId | None = None
     parent_id: TaskId | None = None
     status: TaskStatus | None = None
+    exclude_statuses: frozenset[TaskStatus] = frozenset()
     priority: Priority | None = None
     context_id: ContextId | None = None
 

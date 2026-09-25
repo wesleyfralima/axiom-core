@@ -128,9 +128,9 @@ retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
 
 ## Estado atual (24/09/2026)
 
-- Versão `0.2.2`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
+- Versão `0.3.0` (0.2.2 + filtro de encerradas): WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
   1º item) e bugs do levantamento (Parte 3).
-- 269 testes passando; cobertura 67%; **mypy com 15 erros** — por isso os
+- 284 testes passando; cobertura 67%; **mypy com 15 erros** — por isso os
   commits ainda usam `SKIP=mypy` até a Parte 2 do Backlog 01.
 - O CI (`.github/workflows/ci.yml`) veio do base-python-project e está errado:
   roda em `main`/`develop` (o branch é `master`) e mede cobertura de

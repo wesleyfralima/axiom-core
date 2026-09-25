@@ -171,3 +171,10 @@ def test_recurrence_interval_values() -> None:
     assert RecurrenceInterval.WEEKLY.value == "WE"
     assert RecurrenceInterval.MONTHLY.value == "MO"
     assert RecurrenceInterval.YEARLY.value == "YE"
+
+
+@pytest.mark.parametrize("status", list(TaskStatus))
+def test_closed_statuses(status: TaskStatus) -> None:
+    expected = status in {TaskStatus.DONE, TaskStatus.CANCELLED, TaskStatus.ARCHIVED}
+
+    assert status.is_closed is expected
