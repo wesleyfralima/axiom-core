@@ -30,6 +30,7 @@ class TaskMapper:
             due_date=task.due_date.value if task.due_date else None,
             is_overdue=task.due_date.is_overdue(now) if task.due_date else False,
             parent_id=str(task.parent_id) if task.parent_id else None,
+            is_blocked=task.is_blocked,
             created_at=task.created_at,
             updated_at=task.updated_at,
             recurrence_display=(
