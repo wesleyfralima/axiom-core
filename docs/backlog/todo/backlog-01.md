@@ -135,8 +135,11 @@ repositório** de contexto no `UnitOfWork`, `ActivateContextUseCase` usa
 mostra como rodar os testes nem a arquitetura em camadas com as regras; **não
 há `LICENSE`** (repo público sem licença = todos os direitos reservados).
 
-- [ ] Decidir a licença com o dono (MIT, Apache-2.0, ou "source-available"
-  sem licença aberta) e adicionar `LICENSE`.
+- [x] Decidir a licença com o dono e adicionar `LICENSE`. *Resolvido em
+  24/09/2026:* licença própria, **Axiom Core License 1.0** (base MIT +
+  atribuição obrigatória de origem e autores + proibição de revender o core
+  como está). Não é "open source" no sentido OSI, por causa da cláusula 3; é
+  *source-available* permissiva.
 - [ ] README: o que é o projeto, diagrama das camadas, as regras (zero
   dependências, tempo injetado, eventos via outbox), exemplos de uso de
   `AxiomDate` e de recorrência, como rodar `make check`.
