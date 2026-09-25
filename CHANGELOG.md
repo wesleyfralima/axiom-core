@@ -6,6 +6,22 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.1] — 24/09/2026
+
+Achados ao escrever `task edit` e `task done` no CLI (Backlog 01, Parte 4 de
+lá).
+
+### Corrigido
+- **Editar o prazo** (`UpdateTaskUseCase`) tornava toda tarefa flutuante e
+  quebrava (`AttributeError`) quando a tarefa ainda não tinha prazo. Agora a
+  tarefa mantém o tipo (fixa/flutuante) salvo pedido contrário; data
+  flutuante mantém o fuso; o resto (tarefa sem prazo, data fixa digitada como
+  hora local) é lido no fuso do usuário. `Task.update_due_date` passa a montar
+  o prazo como o `create` (`DueDate.from_params`).
+- `CompleteTaskUseCase` separa "prefixo não encontrado" de "prefixo ambíguo"
+  (antes, "Ambiguous IDs found" para os dois). O repositório fake dos testes
+  passa a dar as mesmas mensagens do real.
+
 ## [0.3.0] — 24/09/2026
 
 Pedido pelo CLI (Backlog 01, Parte 4 de lá): `task ls` esconder o que já saiu
