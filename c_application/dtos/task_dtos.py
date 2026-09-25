@@ -158,9 +158,12 @@ class TaskStatusChangedOutputDTO(DTO):
 
     Attributes:
         task (TaskOutputDTO): The task, already in its new status.
+        series_ended (bool): A recurring task was cancelled with
+            ``end_series``: no next occurrence comes.
     """
 
     task: TaskOutputDTO
+    series_ended: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)

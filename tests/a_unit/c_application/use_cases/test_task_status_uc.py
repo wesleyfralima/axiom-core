@@ -83,6 +83,7 @@ async def test_cancel_closes_an_open_task(
     )
 
     assert out.task.status == TaskStatus.CANCELLED
+    assert out.series_ended is False
 
 
 async def test_cancel_refuses_to_end_the_series_of_a_one_off_task(
