@@ -67,7 +67,6 @@ class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
         )
 
         async with self.uow as uow:
-
             # 2. Search by prefix
             tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=task_id_prefix,

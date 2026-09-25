@@ -65,7 +65,6 @@ class TextValueObject(SimpleValueObject):
             raise ValidationException(f"{self.__class__.__name__} cannot be None.")
 
         if val is not None:
-
             # Apply stripping if enabled
             text_val: str = val.strip() if self.STRIP else val
 

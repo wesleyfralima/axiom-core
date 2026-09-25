@@ -44,7 +44,6 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
         """
 
         async with self.uow as uow:
-
             # 1. Validation and resolution of value objects
             try:
                 f_user_id: UserId = UserId.from_string(

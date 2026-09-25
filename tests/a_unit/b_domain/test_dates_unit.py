@@ -89,7 +89,7 @@ def test_fixed_due_date_accepts_native_utc() -> None:
 
     instant = datetime.now(tz=UTC)
 
-    # Isso deve passar agora sem erro
+    # This must pass now without errors
     due = DueDate.fixed(instant)
 
     assert due.timezone == "UTC"
@@ -267,13 +267,13 @@ def test_is_overdue_rejects_custom_fixed_offsets() -> None:
 
     future_date: datetime = datetime.now() + timedelta(days=1)
 
-    # Cria uma tarefa floating qualquer
+    # Any floating task
     due_date: DueDate = DueDate.floating(
         dt=future_date,
         source_tz="UTC",
     )
 
-    # Tenta verificar atraso usando um relógio com fuso manual (Inválido)
+    # Try the overdue check with a clock in a manual timezone (invalid)
     invalid_tz = timezone(timedelta(hours=-5))
     now: datetime = datetime.now(tz=invalid_tz)
 

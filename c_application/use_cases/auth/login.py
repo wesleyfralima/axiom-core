@@ -91,7 +91,6 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
         """
 
         async with self.uow as uow:
-
             # 1. Identity lookup
             user: User | None = await uow.users.get_by_username(dto.username)
 

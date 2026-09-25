@@ -23,7 +23,7 @@ def _daily_task(estimate: int, average: int) -> Task:
     task = Task.create(
         now=DUE,
         user_id=UserId(),
-        title=Title("Treino"),
+        title=Title("Workout"),
         due_date=DUE,
         is_floating=True,
         tz_name=TZ,

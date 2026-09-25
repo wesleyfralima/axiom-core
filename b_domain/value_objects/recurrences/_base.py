@@ -81,10 +81,10 @@ class RecurrenceRule(ValueObject, ABC):
     # noinspection PyMethodMayBeStatic
     def supports_native_sync(self) -> bool:
         """
-        Indica se esta regra pode ser exportada como uma RRULE padrão
-        para calendários externos (Google, Outlook, etc).
+        Whether this rule can be exported as a standard RRULE
+        for external calendars (Google, Outlook, etc).
 
-        Por padrão, assumimos True. Regras customizadas devem sobrescrever.
+        Defaults to True. Custom rules must override it.
         """
         return True
 
@@ -108,8 +108,8 @@ class RecurrenceRule(ValueObject, ABC):
     @abstractmethod
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Calcula a primeira data válida para esta recorrência,
-        igual ou após a start_date.
+        Compute the first valid date for this recurrence,
+        on or after start_date.
         """
 
     @abstractmethod

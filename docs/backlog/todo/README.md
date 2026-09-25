@@ -1,33 +1,34 @@
-# docs/backlog/todo/ — trabalho pendente
+# docs/backlog/todo/ — pending work
 
-Este arquivo é **só o mapa**: explica a convenção da pasta e lista o que existe
-aqui. Nenhum item de tarefa mora nele — cada frente de trabalho tem o próprio
-arquivo, para que uma sessão abra só o que precisa.
+This file is **only the map**: it explains the folder's convention and lists
+what lives here. No task item lives in it — each line of work has its own
+file, so a session opens only what it needs.
 
-## Regra de organização
+## Organization rules
 
-- **Um arquivo por objetivo.** Backlog numerado é `backlog-NN.md`; qualquer
-  outra frente (uma dívida técnica isolada, uma auditoria) ganha nome
-  descritivo em kebab-case.
-- **Todo arquivo abre com título e uma linha de contexto** apontando para este
-  índice, porque qualquer um deles pode ser aberto sozinho.
-- **Um arquivo só sai daqui 100% concluído**, inteiro, para
-  [../done/](../done/), com "resolvido em …" em cada item que ainda não tinha.
-  Enquanto houver item aberto, o arquivo fica aqui — inclusive com os `[x]` —
-  para não perder o porquê de cada decisão nem quebrar referências cruzadas.
-- **Não se quebra um arquivo grande em menores** para caber na convenção; o
-  corte por objetivo vale para trabalho novo.
-- Se uma alteração fechar item de OUTRO arquivo (ou de outro repo do
-  ecossistema), feche-o lá também, com data e contexto.
-- Ao fechar um arquivo, mova a linha dele deste índice para o de `done/` no
-  mesmo commit.
+- **One file per goal.** A numbered backlog is `backlog-NN.md`; any other
+  line of work (an isolated piece of tech debt, an audit) gets a descriptive
+  kebab-case name.
+- **Every file opens with a title and one line of context** pointing to this
+  index, because any of them may be opened on its own.
+- **A file only leaves this folder 100% done**, whole, to
+  [../done/](../done/), with "resolved on …" on every item that did not have
+  it yet. While any item is open, the file stays here — `[x]` items included —
+  so the reasoning behind each decision is not lost and cross-references do
+  not break.
+- **Do not split a large file into smaller ones** to fit the convention; the
+  one-goal-per-file cut applies to new work.
+- If a change closes an item in ANOTHER file (or in another repo of the
+  ecosystem), close it there too, with date and context.
+- When a file is closed, move its line from this index to the `done/` one in
+  the same commit.
 
-Workflow (branch, commit, versão, changelog) mora só no
-[CLAUDE.md](../../../CLAUDE.md) — não se repete aqui.
+Workflow (branch, commit, version, changelog) lives only in
+[CLAUDE.md](../../../CLAUDE.md) — it is not repeated here.
 
-## Índice
+## Index
 
-| Arquivo | Do que trata |
+| File | What it covers |
 | --- | --- |
-| [backlog-01.md](backlog-01.md) | Retomada (aberto em 24/09/2026): consolidar o WIP, deixar `make check` verde, corrigir os bugs achados no levantamento e apresentar o repo como vitrine |
-| [backlog-02.md](backlog-02.md) | Axiom Flow chega à aplicação: use cases que ligam FlowEngine, TaskLanguageEngine e o aprendizado ao resto do sistema |
+| [backlog-01.md](backlog-01.md) | Restart (opened on 2026-09-24): consolidate the WIP, get `make check` green, fix the bugs found in the survey and present the repo as a showcase |
+| [backlog-02.md](backlog-02.md) | Axiom Flow reaches the application: use cases that connect FlowEngine, TaskLanguageEngine and learning to the rest of the system |

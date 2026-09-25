@@ -1,4 +1,4 @@
-"""Prioridade/complexidade digitadas pelo usuário chegam como texto."""
+"""Priority/complexity typed by the user arrive as text."""
 
 from datetime import UTC, datetime
 
@@ -28,11 +28,11 @@ async def _user_with_tasks(
     high = Task.create(
         now=now,
         user_id=user.id,
-        title=Title("Alta"),
+        title=Title("High"),
         priority=Priority.HIGH,
         complexity=TaskComplexity.VERY_HIGH,
     )
-    low = Task.create(now=now, user_id=user.id, title=Title("Baixa"))
+    low = Task.create(now=now, user_id=user.id, title=Title("Low"))
     async with uow_factory() as uow:
         await uow.users.add(user)
         await uow.tasks.add(high)
@@ -82,11 +82,11 @@ async def test_update_without_priority_keeps_it(
 
     result = await UpdateTaskUseCase(fake_uow_factory, fake_clock).execute(
         UpdateTaskInputDTO(
-            task_id_prefix=str(high.id)[:8], user_id=str(user.id), title="Renomeada"
+            task_id_prefix=str(high.id)[:8], user_id=str(user.id), title="Renamed"
         )
     )
 
-    assert result.title == "Renomeada"
+    assert result.title == "Renamed"
     assert result.priority == "HIGH"
 
 
@@ -116,7 +116,7 @@ async def test_create_without_priority_uses_the_user_default(
         await uow.users.add(user)
 
     result = await CreateTaskUseCase(fake_uow_factory, fake_clock).execute(
-        CreateTaskInputDTO(user_id=str(user.id), title="Sem prioridade")
+        CreateTaskInputDTO(user_id=str(user.id), title="No priority")
     )
 
     assert result.priority == "CRITICAL"
@@ -130,7 +130,7 @@ async def test_create_with_explicit_priority(
         await uow.users.add(user)
 
     result = await CreateTaskUseCase(fake_uow_factory, fake_clock).execute(
-        CreateTaskInputDTO(user_id=str(user.id), title="Com prioridade", priority=3)
+        CreateTaskInputDTO(user_id=str(user.id), title="With priority", priority=3)
     )
 
     assert result.priority == "HIGH"
@@ -140,7 +140,7 @@ async def _user_with_done_task(
     uow_factory: UowFactoryType, now: datetime
 ) -> tuple[User, Task]:
     user, _ = await _user_with_tasks(uow_factory, now)
-    done = Task.create(now=now, user_id=user.id, title=Title("Feita"))
+    done = Task.create(now=now, user_id=user.id, title=Title("Done"))
     done.mark_as_done(now)
     async with uow_factory() as uow:
         await uow.tasks.add(done)
@@ -195,7 +195,9 @@ async def test_update_gives_due_date_to_task_without_one(
     fake_uow_factory: UowFactoryType, fake_clock: FakeClock
 ) -> None:
     user = await _user_in_sao_paulo(fake_uow_factory)
-    task = Task.create(now=fake_clock.now(), user_id=user.id, title=Title("Sem prazo"))
+    task = Task.create(
+        now=fake_clock.now(), user_id=user.id, title=Title("No due date")
+    )
     await _add(fake_uow_factory, task)
 
     await UpdateTaskUseCase(fake_uow_factory, fake_clock).execute(
@@ -219,7 +221,7 @@ async def test_update_keeps_a_fixed_due_date_fixed(
     task = Task.create(
         now=fake_clock.now(),
         user_id=user.id,
-        title=Title("Reunião"),
+        title=Title("Meeting"),
         due_date=datetime(2026, 10, 1, 12, 0, tzinfo=UTC),
         is_floating=False,
     )

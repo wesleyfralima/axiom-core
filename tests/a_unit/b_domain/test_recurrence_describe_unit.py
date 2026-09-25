@@ -181,7 +181,7 @@ def test_hourly_task_completion_finds_the_next_occurrence() -> None:
     task = Task.create(
         now=datetime(2026, 1, 5, 9, 0),
         user_id=UserId(),
-        title=Title("Beber água"),
+        title=Title("Drink water"),
         due_date=datetime(2026, 1, 5, 9, 0),
         tz_name=TZ,
         recurrence=SimpleIntervalRule(

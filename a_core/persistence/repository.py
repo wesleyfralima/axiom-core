@@ -9,9 +9,9 @@ P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
 
 
-def tracks_entity[
-    **P, R
-](method: Callable[P, Awaitable[R]],) -> Callable[P, Awaitable[R]]:
+def tracks_entity[**P, R](
+    method: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
     """Decorator to automatically register fetched or mutated entities into the UoW."""
 
     @wraps(method)
@@ -31,8 +31,8 @@ def tracks_entity[
         return result
 
     # Adicionamos o atributo dinamicamente.
-    # Usamos setattr para contornar a rigidez do sistema de
-    # tipos aqui, já que é um decorador de infraestrutura.
+    # setattr works around the type system here, since this is
+    # an infrastructure decorator.
     setattr(wrapper, "_is_tracked", True)  # noqa: B010
 
     return wrapper

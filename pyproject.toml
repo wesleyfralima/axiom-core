@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.3.10"
+version = "0.3.11"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
@@ -19,7 +19,6 @@ python = ">=3.12,<3.15"
 pytest = "^8.0.0"
 pytest-asyncio = "^0.23.0"
 mypy = "^1.8.0"
-black = "^24.0.0"
 ruff = "^0.15.20"
 pre-commit = "^4.6.0"
 pytest-cov = "^7.1.0"
@@ -28,10 +27,6 @@ coverage = "^7.14.3"
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
-
-[tool.black]
-line-length = 88
-target-version = ["py312"]
 
 [tool.coverage.report]
 # Floor = real coverage, so `make check` is green; raise it whenever tests are added.

@@ -59,7 +59,7 @@ class FakeTaskRepository(TaskRepository):
         return task
 
     async def update_many(self, tasks: list[Task]) -> list[Task]:
-        """Simula o update em lote no repositório fake."""
+        """Simulate a bulk update in the fake repository."""
         return [await self.update(task) for task in tasks]
 
     async def delete(self, task_id: TaskId) -> None:
@@ -89,7 +89,7 @@ class FakeTaskRepository(TaskRepository):
         return found_tasks
 
     def _apply_filters(self, filters: TaskFilter) -> list[Task]:
-        """Método auxiliar interno para reutilizar a lógica de filtro."""
+        """Internal helper to reuse the filter logic."""
 
         results = [t for t in self.tasks.values()]
 
@@ -111,16 +111,16 @@ class FakeTaskRepository(TaskRepository):
     @tracks_entity
     async def list(self, filters: TaskFilter) -> list[Task]:
         filtered = self._apply_filters(filters)
-        # Aplica OFFSET e LIMIT (Paginação em memória)
+        # Apply OFFSET and LIMIT (in-memory pagination)
         start = filters.offset
         end = start + filters.limit
         return filtered[start:end]
 
     async def count(self, filters: TaskFilter) -> int:
-        # O count ignora paginação, retorna o total do filtro
+        # count ignores pagination and returns the filter total
         return len(self._apply_filters(filters))
 
-    # --- Hierarquia e Dependências ---
+    # --- Hierarchy and dependencies ---
 
     @tracks_entity
     async def get_subtasks(
@@ -133,7 +133,7 @@ class FakeTaskRepository(TaskRepository):
     async def find_tasks_blocked_by(self, task_id: TaskId) -> builtins.list[Task]:
         return [t for t in self.tasks.values() if task_id in t.depends_on]
 
-    # --- Método utilitário para o Axiom Context/Energy logic ---
+    # --- Helper for the Axiom context/energy logic ---
 
     @tracks_entity
     async def find_by_user(
@@ -148,7 +148,7 @@ class FakeTaskRepository(TaskRepository):
             results = [t for t in results if t.context_id == context_id]
 
         if max_energy:
-            # required_energy_level é o campo que definimos na Task
+            # required_energy_level is the field defined on Task
             results = [t for t in results if t.required_energy_level <= max_energy]
 
         return results
@@ -157,13 +157,13 @@ class FakeTaskRepository(TaskRepository):
         self, partial_ids: Iterable[IdPrefix]
     ) -> builtins.list[TaskId]:
 
-        # Convertemos para tupla, pois startswith() aceita uma tupla de strings
-        # para verificar múltiplas possibilidades de uma vez.
+        # Convert to a tuple, since startswith() accepts a tuple of strings
+        # to check several possibilities at once.
         prefixes = tuple(str(p) for p in partial_ids)
 
         result: list[TaskId] = []
 
-        # Se não houver prefixos, retornamos lista vazia para evitar processamento
+        # No prefixes: return an empty list to skip the work
         if not prefixes:
             return []
 
@@ -208,7 +208,7 @@ class FakeUserRepository(UserRepository):
         """Busca linear por username (simula UNIQUE constraint)."""
         return next((u for u in self.users.values() if u.username == username), None)
 
-    # --- Implementação de Filtros e Paginação ---
+    # --- Filters and pagination ---
 
     def _apply_filters(self, filters: UserFilter) -> list[User]:
         results = list(self.users.values())
@@ -218,7 +218,7 @@ class FakeUserRepository(UserRepository):
                 u for u in results if filters.username.lower() in u.username.lower()
             ]
 
-        # Se houver um campo 'is_active' na entidade User no futuro:
+        # If the User entity gets an 'is_active' field in the future:
         # if filters.is_active is not None:
         #     results = [u for u in results if u.is_active == filters.is_active]
 
@@ -228,13 +228,13 @@ class FakeUserRepository(UserRepository):
     async def list(self, filters: UserFilter) -> list[User]:
         filtered = self._apply_filters(filters)
 
-        # Aplica paginação manual
+        # Manual pagination
         start = filters.offset
         end = start + filters.limit
         return filtered[start:end]
 
     async def count(self, filters: UserFilter) -> int:
-        # Ignora offset/limit para retornar o total absoluto
+        # Ignore offset/limit to return the absolute total
         return len(self._apply_filters(filters))
 
     @tracks_entity
@@ -244,19 +244,19 @@ class FakeUserRepository(UserRepository):
 
 class FakeTimeEntryRepository(TimeEntryRepository):
     def __init__(self) -> None:
-        # Usamos uma lista para simular a tabela, mas poderíamos usar um dict
-        # se quiséssemos busca por ID em O(1).
+        # A list simulates the table, though a dict would give
+        # O(1) lookup by ID.
         self.entries: list[TimeEntry] = []
 
     async def add(self, entry: TimeEntry) -> TimeEntry:
-        """Simula o INSERT no banco de dados."""
+        """Simulate the INSERT into the database."""
         self.entries.append(entry)
         return entry
 
     async def update(self, entry: TimeEntry) -> None:
         """
-        Em memória, o objeto já costuma estar atualizado por referência.
-        Em um banco real, aqui faríamos o UPDATE.
+        In memory, the object is usually already updated by reference.
+        A real database would run the UPDATE here.
         """
         for i, existing in enumerate(self.entries):
             if existing.id == entry.id:
@@ -264,22 +264,22 @@ class FakeTimeEntryRepository(TimeEntryRepository):
                 break
 
     async def update_all(self, entries: list[TimeEntry]) -> None:
-        """Simula um update em lote."""
+        """Simulate a bulk update."""
         for entry in entries:
             await self.update(entry)
 
     async def get_by_id(self, entry_id: TimeEntryId) -> TimeEntry | None:
-        """Busca uma entrada específica."""
+        """Fetch a specific entry."""
         return next((e for e in self.entries if e.id == entry_id), None)
 
     async def get_actives_for_task(self, task_id: TaskId) -> list[TimeEntry]:
-        """Retorna timers rodando para uma tarefa específica."""
+        """Return the running timers for a specific task."""
         return [e for e in self.entries if e.task_id == task_id and e.end_time is None]
 
     async def get_active_for_user(self, user_id: UserId) -> TimeEntry | None:
         """
-        Busca o timer atualmente ativo do usuário.
-        Essencial para a regra de 'apenas um timer por vez'.
+        Fetch the user's currently active timer.
+        Essential for the 'only one timer at a time' rule.
         """
         return next(
             (e for e in self.entries if e.user_id == user_id and e.end_time is None),
@@ -287,7 +287,7 @@ class FakeTimeEntryRepository(TimeEntryRepository):
         )
 
     async def find_by_user(self, user_id: UserId) -> list[TimeEntry]:
-        """Retorna todo o histórico de trackings do usuário."""
+        """Return the user's whole tracking history."""
         return [e for e in self.entries if e.user_id == user_id]
 
     async def search(self, filters: TimeEntryFilter) -> list[TimeEntry]:
@@ -302,8 +302,8 @@ class FakeContextRepository:
         return self.contexts.get(str(context_id))
 
     async def get_active_for_user(self, user_id: UserId) -> Any:
-        # No Axiom, o contexto ativo agora vem do UserPrefs,
-        # mas mantemos o repositório para buscas de metadados.
+        # In Axiom the active context now comes from UserPrefs,
+        # but the repository stays for metadata lookups.
         return next((c for c in self.contexts.values() if c.user_id == user_id), None)
 
 
@@ -351,7 +351,7 @@ class FakeUnitOfWork(UnitOfWork):
         contexts_dict: dict[str, Any] | None = None,
     ) -> None:
 
-        # Passamos os dicionários compartilhados para os repositórios
+        # Pass the shared dicts to the repositories
         self.users: FakeUserRepository = FakeUserRepository(users=users_dict)
         self.tasks: FakeTaskRepository = FakeTaskRepository(tasks=tasks_dict)
         self.contexts: FakeContextRepository = FakeContextRepository(
@@ -401,15 +401,15 @@ def fake_clock() -> FakeClock:
 
 @pytest.fixture
 def fake_uow_factory() -> FakeUowFactory:
-    # Estado compartilhado (uma única vez por teste)
+    # Shared state (once per test)
     shared_users: dict[str, User] = {}
     shared_tasks: dict[str, Task] = {}
     shared_contexts: dict[str, Any] = {}
 
-    # incluir outros se necessário
+    # add others as needed
 
     def factory(trigger_relay: bool = False) -> FakeUnitOfWork:
-        # Cada UOW é uma instância nova, mas aponta para os mesmos dicts
+        # Each UoW is a new instance, but points to the same dicts
         return FakeUnitOfWork(
             users_dict=shared_users,
             tasks_dict=shared_tasks,
@@ -424,8 +424,8 @@ def use_case_context(
     fake_uow_factory: FakeUowFactory, fake_clock: FakeClock
 ) -> UseCaseDeps:
     """
-    Retorna um dicionário com todas as dependências
-     prontas para um UseCase (genérico).
+    Return a dict with all the dependencies
+     ready for a (generic) use case.
     """
     return {
         "uow_factory": fake_uow_factory,
@@ -438,8 +438,8 @@ def create_use_case_context(
     fake_uow_factory: FakeUowFactory, fake_clock: FakeClock
 ) -> UseCaseDeps:
     """
-    Retorna um dicionário com todas as dependências
-    prontas para um CompleteTaskUseCase.
+    Return a dict with all the dependencies
+    ready for a CompleteTaskUseCase.
     """
     return {
         "uow_factory": fake_uow_factory,

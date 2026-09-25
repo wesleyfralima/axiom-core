@@ -1,31 +1,32 @@
-# docs/backlog/done/ — histórico do que já foi finalizado
+# docs/backlog/done/ — history of finished work
 
-Este arquivo é **só o mapa**: explica a convenção da pasta e indexa o que já
-fechou, para que uma sessão não precise abrir os arquivos grandes só para
-descobrir onde um assunto mora.
+This file is **only the map**: it explains the folder's convention and indexes
+what has been closed, so a session does not need to open the large files just
+to find out where a subject lives.
 
-## Regra de organização
+## Organization rules
 
-- **Um arquivo por objetivo fechado**, que chega aqui inteiro, depois de 100%
-  concluído em [../todo/](../todo/README.md).
-- **Não se edita retroativamente**, exceto para corrigir erro de registro
-  (data, link). O arquivo existe para não reabrir decisão já fechada.
-- Todo arquivo abre com `# Nome ✅ (data)` e uma linha apontando para este
-  índice.
-- Cada linha da tabela é **uma frase**, o suficiente para decidir se vale abrir
-  o arquivo. Ao fechar algo, acrescente a linha aqui no mesmo commit.
+- **One file per closed goal**, which arrives here whole, after being 100%
+  done in [../todo/](../todo/README.md).
+- **No retroactive edits**, except to fix a record error (date, link) or a
+  translation. The file exists so closed decisions are not reopened.
+- Every file opens with `# Name ✅ (date)` and one line pointing to this
+  index.
+- Each table row is **one sentence**, enough to decide whether the file is
+  worth opening. When something is closed, add its row here in the same
+  commit.
 
-## Como procurar sem estourar contexto
+## How to search without blowing the context
 
-1. Comece pela tabela abaixo.
-2. Sem saber o arquivo: `grep -rn "termo" docs/backlog/done/`.
-3. Dentro de um arquivo: `grep -n "^#\{1,2\} "` para as seções, `sed -n 'A,Bp'`
-   para o trecho.
+1. Start with the table below.
+2. Without knowing the file: `grep -rn "term" docs/backlog/done/`.
+3. Inside a file: `grep -n "^#\{1,2\} "` for the sections, `sed -n 'A,Bp'`
+   for the excerpt.
 
-## Índice
+## Index
 
-| Arquivo | Período | Do que trata |
+| File | Period | What it covers |
 | --- | --- | --- |
 
-Nada fechado ainda. O trabalho anterior à retomada (mar–jun/2026) está
-resumido no [CHANGELOG.md](../../../CHANGELOG.md).
+Nothing closed yet. The work before the restart (Mar–Jun 2026) is
+summarized in [CHANGELOG.md](../../../CHANGELOG.md).

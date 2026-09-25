@@ -34,7 +34,6 @@ class CreateRecurringTaskHandler:
         """
 
         async with self.uow:
-
             # Retrieve the completed task to access recurrence rules
             task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
             if not task or not task.recurrence:

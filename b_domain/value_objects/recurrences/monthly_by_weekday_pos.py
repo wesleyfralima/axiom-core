@@ -95,7 +95,6 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
 
         # Search within a reasonable horizon (considering the interval)
         for _ in range(120):
-
             last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
             candidates: list[datetime] = []
 
@@ -173,7 +172,6 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
 
         # Safety limit (120 months) to prevent infinite loops
         for _ in range(120):
-
             last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
             month_candidates: list[datetime] = []
 

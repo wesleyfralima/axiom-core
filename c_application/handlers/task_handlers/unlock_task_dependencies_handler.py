@@ -34,7 +34,6 @@ class UnlockTaskDependenciesHandler:
         """
 
         async with self.uow:
-
             # Find tasks that are blocked by the completed task
             blocked_tasks: list[Task] = await self.uow.tasks.find_tasks_blocked_by(
                 event.task_id

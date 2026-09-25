@@ -133,7 +133,6 @@ class MonthlyPositionalRule(RecurrenceRule):
 
         # Safety limit (120 months = 10 years) to prevent infinite loops
         for _ in range(120):
-
             last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
 
             # 1. Calculate the exact calendar day based on the positional index

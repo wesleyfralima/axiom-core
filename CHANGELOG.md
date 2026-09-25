@@ -1,259 +1,280 @@
 # Changelog — axiom-core
 
-Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/);
-versões seguem [SemVer](https://semver.org/lang/pt-BR/). A versão vigente é o
-campo `version` do `pyproject.toml`.
+Format inspired by [Keep a Changelog](https://keepachangelog.com/en/1.1.0/);
+versions follow [SemVer](https://semver.org/). The current version is the
+`version` field of `pyproject.toml`.
 
-## [Não lançado]
+## [Unreleased]
 
-## [0.3.10] — 25/09/2026
+## [0.3.11] — 2026-09-25
 
-### Alterado
-- **`make check` verde** pela primeira vez: o piso de cobertura saiu dos 95%
-  herdados do base-python-project para o valor real (**68%**, medido 68,7%),
-  em `[tool.coverage.report] fail_under` — o `make check` e o CI leem o mesmo
-  número. O piso sobe a cada trabalho que acrescentar teste.
-- **CI de verdade**: dispara em `master` (era `main`/`develop`) e roda o
-  próprio `make check`, em vez de comandos copiados que apontavam para
+### Changed
+- **ruff replaces black as the formatter** (`ruff format`), in `make format`,
+  `make check` and the pre-commit hooks; black left the dev dependencies.
+  The reformatting touched 17 files, with no code change.
+- **The whole repository is in English**: comments, docstrings, test data,
+  `README`, `CLAUDE.md`, backlogs and this changelog (earlier entries
+  translated). The only Portuguese left is language data for understanding
+  user input (`pt` sections of `task_language_engine.toml` and the tests that
+  exercise them).
+
+### Fixed
+- `.gitignore`: `.DS_Store (para macOS)` was read as a literal pattern, so
+  `.DS_Store` was never ignored.
+
+## [0.3.10] — 2026-09-25
+
+### Changed
+- **`make check` green** for the first time: the coverage floor went from the
+  95% inherited from base-python-project to the real value (**68%**, measured
+  68.7%), in `[tool.coverage.report] fail_under` — `make check` and the CI
+  read the same number. The floor goes up with every piece of work that adds
+  tests.
+- **A real CI**: it triggers on `master` (was `main`/`develop`) and runs
+  `make check` itself, instead of copied commands that pointed at
   `src/arch_pat_with_python`.
-- ruff com `B` (bugbear) e `RUF`, como no base-python-project. O que mudou no
-  código: exceções traduzidas dentro de `except` agora encadeiam a original
-  (`raise … from e`), o que preserva a causa no traceback; `__all__` em ordem;
-  aspas e travessões tipográficos (’ – ‑) trocados por ASCII em docstrings e
-  comentários; dois testes que esperavam `Exception` genérica agora esperam
-  `FrozenInstanceError`. `Description("")` como default em `Task.create` fica
-  liberado no config (value object congelado).
+- ruff with `B` (bugbear) and `RUF`, as in base-python-project. What changed
+  in the code: exceptions translated inside `except` now chain the original
+  (`raise … from e`), which keeps the cause in the traceback; `__all__`
+  sorted; typographic quotes and dashes (’ – ‑) replaced by ASCII in
+  docstrings and comments; two tests that expected a generic `Exception` now
+  expect `FrozenInstanceError`. `Description("")` as a default in
+  `Task.create` is allowed in the config (a frozen value object).
 
-## [0.3.9] — 24/09/2026
+## [0.3.9] — 2026-09-24
 
-### Corrigido
-- **Tarefa flutuante ficava "vencida" horas antes**: `DueDate.is_overdue`
-  lia a hora de parede no fuso do `now` (UTC, o relógio da aplicação) em vez
-  do fuso da própria data. Em São Paulo, um prazo às 23:59 virava vencido às
-  20:59. Achado montando o roteiro de demonstração do CLI.
+### Fixed
+- **A floating task became "overdue" hours early**: `DueDate.is_overdue`
+  read the wall-clock time in the timezone of `now` (UTC, the application
+  clock) instead of the date's own timezone. In São Paulo, a 23:59 due date
+  became overdue at 20:59. Found while building the CLI demo script.
 
-## [0.3.8] — 24/09/2026
+## [0.3.8] — 2026-09-24
 
-### Corrigido
-- **Recorrência "a cada N horas" nunca avançava** (`SimpleIntervalRule`
-  horária): somava as horas e depois reaplicava a hora de início, então toda
-  ocorrência era o próprio início. Concluir uma tarefa assim deixava
-  `create_next_occurrence` (modo hábito) em laço infinito. Achado ao mostrar
-  as próximas ocorrências no `axpro task show`.
+### Fixed
+- **"Every N hours" recurrence never advanced** (hourly
+  `SimpleIntervalRule`): it added the hours and then reapplied the start
+  time, so every occurrence was the start itself. Completing such a task left
+  `create_next_occurrence` (habit mode) in an infinite loop. Found while
+  showing the next occurrences in `axpro task show`.
 
-## [0.3.7] — 24/09/2026
+## [0.3.7] — 2026-09-24
 
-### Corrigido
-- **`CreateTaskUseCase` descartava a janela horária** (`window_start`/
-  `window_end`): "a cada 2 h entre 08:00 e 20:00" virava "a cada 2 h" o dia
-  todo, em silêncio. Achado pelo mypy do CLI.
+### Fixed
+- **`CreateTaskUseCase` dropped the time window** (`window_start`/
+  `window_end`): "every 2 h between 08:00 and 20:00" became "every 2 h" all
+  day long, silently. Found by the CLI's mypy.
 
-## [0.3.6] — 24/09/2026
+## [0.3.6] — 2026-09-24
 
-### Corrigido
-- Marcadores `py.typed` (PEP 561) em `a_core`, `b_domain` e `c_application`:
-  sem eles, o mypy de quem usa o core (enterprise, CLI) ignorava todos os
-  tipos daqui (`import-untyped`) — 110 dos 153 erros do enterprise eram isso.
+### Fixed
+- `py.typed` markers (PEP 561) in `a_core`, `b_domain` and `c_application`:
+  without them, the mypy of the core's users (enterprise, CLI) ignored every
+  type from here (`import-untyped`) — 110 of enterprise's 153 errors were
+  this.
 
-## [0.3.5] — 24/09/2026
+## [0.3.5] — 2026-09-24
 
-Achados pelos primeiros testes de integração do enterprise (banco real +
-relay do outbox).
+Found by enterprise's first integration tests (real database + outbox
+relay).
 
-### Corrigido
-- **Eventos de tarefa carimbavam o relógio real**, não o `now` recebido:
-  `TaskCreatedEvent` e `TaskCompletedEvent` agora levam `occurred_at=now`. O
-  `CreateRecurringTaskHandler` calcula a próxima ocorrência a partir desse
-  instante — com conclusão retroativa (`completed_at`), ela saía errada.
-- `TaskOutputDTO.is_blocked` era sempre `False`: o `TaskMapper` não o
-  preenchia. Tarefa com dependência pendente agora sai `is_blocked=True`.
+### Fixed
+- **Task events were stamped with the real clock**, not the `now` received:
+  `TaskCreatedEvent` and `TaskCompletedEvent` now carry `occurred_at=now`.
+  `CreateRecurringTaskHandler` computes the next occurrence from that instant
+  — with a backdated completion (`completed_at`), it came out wrong.
+- `TaskOutputDTO.is_blocked` was always `False`: `TaskMapper` did not fill it
+  in. A task with a pending dependency now comes out `is_blocked=True`.
 
-## [0.3.4] — 24/09/2026
+## [0.3.4] — 2026-09-24
 
-mypy zerado (Backlog 01, Parte 2, item do mypy) — pacotes **e testes**.
+mypy at zero (Backlog 01, Part 2, the mypy item) — packages **and tests**.
 
-### Corrigido
-- **`MonthlyAllWeekdaysRule` quebrava ao virar o mês** quando não tinha
-  `end_date` (`base_dt` só era calculado com data de fim): "toda segunda do
-  mês" dava `AttributeError` a partir da segunda ocorrência. Achado por um
-  dos erros do mypy.
-- Portas `UserBehaviorMetricsRepository` e `UserBehaviorProfileRepository`:
-  `save` devolve `None` e `get_by_user_id` devolve `X | None` — como o
-  enterprise implementa e como o handler já usava.
-- `TaskFilter.ids` aceita `Sequence[UniqueId]` (uma lista de `TaskId` não
-  passava na tipagem).
-- `ExportTaskToCalendarHandler`: checa tarefa sumida entre as duas transações
-  e prazo ausente (antes, `task.due_date.value` com prazo `None`).
-- Fakes de teste seguem as portas: `update`/`update_many` devolvem a tarefa;
-  `get_by_id` com `user_id` não quebra quando não acha; o `FakeUnitOfWork`
-  tinha `user_behavior_profiles` com o nome colado ao tipo (o atributo não
-  existia).
+### Fixed
+- **`MonthlyAllWeekdaysRule` broke when the month turned** when it had no
+  `end_date` (`base_dt` was only computed with an end date): "every Monday of
+  the month" raised `AttributeError` from the second occurrence on. Found by
+  one of the mypy errors.
+- Ports `UserBehaviorMetricsRepository` and `UserBehaviorProfileRepository`:
+  `save` returns `None` and `get_by_user_id` returns `X | None` — as
+  enterprise implements them and as the handler already used them.
+- `TaskFilter.ids` accepts `Sequence[UniqueId]` (a list of `TaskId` did not
+  type-check).
+- `ExportTaskToCalendarHandler`: checks for a task that vanished between the
+  two transactions and for a missing due date (before,
+  `task.due_date.value` with a `None` due date).
+- Test fakes follow the ports: `update`/`update_many` return the task;
+  `get_by_id` with `user_id` does not break when nothing is found; the
+  `FakeUnitOfWork` had `user_behavior_profiles` with the name glued to the
+  type (the attribute did not exist).
 
-### Removido
-- Esboços `ActivateContextUseCase` e `SwitchContextUseCase`
-  (`c_application/use_cases/contexts/`): não funcionavam e ninguém os
-  importava. Os use cases de contexto de verdade são a Parte 4 do Backlog 01.
+### Removed
+- The `ActivateContextUseCase` and `SwitchContextUseCase` sketches
+  (`c_application/use_cases/contexts/`): they did not work and nobody
+  imported them. The real context use cases are Backlog 01, Part 4.
 
-### Alterado
-- mypy cobre `a_core`, `b_domain`, `c_application` **e `tests`**
-  (`[tool.mypy] files`); `make typecheck`, `make check` e o hook do
-  pre-commit rodam `mypy` sem argumentos. `d_fake_infra/` (local) fica fora.
+### Changed
+- mypy covers `a_core`, `b_domain`, `c_application` **and `tests`**
+  (`[tool.mypy] files`); `make typecheck`, `make check` and the pre-commit
+  hook run `mypy` with no arguments. `d_fake_infra/` (local) stays out.
 
-## [0.3.3] — 24/09/2026
+## [0.3.3] — 2026-09-24
 
-### Corrigido
-- `BusinessDayRule` não definia `_freq`: comparar duas regras de dia útil (o
-  que o enterprise faz ao atualizar uma tarefa) levantava `AttributeError`.
-  Achado no teste de ida e volta das recorrências pelo banco.
+### Fixed
+- `BusinessDayRule` did not define `_freq`: comparing two business-day rules
+  (which enterprise does when updating a task) raised `AttributeError`. Found
+  by the recurrence round-trip test through the database.
 
-## [0.3.2] — 24/09/2026
+## [0.3.2] — 2026-09-24
 
-Antes do `axpro config set` (CLI, Backlog 01, Parte 4).
+Before `axpro config set` (CLI, Backlog 01, Part 4).
 
-### Corrigido
-- `UserPrefs.update` valida as preferências de valor fechado: `timezone`
-  (fuso IANA que exista), `week_start` (`monday`/`sunday`), `theme`
-  (`light`/`dark`/`system`) e `working_hours_start/end` (0–23), com
-  `InvalidValueError`. Antes aceitava qualquer coisa — e um fuso inválido
-  gravado quebrava a criação de tarefas depois.
+### Fixed
+- `UserPrefs.update` validates the closed-value preferences: `timezone` (an
+  IANA zone that exists), `week_start` (`monday`/`sunday`), `theme`
+  (`light`/`dark`/`system`) and `working_hours_start/end` (0–23), with
+  `InvalidValueError`. It used to accept anything — and a stored invalid
+  timezone broke task creation later.
 
-## [0.3.1] — 24/09/2026
+## [0.3.1] — 2026-09-24
 
-Achados ao escrever `task edit` e `task done` no CLI (Backlog 01, Parte 4 de
-lá).
+Found while writing `task edit` and `task done` in the CLI (its Backlog 01,
+Part 4).
 
-### Corrigido
-- **Editar o prazo** (`UpdateTaskUseCase`) tornava toda tarefa flutuante e
-  quebrava (`AttributeError`) quando a tarefa ainda não tinha prazo. Agora a
-  tarefa mantém o tipo (fixa/flutuante) salvo pedido contrário; data
-  flutuante mantém o fuso; o resto (tarefa sem prazo, data fixa digitada como
-  hora local) é lido no fuso do usuário. `Task.update_due_date` passa a montar
-  o prazo como o `create` (`DueDate.from_params`).
-- `CompleteTaskUseCase` separa "prefixo não encontrado" de "prefixo ambíguo"
-  (antes, "Ambiguous IDs found" para os dois). O repositório fake dos testes
-  passa a dar as mesmas mensagens do real.
+### Fixed
+- **Editing the due date** (`UpdateTaskUseCase`) made every task floating and
+  broke (`AttributeError`) when the task had no due date yet. Now the task
+  keeps its kind (fixed/floating) unless asked otherwise; a floating date
+  keeps its timezone; the rest (a task without a due date, a fixed date typed
+  as local time) is read in the user's timezone. `Task.update_due_date` now
+  builds the due date like `create` does (`DueDate.from_params`).
+- `CompleteTaskUseCase` tells "prefix not found" apart from "ambiguous
+  prefix" (before, "Ambiguous IDs found" for both). The tests' fake
+  repository now gives the same messages as the real one.
 
-## [0.3.0] — 24/09/2026
+## [0.3.0] — 2026-09-24
 
-Pedido pelo CLI (Backlog 01, Parte 4 de lá): `task ls` esconder o que já saiu
-do caminho.
+Requested by the CLI (its Backlog 01, Part 4): `task ls` hiding what is
+already out of the way.
 
-### Adicionado
-- `TaskStatus.is_closed` e `TaskStatus.closed()`: `done`, `cancelled` e
-  `archived` são os status que tiram a tarefa das listas do dia a dia.
-- `TaskFilter.exclude_statuses` (vazio = não exclui nada) e
-  `ListTasksRequest.include_closed` (padrão `True`, comportamento de antes).
-  Com `False`, a listagem esconde as encerradas — a menos que o pedido traga
-  um `status` explícito, que vence.
+### Added
+- `TaskStatus.is_closed` and `TaskStatus.closed()`: `done`, `cancelled` and
+  `archived` are the statuses that take a task out of the day-to-day lists.
+- `TaskFilter.exclude_statuses` (empty = excludes nothing) and
+  `ListTasksRequest.include_closed` (default `True`, the previous behavior).
+  With `False`, the listing hides closed tasks — unless the request carries an
+  explicit `status`, which wins.
 
-## [0.2.2] — 24/09/2026
+## [0.2.2] — 2026-09-24
 
-Fecha a Parte 3 do Backlog 01: os bugs que o levantamento achou rodando o CLI.
+Closes Backlog 01, Part 3: the bugs the survey found by running the CLI.
 
-### Corrigido
-- **Recorrência exibida como "-"** para toda regra que não era intervalo
-  simples: `format_task_recurrence` procurava atributos de antes do refactor de
-  mar/2026. Agora cada regra se descreve (`describe_pattern()`, abstrato em
-  `RecurrenceRule`) e o formatador só acrescenta o fim (`for N occurrences` /
-  `until AAAA-MM-DD`).
-- **Prioridade, complexidade e energia digitadas como texto** (`"high"`)
-  quebravam `ListTasksUseCase` e `UpdateTaskUseCase`; o update falhava até sem
-  prioridade no pedido (`Priority(None)`). Novo `LevelEnum.parse`: aceita nome
-  (qualquer caixa, `-`/espaço no lugar de `_`) ou número e **falha** com
-  `InvalidValueError` listando as opções.
-- **A próxima ocorrência de tarefa recorrente perdia atributos**: contexto,
-  energia, complexidade, dependências e duração estimada passam adiante; o
-  `CreateRecurringTaskHandler` só troca a estimativa pela média medida quando
-  há média (antes gravava 0).
-- `GetCurrentUserUseCase` sem token levanta `NotAuthenticatedError` (antes
-  "token inválido").
-- `ordinal_phrase`: "21st"/"22nd"/"23rd" (antes "21th"), e posições do fim como
-  "third to last"/"4th to last".
+### Fixed
+- **Recurrence shown as "-"** for every rule that was not a simple interval:
+  `format_task_recurrence` looked for attributes from before the March 2026
+  refactor. Now each rule describes itself (`describe_pattern()`, abstract on
+  `RecurrenceRule`) and the formatter only adds the end (`for N occurrences`
+  / `until YYYY-MM-DD`).
+- **Priority, complexity and energy typed as text** (`"high"`) broke
+  `ListTasksUseCase` and `UpdateTaskUseCase`; the update failed even without a
+  priority in the request (`Priority(None)`). New `LevelEnum.parse`: accepts a
+  name (any case, `-`/space instead of `_`) or a number and **fails** with
+  `InvalidValueError` listing the options.
+- **The next occurrence of a recurring task lost attributes**: context,
+  energy, complexity, dependencies and estimated duration carry over;
+  `CreateRecurringTaskHandler` only swaps the estimate for the measured
+  average when there is an average (it used to store 0).
+- `GetCurrentUserUseCase` without a token raises `NotAuthenticatedError`
+  (before, "invalid token").
+- `ordinal_phrase`: "21st"/"22nd"/"23rd" (before "21th"), and positions from
+  the end as "third to last"/"4th to last".
 
-### Alterado
-- **Quebra:** `Priority.from_string` removido (devolvia `MEDIUM` para qualquer
-  texto); use `Priority.parse`. `Priority`, `EnergyLevel` e `TaskComplexity`
-  herdam de `LevelEnum`; `str()` passa a dar "Very low" em vez de "Very_low".
-- `CreateTaskInputDTO.priority` passa a ser `None` por padrão, e aí vale
-  `UserPrefs.default_task_priority` — antes o padrão do DTO (`MEDIUM`) sempre
-  vencia a preferência. `UserPrefs.update` valida e normaliza essa preferência.
-- `LogoutUseCase` assume o que faz: sem sessão no servidor, logout é o cliente
-  descartar o token; a saída diz isso (`token_revoked=False`). Sem token,
-  `NotAuthenticatedError`. `LogoutInputDTO.access_token` e
-  `GetCurrentUserInputDTO.token` aceitam `None`.
-- Helpers de texto (`ordinal`, `ordinal_phrase`, `join_naturally`) saem de
-  `c_application/utils/string_utils.py` para `a_core/text.py`, porque o
-  domínio passou a usá-los.
+### Changed
+- **Breaking:** `Priority.from_string` removed (it returned `MEDIUM` for any
+  text); use `Priority.parse`. `Priority`, `EnergyLevel` and `TaskComplexity`
+  inherit from `LevelEnum`; `str()` now gives "Very low" instead of
+  "Very_low".
+- `CreateTaskInputDTO.priority` is now `None` by default, and then
+  `UserPrefs.default_task_priority` applies — before, the DTO default
+  (`MEDIUM`) always beat the preference. `UserPrefs.update` validates and
+  normalizes that preference.
+- `LogoutUseCase` owns what it does: with no server session, logout is the
+  client discarding the token; the output says so (`token_revoked=False`).
+  Without a token, `NotAuthenticatedError`. `LogoutInputDTO.access_token` and
+  `GetCurrentUserInputDTO.token` accept `None`.
+- Text helpers (`ordinal`, `ordinal_phrase`, `join_naturally`) move from
+  `c_application/utils/string_utils.py` to `a_core/text.py`, because the
+  domain started using them.
 
-## [0.2.1] — 24/09/2026
+## [0.2.1] — 2026-09-24
 
-### Adicionado
-- `LICENSE`: Axiom Core License 1.0 — uso, modificação e redistribuição
-  livres, inclusive para construir aplicações comerciais, com crédito à origem
-  e aos autores; proibida a venda do próprio core como está ou com alterações
-  pequenas. Resumo em português no README.
+### Added
+- `LICENSE`: Axiom Core License 1.0 — free use, modification and
+  redistribution, including to build commercial applications, with credit to
+  the origin and the authors; selling the core itself as-is or with minor
+  changes is forbidden. Summary in the README.
 
-### Corrigido
-- README: Python 3.12+ (dizia 3.10+) e bloco de código que não fechava.
+### Fixed
+- README: Python 3.12+ (it said 3.10+) and a code block that did not close.
 
-## [0.2.0] — 24/09/2026
+## [0.2.0] — 2026-09-24
 
-Consolida o trabalho de jun/2026, que estava sem commit, e fecha a Parte 1 do
-Backlog 01.
+Consolidates the June 2026 work, which was uncommitted, and closes Backlog
+01, Part 1.
 
-### Adicionado
-- `SimpleValueObject`: base para value objects com um único `value`, com
-  igualdade contra `str` e `repr` legível. `UniqueId` e `TextValueObject`
-  passam a herdar dela.
-- `InputDTO` e `OutputDTO` como bases de DTO.
+### Added
+- `SimpleValueObject`: base for value objects with a single `value`, with
+  equality against `str` and a readable `repr`. `UniqueId` and
+  `TextValueObject` now inherit from it.
+- `InputDTO` and `OutputDTO` as DTO bases.
 - `Makefile` (`format`, `lint`, `lint-fix`, `typecheck`, `test`, `coverage`,
-  `check`), `.pre-commit-config.yaml`, `.github/` (CI e Dependabot).
-- Configuração de black, ruff, mypy, pytest e coverage no `pyproject.toml`
-  (substitui o `pytest.ini`).
-- Configuração padrão do `TaskLanguageEngine` versionada e empacotada em
-  `b_domain/engines/task_language_engine.toml`, com testes.
-- `CLAUDE.md`, `CHANGELOG.md` e `docs/backlog/` (retomada).
+  `check`), `.pre-commit-config.yaml`, `.github/` (CI and Dependabot).
+- black, ruff, mypy, pytest and coverage configuration in `pyproject.toml`
+  (replaces `pytest.ini`).
+- Default `TaskLanguageEngine` configuration versioned and packaged in
+  `b_domain/engines/task_language_engine.toml`, with tests.
+- `CLAUDE.md`, `CHANGELOG.md` and `docs/backlog/` (restart).
 
-### Alterado
-- **Quebra:** `b_domain/ports/unity_of_work.py` renomeado para
+### Changed
+- **Breaking:** `b_domain/ports/unity_of_work.py` renamed to
   `unit_of_work.py`.
-- **Quebra:** `PaginatedResponse` passa a ser genérico em `OutputDTO`, com
-  `total_items`, `per_page`, `total_pages` e `current_page` (antes `total`,
-  `page`, `size`). Ainda não há quem a use.
-- **Quebra:** `load_language_engine_factory(path)` vira
-  `build_language_engine(config, contexts_map)`: recebe a configuração já
-  lida (o core não lê arquivo) e o mapa de contextos de quem chama.
-- A lista de exemplo `TASKS` e o `__main__` saem de
-  `task_language_engine.py`.
-- Hooks do pre-commit passam a usar as ferramentas do próprio projeto.
-- Código modernizado para Python 3.12 (`X | None`, `datetime.UTC`, imports
-  ordenados, formatação black em todo o repo).
-- Desserialização de eventos reconstrói `SimpleValueObject` por `value=`.
+- **Breaking:** `PaginatedResponse` is now generic over `OutputDTO`, with
+  `total_items`, `per_page`, `total_pages` and `current_page` (before
+  `total`, `page`, `size`). Nobody uses it yet.
+- **Breaking:** `load_language_engine_factory(path)` becomes
+  `build_language_engine(config, contexts_map)`: it receives the
+  already-read configuration (the core does not read files) and the caller's
+  context map.
+- The sample `TASKS` list and the `__main__` leave `task_language_engine.py`.
+- Pre-commit hooks now use the project's own tools.
+- Code modernized for Python 3.12 (`X | None`, `datetime.UTC`, sorted
+  imports, black formatting across the repo).
+- Event deserialization rebuilds `SimpleValueObject` through `value=`.
 
-## Histórico anterior ao changelog (08/03 – 04/04/2026)
+## History before the changelog (2026-03-08 – 2026-04-04)
 
-Reconstruído a partir do `git log` na retomada; a versão ficou em `0.1.0` e
-nunca foi publicada.
+Rebuilt from `git log` at the restart; the version stayed at `0.1.0` and was
+never published.
 
-- **Motor de fluxo (mar/08–09):** `FlowEngine` sem estado, guiado por
-  `UserBehaviorProfile`; `UserBehaviorLearner` e métricas de comportamento.
-- **Eventos e outbox (mar/13–16):** `DomainEvent` com serialização tipada,
-  `IdPrefix`, `BaseRepository` com rastreamento de entidades, `EventBus`,
-  `UnitOfWork` que grava no Outbox, `OutboxEvent`, `OutboxRelayService`,
-  handlers e a regra de mover efeitos colaterais do `CompleteTaskUseCase` para
-  eles.
-- **Calendário e usuário (mar/16–20):** campos de calendário externo na `Task`,
-  `ExportTaskToCalendarHandler`, `AbstractEmailService`, `User` com e-mail e
-  preferências, `PasswordHasher` como ABC, filtros de repositório.
-- **Fábrica de UoW e wiring (mar/20–22):** use cases recebem `uow_factory`;
-  `register_essential_handlers`/`register_optional_handlers`; `trigger_relay`
-  para evitar laço infinito; dependências entre tarefas (`depends_on`),
-  resolução por prefixo de id.
-- **Recorrência e datas (mar/28–30):** recorrências reescritas sobre
-  `AxiomDate` (fixa × flutuante), `normalize_comparison_date`, enums como
+- **Flow engine (Mar 08–09):** stateless `FlowEngine`, driven by
+  `UserBehaviorProfile`; `UserBehaviorLearner` and behavior metrics.
+- **Events and outbox (Mar 13–16):** `DomainEvent` with typed serialization,
+  `IdPrefix`, `BaseRepository` with entity tracking, `EventBus`, a
+  `UnitOfWork` that writes to the Outbox, `OutboxEvent`,
+  `OutboxRelayService`, handlers and the rule of moving
+  `CompleteTaskUseCase`'s side effects into them.
+- **Calendar and user (Mar 16–20):** external calendar fields on `Task`,
+  `ExportTaskToCalendarHandler`, `AbstractEmailService`, `User` with e-mail
+  and preferences, `PasswordHasher` as an ABC, repository filters.
+- **UoW factory and wiring (Mar 20–22):** use cases receive `uow_factory`;
+  `register_essential_handlers`/`register_optional_handlers`;
+  `trigger_relay` to avoid an infinite loop; dependencies between tasks
+  (`depends_on`), resolution by id prefix.
+- **Recurrence and dates (Mar 28–30):** recurrences rewritten on top of
+  `AxiomDate` (fixed × floating), `normalize_comparison_date`, enums as
   `StrEnum`, `can_transition_to(allow_same)`, `AxiomDate.from_params`.
-- **Autenticação e preferências (abr/01–04):** `LoginUseCase`,
+- **Authentication and preferences (Apr 01–04):** `LoginUseCase`,
   `RegisterUserUseCase`, `LogoutUseCase`, `GetCurrentUserUseCase`,
-  `UpdateUserPreferencesUseCase` (devolvendo o que mudou),
-  `PrepareUserPreferencesUseCase`, `GetUserPreferencesUseCase`, tema nas
-  preferências, exceções de segurança e de usuário, `execute` assíncrono.
+  `UpdateUserPreferencesUseCase` (returning what changed),
+  `PrepareUserPreferencesUseCase`, `GetUserPreferencesUseCase`, theme in the
+  preferences, security and user exceptions, async `execute`.

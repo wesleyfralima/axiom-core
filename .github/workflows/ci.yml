@@ -23,6 +23,6 @@ jobs:
       - name: Install dependencies
         run: poetry install
 
-      # Same command as local development: black, ruff, mypy, pytest + coverage floor
+      # Same command as local development: ruff format, ruff, mypy, pytest + coverage floor
       - name: make check
         run: make check

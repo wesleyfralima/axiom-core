@@ -90,7 +90,6 @@ class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
         """
 
         async with self.uow as uow:
-
             # 1. Business rule validation (uniqueness)
             existing_user: User | None = await uow.users.get_by_username(dto.username)
             if existing_user:
