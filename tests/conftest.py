@@ -1,7 +1,7 @@
 import builtins
 from collections.abc import Iterable
 from datetime import UTC, datetime
-from typing import Any
+from typing import Any, Protocol
 
 import pytest
 
@@ -53,14 +53,14 @@ class FakeTaskRepository(TaskRepository):
         self.tasks[str(task.id)] = task
         return task
 
-    async def update(self, task: Task) -> None:
+    async def update(self, task: Task) -> Task:
         if str(task.id) in self.tasks:
             self.tasks[str(task.id)] = task
+        return task
 
-    async def update_many(self, tasks: list[Task]) -> None:
+    async def update_many(self, tasks: list[Task]) -> list[Task]:
         """Simula o update em lote no repositório fake."""
-        for task in tasks:
-            await self.update(task)
+        return [await self.update(task) for task in tasks]
 
     async def delete(self, task_id: TaskId) -> None:
         del self.tasks[str(task_id)]
@@ -71,7 +71,7 @@ class FakeTaskRepository(TaskRepository):
     ) -> Task | None:
         found = self.tasks.get(str(task_id), None)
 
-        if user_id is not None:
+        if found is not None and user_id is not None:
             return found if str(found.user_id) == str(user_id) else None
 
         return found
@@ -243,7 +243,7 @@ class FakeUserRepository(UserRepository):
 
 
 class FakeTimeEntryRepository(TimeEntryRepository):
-    def __init__(self):
+    def __init__(self) -> None:
         # Usamos uma lista para simular a tabela, mas poderíamos usar um dict
         # se quiséssemos busca por ID em O(1).
         self.entries: list[TimeEntry] = []
@@ -295,20 +295,20 @@ class FakeTimeEntryRepository(TimeEntryRepository):
 
 
 class FakeContextRepository:
-    def __init__(self, contexts: dict[str, Any] | None = None):
+    def __init__(self, contexts: dict[str, Any] | None = None) -> None:
         self.contexts = contexts if contexts is not None else {}
 
-    async def get_by_id(self, context_id):
+    async def get_by_id(self, context_id: ContextId) -> Any:
         return self.contexts.get(str(context_id))
 
-    async def get_active_for_user(self, user_id):
+    async def get_active_for_user(self, user_id: UserId) -> Any:
         # No Axiom, o contexto ativo agora vem do UserPrefs,
         # mas mantemos o repositório para buscas de metadados.
         return next((c for c in self.contexts.values() if c.user_id == user_id), None)
 
 
 class FakeUserBehaviorMetricsRepository(UserBehaviorMetricsRepository):
-    def __init__(self):
+    def __init__(self) -> None:
         self.metrics_store: dict[str, UserBehaviorMetrics] = {}
 
     async def save(self, metrics: UserBehaviorMetrics) -> None:
@@ -326,7 +326,7 @@ class FakeUserBehaviorMetricsRepository(UserBehaviorMetricsRepository):
 
 
 class FakeUserBehaviorProfileRepository(UserBehaviorProfileRepository):
-    def __init__(self):
+    def __init__(self) -> None:
         self.profiles: dict[str, UserBehaviorProfile] = {}
 
     async def save(self, profile: UserBehaviorProfile) -> None:
@@ -344,7 +344,12 @@ class FakeUserBehaviorProfileRepository(UserBehaviorProfileRepository):
 
 
 class FakeUnitOfWork(UnitOfWork):
-    def __init__(self, users_dict=None, tasks_dict=None, contexts_dict=None):
+    def __init__(
+        self,
+        users_dict: dict[str, User] | None = None,
+        tasks_dict: dict[str, Task] | None = None,
+        contexts_dict: dict[str, Any] | None = None,
+    ) -> None:
 
         # Passamos os dicionários compartilhados para os repositórios
         self.users: FakeUserRepository = FakeUserRepository(users=users_dict)
@@ -358,7 +363,7 @@ class FakeUnitOfWork(UnitOfWork):
         self.user_behavior_metrics: FakeUserBehaviorMetricsRepository = (
             FakeUserBehaviorMetricsRepository()
         )
-        self.user_behavior_profilesFakeUserBehaviorProfileRepository = (
+        self.user_behavior_profiles: FakeUserBehaviorProfileRepository = (
             FakeUserBehaviorProfileRepository()
         )
 
@@ -368,28 +373,42 @@ class FakeUnitOfWork(UnitOfWork):
         self.committed: bool = False
         self.rolled_back: bool = False
 
-    async def commit(self):
+    async def commit(self) -> None:
         self.committed = True
 
-    async def rollback(self):
+    async def rollback(self) -> None:
         self.rolled_back = True
 
 
+class FakeUowFactory(Protocol):
+    """A ``UowFactoryType`` whose units of work are ``FakeUnitOfWork``.
+
+    Tests type the fixture with this to reach the fakes' own attributes
+    (``uow.tasks.tasks``, ``uow.committed``).
+    """
+
+    def __call__(self, trigger_relay: bool = False) -> FakeUnitOfWork: ...
+
+
+UseCaseDeps = dict[str, Any]
+"""Keyword arguments for a use case: ``uow_factory`` and ``clock``."""
+
+
 @pytest.fixture
-def fake_clock():
+def fake_clock() -> FakeClock:
     return FakeClock()
 
 
 @pytest.fixture
-def fake_uow_factory():
+def fake_uow_factory() -> FakeUowFactory:
     # Estado compartilhado (uma única vez por teste)
-    shared_users = {}
-    shared_tasks = {}
-    shared_contexts = {}
+    shared_users: dict[str, User] = {}
+    shared_tasks: dict[str, Task] = {}
+    shared_contexts: dict[str, Any] = {}
 
     # incluir outros se necessário
 
-    def factory():
+    def factory(trigger_relay: bool = False) -> FakeUnitOfWork:
         # Cada UOW é uma instância nova, mas aponta para os mesmos dicts
         return FakeUnitOfWork(
             users_dict=shared_users,
@@ -401,7 +420,9 @@ def fake_uow_factory():
 
 
 @pytest.fixture
-def use_case_context(fake_uow_factory, fake_clock):
+def use_case_context(
+    fake_uow_factory: FakeUowFactory, fake_clock: FakeClock
+) -> UseCaseDeps:
     """
     Retorna um dicionário com todas as dependências
      prontas para um UseCase (genérico).
@@ -413,7 +434,9 @@ def use_case_context(fake_uow_factory, fake_clock):
 
 
 @pytest.fixture
-def create_use_case_context(fake_uow_factory, fake_clock):
+def create_use_case_context(
+    fake_uow_factory: FakeUowFactory, fake_clock: FakeClock
+) -> UseCaseDeps:
     """
     Retorna um dicionário com todas as dependências
     prontas para um CompleteTaskUseCase.

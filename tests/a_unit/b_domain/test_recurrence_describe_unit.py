@@ -147,3 +147,14 @@ def test_business_day_rules_compare() -> None:
 
     assert rule(5) == rule(5)
     assert rule(5) != rule(-1)
+
+
+def test_monthly_all_weekdays_crosses_months_without_end_date() -> None:
+    """Regression: without end_date the month change used a None anchor."""
+
+    rule = MonthlyAllWeekdaysRule(start_date=START, days_of_week={0})
+
+    occurrences = rule.get_next_n_occurrences(8)
+
+    assert [o.day for o in occurrences] == [5, 12, 19, 26, 2, 9, 16, 23]
+    assert all(o.weekday() == 0 for o in occurrences)

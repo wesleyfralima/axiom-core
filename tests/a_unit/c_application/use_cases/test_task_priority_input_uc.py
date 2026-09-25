@@ -21,7 +21,9 @@ from tests.conftest import FakeClock
 pytestmark = [pytest.mark.asyncio, pytest.mark.uc]
 
 
-async def _user_with_tasks(uow_factory: UowFactoryType, now) -> tuple[User, Task]:
+async def _user_with_tasks(
+    uow_factory: UowFactoryType, now: datetime
+) -> tuple[User, Task]:
     user = User.create(username="wesley", email="w@test.com")
     high = Task.create(
         now=now,
@@ -134,7 +136,9 @@ async def test_create_with_explicit_priority(
     assert result.priority == "HIGH"
 
 
-async def _user_with_done_task(uow_factory: UowFactoryType, now) -> tuple[User, Task]:
+async def _user_with_done_task(
+    uow_factory: UowFactoryType, now: datetime
+) -> tuple[User, Task]:
     user, open_task = await _user_with_tasks(uow_factory, now)
     done = Task.create(now=now, user_id=user.id, title=Title("Feita"))
     done.mark_as_done(now)

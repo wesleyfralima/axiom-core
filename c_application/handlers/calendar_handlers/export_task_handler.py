@@ -47,16 +47,16 @@ class ExportTaskToCalendarHandler:
         async with self.uow:
 
             # 1.1. Retrieve the task entity
-            task: Task = await self.uow.tasks.get_by_id(event.task_id)
+            task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
             if not task:
                 return
 
             # 1.2. Get user calendar information
-            user: User = await self.uow.users.get_by_id(task.user_id)
+            user: User | None = await self.uow.users.get_by_id(task.user_id)
             if not user:
                 return
 
-            calendar_id: str = user.preferences.external_calendar_id
+            calendar_id: str | None = user.preferences.external_calendar_id
             if not calendar_id:
                 return
 
@@ -65,7 +65,7 @@ class ExportTaskToCalendarHandler:
                 return
 
             # 3. Business rule: only export if due date OR recurrence exists
-            if not (task.due_date.value or task.recurrence):
+            if not (task.due_date or task.recurrence):
                 return
 
             # Build calendar event input from task
@@ -80,13 +80,14 @@ class ExportTaskToCalendarHandler:
         # 5. Persist result: mark task as exported with external ID
         async with self.uow:
 
-            task = await self.uow.tasks.get_by_id(event.task_id)
+            synced: Task | None = await self.uow.tasks.get_by_id(event.task_id)
 
-            # Double-check to avoid race condition (another handler may have updated)
-            if task.has_calendar_event:
+            # Double-check to avoid race condition (another handler may have
+            # updated or deleted it meanwhile)
+            if synced is None or synced.has_calendar_event:
                 return
 
-            task.mark_as_synced(
+            synced.mark_as_synced(
                 now=self.clock.now(),
                 external_id=external_event.id,
                 calendar_id=external_event.calendar_id,

@@ -82,7 +82,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
         async with self.uow as uow:
             # 2. User resolution & preference fetching
-            user: User = await uow.users.get_by_id(user_id_vo)
+            user: User | None = await uow.users.get_by_id(user_id_vo)
             if not user:
                 raise ValidationException(f"User with ID {dto.user_id} not found.")
 

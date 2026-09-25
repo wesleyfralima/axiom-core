@@ -47,8 +47,8 @@ class UpdateUserBehaviorHandler:
             event (TaskCompletedEvent): The domain event signaling task completion.
         """
 
-        metrics: UserBehaviorMetrics
-        profile: UserBehaviorProfile
+        metrics: UserBehaviorMetrics | None
+        profile: UserBehaviorProfile | None
         new_metrics: UserBehaviorMetrics
         new_profile: UserBehaviorProfile
 

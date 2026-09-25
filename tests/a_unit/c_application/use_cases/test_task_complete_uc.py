@@ -5,18 +5,17 @@ import pytest
 
 from a_core import DomainException, ValidationException
 from b_domain.entities import Task, User
-from b_domain.ports.unit_of_work import UowFactoryType
 from b_domain.value_objects import TaskId, TaskStatus, Title
 from c_application.dtos.task_dtos import TaskByUserRequest
 from c_application.use_cases import CompleteTaskUseCase
-from tests.conftest import FakeClock
+from tests.conftest import FakeClock, FakeUowFactory, UseCaseDeps
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
 async def test_complete_task_successfully(
     fake_clock: FakeClock,
-    fake_uow_factory: UowFactoryType,
+    fake_uow_factory: FakeUowFactory,
 ) -> None:
 
     user = User.create(username="wesley", email="wesley@test.com")
@@ -67,7 +66,9 @@ async def test_complete_task_successfully(
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_prefix_too_short(create_use_case_context):
+async def test_complete_task_fails_if_prefix_too_short(
+    create_use_case_context: UseCaseDeps,
+) -> None:
     use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix="abc", user_id=str(uuid4()))
 
@@ -82,7 +83,9 @@ async def test_complete_task_fails_if_prefix_too_short(create_use_case_context):
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_prefix_is_ambiguous(fake_clock, fake_uow_factory):
+async def test_complete_task_fails_if_prefix_is_ambiguous(
+    fake_clock: FakeClock, fake_uow_factory: FakeUowFactory
+) -> None:
     user = User.create(username="wesley", email="wesley@test.com")
     now = fake_clock.now()
 
@@ -94,10 +97,10 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(fake_clock, fake_uow_f
     class FakeId:
         value: str
 
-        def __hash__(self):
+        def __hash__(self) -> int:
             return hash(self.value)
 
-        def __str__(self):
+        def __str__(self) -> str:
             return self.value
 
     same_id = FakeId(str(tid)[:30])
@@ -105,7 +108,8 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(fake_clock, fake_uow_f
     t1 = Task.create(title=Title("Task 1"), user_id=user.id, now=now)
     t1 = replace(t1, id=tid)
     t2 = Task.create(title=Title("Task 2"), user_id=user.id, now=now)
-    t2 = replace(t2, id=same_id)  # noqa
+    # A non-TaskId on purpose: the fake repository only compares strings
+    t2 = replace(t2, id=same_id)  # type: ignore[arg-type]  # noqa
 
     async with fake_uow_factory() as uow:
         # Simulamos o cenário no fake repositório
@@ -128,7 +132,9 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(fake_clock, fake_uow_f
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_task_is_blocked(fake_clock, fake_uow_factory):
+async def test_complete_task_fails_if_task_is_blocked(
+    fake_clock: FakeClock, fake_uow_factory: FakeUowFactory
+) -> None:
     user = User.create(username="wesley", email="wesley@test.com")
     now = fake_clock.now()
 
@@ -161,8 +167,8 @@ async def test_complete_task_fails_if_task_is_blocked(fake_clock, fake_uow_facto
 @pytest.mark.asyncio
 @pytest.mark.uc
 async def test_complete_task_fails_if_belongs_to_another_user(
-    fake_clock, fake_uow_factory
-):
+    fake_clock: FakeClock, fake_uow_factory: FakeUowFactory
+) -> None:
     now = fake_clock.now()
 
     # Setup: Tarefa pertence ao 'outro'
@@ -189,7 +195,9 @@ async def test_complete_task_fails_if_belongs_to_another_user(
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_already_done(fake_clock, fake_uow_factory):
+async def test_complete_task_fails_if_already_done(
+    fake_clock: FakeClock, fake_uow_factory: FakeUowFactory
+) -> None:
     now = fake_clock.now()
 
     user = User.create(username="wesley", email="wesley@test.com")
@@ -214,8 +222,8 @@ async def test_complete_task_fails_if_already_done(fake_clock, fake_uow_factory)
 @pytest.mark.asyncio
 @pytest.mark.uc
 async def test_complete_task_unknown_prefix_says_not_found(
-    fake_clock, fake_uow_factory
-):
+    fake_clock: FakeClock, fake_uow_factory: FakeUowFactory
+) -> None:
     user = User.create(username="wesley", email="wesley@test.com")
     async with fake_uow_factory() as uow:
         await uow.users.add(user)

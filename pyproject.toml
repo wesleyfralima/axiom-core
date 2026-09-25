@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.3.3"
+version = "0.3.4"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
@@ -52,6 +52,8 @@ select = ["E", "F", "I", "UP"]
 
 [tool.mypy]
 mypy_path = ["."]
+# d_fake_infra/ is local (gitignored) and not part of the project
+files = ["a_core", "b_domain", "c_application", "tests"]
 python_version = "3.12"
 warn_return_any = true
 warn_unused_configs = true
