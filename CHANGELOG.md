@@ -6,6 +6,14 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.9] — 24/09/2026
+
+### Corrigido
+- **Tarefa flutuante ficava "vencida" horas antes**: `DueDate.is_overdue`
+  lia a hora de parede no fuso do `now` (UTC, o relógio da aplicação) em vez
+  do fuso da própria data. Em São Paulo, um prazo às 23:59 virava vencido às
+  20:59. Achado montando o roteiro de demonstração do CLI.
+
 ## [0.3.8] — 24/09/2026
 
 ### Corrigido
