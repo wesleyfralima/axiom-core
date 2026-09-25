@@ -135,3 +135,15 @@ def test_format_adds_end_date() -> None:
 
 def test_format_without_rule() -> None:
     assert format_task_recurrence(None) is None
+
+
+def test_business_day_rules_compare() -> None:
+    """Equality compares every field, including the internal frequency."""
+
+    def rule(nth: int) -> BusinessDayRule:
+        return BusinessDayRule(
+            start_date=START, nth_day=nth, is_business_day=_weekday_only
+        )
+
+    assert rule(5) == rule(5)
+    assert rule(5) != rule(-1)

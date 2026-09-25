@@ -33,6 +33,9 @@ class BusinessDayRule(RecurrenceRule):
             or if the callback is missing.
         """
         super().__post_init__()
+        # Not exported as RRULE (see rrule_string), but equality and repr
+        # compare every field, so it must exist like in the other rules.
+        object.__setattr__(self, "_freq", "MONTHLY")
 
         if self.nth_day == 0:
             raise ValidationException("Business day index (nth_day) cannot be 0.")
