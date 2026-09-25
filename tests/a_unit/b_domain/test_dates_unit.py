@@ -318,3 +318,17 @@ def test_due_date_is_immutable() -> None:
 
     with pytest.raises(Exception):
         due_date.value = datetime.now()  # type: ignore[misc] # noqa
+
+
+def test_floating_due_date_uses_its_own_zone_not_the_zone_of_now() -> None:
+    """Regression: 23:59 in São Paulo was read as 23:59 UTC (3 h early)."""
+
+    due_date: DueDate = DueDate.floating(
+        dt=datetime(2026, 9, 24, 23, 59), source_tz=SP_TZ_NAME
+    )
+
+    # 23:45 in São Paulo, expressed in UTC (the application clock)
+    now: datetime = datetime(2026, 9, 25, 2, 45, tzinfo=UTC_TZ_OBJ)
+
+    assert due_date.is_overdue(now) is False
+    assert due_date.is_overdue(now + timedelta(minutes=15)) is True

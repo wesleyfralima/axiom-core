@@ -282,9 +282,10 @@ class DueDate(AxiomDate):
             )
 
         try:
-            # self.materialize() never is None when self.value is not None
-            my_limit: datetime = self.materialize(target_tz=now_reference.tzinfo)
-            # Compare consistently (same timezone context)
+            # A floating date is wall-clock time in its own zone (the user's
+            # when it was set), never in the zone `now` happens to carry:
+            # 23:59 in São Paulo is not 23:59 UTC. Fixed dates are instants.
+            my_limit: datetime = self.materialize()
             return now_reference > my_limit
 
         except (ValueError, TypeError):
