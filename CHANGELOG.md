@@ -1,0 +1,69 @@
+# Changelog — axiom-core
+
+Formato inspirado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/);
+versões seguem [SemVer](https://semver.org/lang/pt-BR/). A versão vigente é o
+campo `version` do `pyproject.toml`.
+
+## [Não lançado]
+
+## [0.2.0] — 24/09/2026
+
+Consolida o trabalho de jun/2026, que estava sem commit, e fecha a Parte 1 do
+Backlog 01.
+
+### Adicionado
+- `SimpleValueObject`: base para value objects com um único `value`, com
+  igualdade contra `str` e `repr` legível. `UniqueId` e `TextValueObject`
+  passam a herdar dela.
+- `InputDTO` e `OutputDTO` como bases de DTO.
+- `Makefile` (`format`, `lint`, `lint-fix`, `typecheck`, `test`, `coverage`,
+  `check`), `.pre-commit-config.yaml`, `.github/` (CI e Dependabot).
+- Configuração de black, ruff, mypy, pytest e coverage no `pyproject.toml`
+  (substitui o `pytest.ini`).
+- Configuração padrão do `TaskLanguageEngine` versionada e empacotada em
+  `b_domain/engines/task_language_engine.toml`, com testes.
+- `CLAUDE.md`, `CHANGELOG.md` e `docs/backlog/` (retomada).
+
+### Alterado
+- **Quebra:** `b_domain/ports/unity_of_work.py` renomeado para
+  `unit_of_work.py`.
+- **Quebra:** `PaginatedResponse` passa a ser genérico em `OutputDTO`, com
+  `total_items`, `per_page`, `total_pages` e `current_page` (antes `total`,
+  `page`, `size`). Ainda não há quem a use.
+- **Quebra:** `load_language_engine_factory(path)` vira
+  `build_language_engine(config, contexts_map)`: recebe a configuração já
+  lida (o core não lê arquivo) e o mapa de contextos de quem chama.
+- A lista de exemplo `TASKS` e o `__main__` saem de
+  `task_language_engine.py`.
+- Hooks do pre-commit passam a usar as ferramentas do próprio projeto.
+- Código modernizado para Python 3.12 (`X | None`, `datetime.UTC`, imports
+  ordenados, formatação black em todo o repo).
+- Desserialização de eventos reconstrói `SimpleValueObject` por `value=`.
+
+## Histórico anterior ao changelog (08/03 – 04/04/2026)
+
+Reconstruído a partir do `git log` na retomada; a versão ficou em `0.1.0` e
+nunca foi publicada.
+
+- **Motor de fluxo (mar/08–09):** `FlowEngine` sem estado, guiado por
+  `UserBehaviorProfile`; `UserBehaviorLearner` e métricas de comportamento.
+- **Eventos e outbox (mar/13–16):** `DomainEvent` com serialização tipada,
+  `IdPrefix`, `BaseRepository` com rastreamento de entidades, `EventBus`,
+  `UnitOfWork` que grava no Outbox, `OutboxEvent`, `OutboxRelayService`,
+  handlers e a regra de mover efeitos colaterais do `CompleteTaskUseCase` para
+  eles.
+- **Calendário e usuário (mar/16–20):** campos de calendário externo na `Task`,
+  `ExportTaskToCalendarHandler`, `AbstractEmailService`, `User` com e-mail e
+  preferências, `PasswordHasher` como ABC, filtros de repositório.
+- **Fábrica de UoW e wiring (mar/20–22):** use cases recebem `uow_factory`;
+  `register_essential_handlers`/`register_optional_handlers`; `trigger_relay`
+  para evitar laço infinito; dependências entre tarefas (`depends_on`),
+  resolução por prefixo de id.
+- **Recorrência e datas (mar/28–30):** recorrências reescritas sobre
+  `AxiomDate` (fixa × flutuante), `normalize_comparison_date`, enums como
+  `StrEnum`, `can_transition_to(allow_same)`, `AxiomDate.from_params`.
+- **Autenticação e preferências (abr/01–04):** `LoginUseCase`,
+  `RegisterUserUseCase`, `LogoutUseCase`, `GetCurrentUserUseCase`,
+  `UpdateUserPreferencesUseCase` (devolvendo o que mudou),
+  `PrepareUserPreferencesUseCase`, `GetUserPreferencesUseCase`, tema nas
+  preferências, exceções de segurança e de usuário, `execute` assíncrono.
