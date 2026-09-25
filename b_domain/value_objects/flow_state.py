@@ -9,7 +9,7 @@ from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
 @dataclass(frozen=True, kw_only=True)
 class UserFlowState(ValueObject):
-    """Represents the system’s awareness of the user’s condition.
+    """Represents the system's awareness of the user's condition.
 
     Combines behavioral momentum logic with real-time precision.
     Tracks session anchors, energy levels, momentum dynamics,
@@ -170,7 +170,7 @@ class UserFlowState(ValueObject):
         """Record a rest period and recover energy proportionally.
 
         - Recovery is proportional to rest duration.
-        - Power Nap bonus: resting between 10–14 minutes guarantees at least
+        - Power Nap bonus: resting between 10-14 minutes guarantees at least
           one energy level recovery.
         - Assumption: user cannot reach peak energy after rest, maximum is HIGH.
         """

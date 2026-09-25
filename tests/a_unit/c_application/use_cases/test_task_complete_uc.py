@@ -109,7 +109,7 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(
     t1 = replace(t1, id=tid)
     t2 = Task.create(title=Title("Task 2"), user_id=user.id, now=now)
     # A non-TaskId on purpose: the fake repository only compares strings
-    t2 = replace(t2, id=same_id)  # type: ignore[arg-type]  # noqa
+    t2 = replace(t2, id=same_id)  # type: ignore[arg-type]
 
     async with fake_uow_factory() as uow:
         # Simulamos o cenário no fake repositório

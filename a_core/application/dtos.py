@@ -2,7 +2,7 @@ from abc import ABC
 from dataclasses import dataclass
 
 
-class DTO(ABC):
+class DTO(ABC):  # noqa: B024 - marker class, no abstract methods
     """Base class for Data Transfer Objects (DTO).
 
     Serves as an abstract marker class for objects used to

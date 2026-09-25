@@ -10,14 +10,14 @@ from .simple import SimpleIntervalRule
 from .weekly_by_days import WeeklyByDaysRule
 
 __all__ = [
-    "RecurrenceRule",
-    "RecurrenceFactory",
     "BusinessDayRule",
     "HourlyWindowRule",
+    "MonthlyAllWeekdaysRule",
     "MonthlyByDaysRule",
     "MonthlyPositionalRule",
     "MonthlyWeekdayPositionalRule",
-    "MonthlyAllWeekdaysRule",
+    "RecurrenceFactory",
+    "RecurrenceRule",
     "SimpleIntervalRule",
     "WeeklyByDaysRule",
 ]

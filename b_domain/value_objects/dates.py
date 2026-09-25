@@ -74,8 +74,8 @@ class AxiomDate:
                 )
             try:
                 ZoneInfo(self.timezone)
-            except ZoneInfoNotFoundError:
-                raise ValidationException("Invalid timezone for floating date")
+            except ZoneInfoNotFoundError as e:
+                raise ValidationException("Invalid timezone for floating date") from e
 
         # Validation for Fixed dates
         elif self.kind == DateKind.FIXED:

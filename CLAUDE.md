@@ -87,7 +87,7 @@ O inventário completo (o que existe, o que falta, o que tem defeito) está em
   Returns / Raises). Documentação do repo (`README`, `docs/`) em português.
 - Exceções de negócio herdam `DomainException` (`a_core/exceptions.py`) e ficam
   em `b_domain/exceptions/` por assunto.
-- black + ruff (`E, F, I, UP`), linha de 88; mypy estrito
+- black + ruff (`E, F, I, UP, B, RUF`), linha de 88; mypy estrito
   (`disallow_untyped_defs`) em `a_core`, `b_domain`, `c_application` e `tests`
   — está zerado; commit não usa mais `SKIP=mypy`.
 
@@ -99,7 +99,7 @@ hooks: com outro venv ativo no terminal (o VSCode ativa sozinho), o Poetry
 usa o venv errado.
 
 ```bash
-make check      # black --check, ruff, mypy, pytest com cobertura mínima de 95%
+make check      # black --check, ruff, mypy, pytest com piso de cobertura (o CI roda este)
 make test       # só pytest
 make coverage   # relatório em htmlcov/
 make lint-fix   # ruff --fix
@@ -116,8 +116,9 @@ Testes em `tests/a_unit` (marcador `unit`), `tests/b_integration` e
 2. Commit no branch; `merge --no-ff` em `master`. Push só quando o dono pedir.
 3. No mesmo commit do trabalho: suba `version` no `pyproject.toml` (feature →
    `0.x.0`; correção → `0.x.y`) e escreva a entrada no `CHANGELOG.md`.
-4. `make check` verde antes do merge (hoje ainda não está — é a Parte 2 do
-   Backlog 01).
+4. `make check` verde antes do merge. O piso de cobertura
+   (`fail_under` no `pyproject.toml`) é a cobertura real: quem acrescenta
+   teste sobe o piso no mesmo commit.
 
 ### docs/backlog/todo/ e docs/backlog/done/
 
@@ -127,13 +128,13 @@ um `README.md` que é só o índice. Um arquivo só vai para `done/` quando est�
 item aberto ele fica em `todo/` (inclusive com os `[x]`). `done/` não se edita
 retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
 
-## Estado atual (24/09/2026)
+## Estado atual (25/09/2026)
 
-- Versão `0.3.9`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
-  1º item), bugs do levantamento (Parte 3) e o que o CLI pediu para o uso
-  diário (listar só abertas, editar prazo, validar preferências).
-- 299 testes passando; **mypy zerado** (pacotes e testes); cobertura 68%,
-  abaixo do piso de 95% do `make check` — o piso real é item da Parte 2.
-- O CI (`.github/workflows/ci.yml`) veio do base-python-project e está errado:
-  roda em `main`/`develop` (o branch é `master`) e mede cobertura de
-  `src/arch_pat_with_python`. Parte 2.
+- Versão `0.3.10`: WIP consolidado (Backlog 01, Parte 1), `make check` verde
+  e CI (Parte 2), bugs do levantamento (Parte 3), licença (Parte 5, 1º item)
+  e o que o CLI pediu para o uso diário (listar só abertas, editar prazo,
+  validar preferências).
+- 299 testes passando; **`make check` verde**: mypy zerado (pacotes e
+  testes), ruff com `B`/`RUF`, cobertura 68,7% sobre piso de 68%.
+- O CI (`.github/workflows/ci.yml`) roda o `make check` em `master` e em PR;
+  ainda não rodou de verdade porque o repositório não existe no GitHub.

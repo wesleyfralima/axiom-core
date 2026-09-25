@@ -139,7 +139,7 @@ async def test_create_with_explicit_priority(
 async def _user_with_done_task(
     uow_factory: UowFactoryType, now: datetime
 ) -> tuple[User, Task]:
-    user, open_task = await _user_with_tasks(uow_factory, now)
+    user, _ = await _user_with_tasks(uow_factory, now)
     done = Task.create(now=now, user_id=user.id, title=Title("Feita"))
     done.mark_as_done(now)
     async with uow_factory() as uow:

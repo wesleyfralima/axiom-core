@@ -115,7 +115,7 @@ class UpdateUserPreferencesUseCase(
             except ValueError as e:
                 raise InvalidValueError(
                     concept="Preference Value", invalid_value=str(e)
-                )
+                ) from e
 
             # Snapshot AFTER state
             after: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)

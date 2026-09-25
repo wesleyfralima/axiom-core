@@ -10,14 +10,14 @@ from .user.get_current import GetCurrentUserUseCase
 from .user.update_prefs import UpdateUserPreferencesUseCase
 
 __all__ = [
-    "LoginUseCase",
-    "RegisterUserUseCase",
     "CompleteTaskUseCase",
     "CreateTaskUseCase",
     "DeleteTaskUseCase",
+    "GetCurrentUserUseCase",
     "GetTaskUseCase",
     "ListTasksUseCase",
+    "LoginUseCase",
+    "RegisterUserUseCase",
     "UpdateTaskUseCase",
-    "GetCurrentUserUseCase",
     "UpdateUserPreferencesUseCase",
 ]

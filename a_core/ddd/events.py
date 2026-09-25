@@ -188,7 +188,7 @@ class DomainEvent:
             if issubclass(expected_type, SimpleValueObject):
                 try:
                     return expected_type(value=value)
-                except Exception:  # noqa
+                except Exception:
                     pass
 
         # -------------------------

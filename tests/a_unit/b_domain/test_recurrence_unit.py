@@ -109,7 +109,7 @@ def test_nth_business_day_validation() -> None:
         BusinessDayRule(
             start_date=AxiomDate.floating(datetime(2024, 1, 1), "UTC"),
             nth_day=1,
-            is_business_day=None,  # type: ignore[arg-type] # noqa
+            is_business_day=None,  # type: ignore[arg-type]
         )
 
 

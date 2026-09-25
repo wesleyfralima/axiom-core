@@ -6,6 +6,24 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.10] — 25/09/2026
+
+### Alterado
+- **`make check` verde** pela primeira vez: o piso de cobertura saiu dos 95%
+  herdados do base-python-project para o valor real (**68%**, medido 68,7%),
+  em `[tool.coverage.report] fail_under` — o `make check` e o CI leem o mesmo
+  número. O piso sobe a cada trabalho que acrescentar teste.
+- **CI de verdade**: dispara em `master` (era `main`/`develop`) e roda o
+  próprio `make check`, em vez de comandos copiados que apontavam para
+  `src/arch_pat_with_python`.
+- ruff com `B` (bugbear) e `RUF`, como no base-python-project. O que mudou no
+  código: exceções traduzidas dentro de `except` agora encadeiam a original
+  (`raise … from e`), o que preserva a causa no traceback; `__all__` em ordem;
+  aspas e travessões tipográficos (’ – ‑) trocados por ASCII em docstrings e
+  comentários; dois testes que esperavam `Exception` genérica agora esperam
+  `FrozenInstanceError`. `Description("")` como default em `Task.create` fica
+  liberado no config (value object congelado).
+
 ## [0.3.9] — 24/09/2026
 
 ### Corrigido

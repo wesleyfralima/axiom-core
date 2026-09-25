@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.3.9"
+version = "0.3.10"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
@@ -34,6 +34,8 @@ line-length = 88
 target-version = ["py312"]
 
 [tool.coverage.report]
+# Floor = real coverage, so `make check` is green; raise it whenever tests are added.
+fail_under = 68
 exclude_lines = [
     "pragma: no cover",
     "def __repr__",
@@ -48,7 +50,11 @@ line-length = 88
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "UP"]
+select = ["E", "F", "I", "UP", "B", "RUF"]
+
+[tool.ruff.lint.flake8-bugbear]
+# frozen value objects: safe as argument defaults
+extend-immutable-calls = ["b_domain.value_objects.Description"]
 
 [tool.mypy]
 mypy_path = ["."]

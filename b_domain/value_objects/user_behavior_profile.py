@@ -37,9 +37,9 @@ class UserBehaviorProfile(ValueObject):
         power_nap_min_minutes (int): Minimum duration for a power nap.
         avg_pause_minutes (float): Average duration of pauses in minutes.
         exploration_noise (float): Exploration noise factor to prevent stagnation.
-        preferred_task_duration (float): User’s preferred task duration in minutes.
-        preferred_task_complexity (float): User’s preferred task complexity level.
-        preferred_energy_usage (float): User’s preferred energy usage level.
+        preferred_task_duration (float): User's preferred task duration in minutes.
+        preferred_task_complexity (float): User's preferred task complexity level.
+        preferred_energy_usage (float): User's preferred energy usage level.
         max_sustainable_duration (float): Maximum sustainable task duration.
         max_sustainable_complexity (float): Maximum sustainable task complexity.
     """

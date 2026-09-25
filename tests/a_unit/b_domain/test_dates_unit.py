@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
@@ -316,8 +317,8 @@ def test_due_date_is_immutable() -> None:
     now_aware = datetime.now(tz=UTC)
     due_date: DueDate = DueDate.fixed(now_aware)
 
-    with pytest.raises(Exception):
-        due_date.value = datetime.now()  # type: ignore[misc] # noqa
+    with pytest.raises(FrozenInstanceError):
+        due_date.value = datetime.now()  # type: ignore[misc]
 
 
 def test_floating_due_date_uses_its_own_zone_not_the_zone_of_now() -> None:

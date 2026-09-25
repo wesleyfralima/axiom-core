@@ -117,7 +117,7 @@ class HourlyWindowRule(RecurrenceRule):
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
         Otherwise, the method increments by the defined interval and applies
-        wrap‑around logic when the candidate exceeds the daily window.
+        wrap-around logic when the candidate exceeds the daily window.
 
         Args:
             last_occurrence (Optional[datetime], optional): The last occurrence

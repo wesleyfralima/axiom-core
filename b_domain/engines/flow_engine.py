@@ -22,7 +22,7 @@ class FlowDecisionType(StrEnum):
         FRICTION_INTERVENTION (str): Suggests breaking a task due to excessive skips.
         BACKLOG_EXHAUSTED (str): Indicates no pending tasks remain,
             but session time is available.
-        SESSION_COMPLETE (str): Marks the end of the user’s planned session.
+        SESSION_COMPLETE (str): Marks the end of the user's planned session.
     """
 
     TASK_EXECUTION = "task_execution"  # Suggestion of a real backlog task
@@ -36,8 +36,8 @@ class FlowDecisionType(StrEnum):
 class FlowDecision(ValueObject):
     """Encapsulates the decision intelligence of the flow engine.
 
-    A `FlowDecision` represents the outcome of the engine’s reasoning
-    about what should happen next in a user’s workflow. It can suggest
+    A `FlowDecision` represents the outcome of the engine's reasoning
+    about what should happen next in a user's workflow. It can suggest
     task execution, breaks, interventions, or session completion.
 
     Attributes:
@@ -79,7 +79,7 @@ class FlowEngine:
 
         Args:
             candidate_tasks (List[Task]): List of candidate tasks from the backlog.
-            state (UserFlowState): Current state of the user’s flow.
+            state (UserFlowState): Current state of the user's flow.
             profile (UserBehaviorProfile): Learned behavioral profile of the user.
             now (datetime): Current timestamp.
 
@@ -257,14 +257,14 @@ class FlowEngine:
     ) -> float:
         """Calculate the momentum multiplier for a task.
 
-        Adjusts the task’s score based on the current momentum trend
+        Adjusts the task's score based on the current momentum trend
         of the user. Momentum reflects behavioral inertia, rising flow,
         stable deep work, or falling fatigue. Each trend modifies the
         multiplier differently to encourage or discourage certain tasks.
 
         Args:
             task (Task): The task being evaluated.
-            state (UserFlowState): Current state of the user’s flow.
+            state (UserFlowState): Current state of the user's flow.
             profile (UserBehaviorProfile): Learned behavioral profile of the user.
 
         Returns:
@@ -312,12 +312,12 @@ class FlowEngine:
     ) -> Task:
         """Create a system task for an ultradian recovery break.
 
-        This intervention enforces a mandatory pause when the user’s
+        This intervention enforces a mandatory pause when the user's
         continuous focus time exceeds the ultradian limit, signaling
         cognitive fatigue and the need for recovery.
 
         Args:
-            state (UserFlowState): Current state of the user’s flow.
+            state (UserFlowState): Current state of the user's flow.
             now (datetime): Current timestamp.
 
         Returns:
@@ -345,7 +345,7 @@ class FlowEngine:
 
         Args:
             target_task (Task): The task that has been repeatedly skipped.
-            state (UserFlowState): Current state of the user’s flow.
+            state (UserFlowState): Current state of the user's flow.
 
         Returns:
             Task: A system-generated micro-focus task.
@@ -354,7 +354,7 @@ class FlowEngine:
             title=f"Micro-focus: {target_task.title.value}",
             duration=5,
             reason="Multiple refusals detected. "
-            "Let’s just organize the start of this task?",
+            "Let's just organize the start of this task?",
             user_id=state.user_id,
         )
 
@@ -369,7 +369,7 @@ class FlowEngine:
         to organize upcoming tasks and prepare for future flow cycles.
 
         Args:
-            state (UserFlowState): Current state of the user’s flow.
+            state (UserFlowState): Current state of the user's flow.
             available_min (int): Available minutes remaining in the session.
 
         Returns:
@@ -420,7 +420,7 @@ class FlowEngine:
         """Check if the ultradian rhythm limit has been exceeded.
 
         Enforces a mandatory break when continuous focus time surpasses
-        the user’s ultradian limit.
+        the user's ultradian limit.
 
         Args:
             state (UserFlowState): Current user flow state.
