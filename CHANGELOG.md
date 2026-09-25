@@ -6,6 +6,19 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.5] — 24/09/2026
+
+Achados pelos primeiros testes de integração do enterprise (banco real +
+relay do outbox).
+
+### Corrigido
+- **Eventos de tarefa carimbavam o relógio real**, não o `now` recebido:
+  `TaskCreatedEvent` e `TaskCompletedEvent` agora levam `occurred_at=now`. O
+  `CreateRecurringTaskHandler` calcula a próxima ocorrência a partir desse
+  instante — com conclusão retroativa (`completed_at`), ela saía errada.
+- `TaskOutputDTO.is_blocked` era sempre `False`: o `TaskMapper` não o
+  preenchia. Tarefa com dependência pendente agora sai `is_blocked=True`.
+
 ## [0.3.4] — 24/09/2026
 
 mypy zerado (Backlog 01, Parte 2, item do mypy) — pacotes **e testes**.

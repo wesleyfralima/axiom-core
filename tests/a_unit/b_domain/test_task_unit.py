@@ -1,10 +1,19 @@
-from datetime import datetime
+from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 
 from a_core import InvalidStateTransition
 from b_domain.entities import Task, User
-from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
+from b_domain.value_objects import (
+    Description,
+    Priority,
+    TaskId,
+    TaskStatus,
+    Title,
+    UserId,
+)
+from c_application.mappers.task_mapper import TaskMapper
 
 # ============================================================
 # Fixtures
@@ -236,3 +245,24 @@ def test_is_subtask_false_when_no_parent(user: User) -> None:
         user_id=user.id,
     )
     assert task.is_subtask is False
+
+
+def test_events_carry_the_injected_time() -> None:
+    """Rule 4 (time is injected): events are stamped with `now`, not the wall clock."""
+
+    now = datetime(2020, 2, 2, 8, 0, tzinfo=UTC)
+    task = Task.create(now=now, user_id=UserId(uuid4()), title=Title("Antiga"))
+    task.mark_as_done(now)
+
+    assert [e.occurred_at for e in task.pull_events()] == [now, now]
+
+
+def test_output_dto_says_when_the_task_is_blocked() -> None:
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    blocker = Task.create(now=now, user_id=UserId(uuid4()), title=Title("Antes"))
+    blocked = Task.create(
+        now=now, user_id=blocker.user_id, title=Title("Depois"), depends_on={blocker.id}
+    )
+
+    assert TaskMapper.to_output(blocked, now).is_blocked is True
+    assert TaskMapper.to_output(blocker, now).is_blocked is False

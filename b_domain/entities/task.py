@@ -160,6 +160,7 @@ class Task(Entity):
 
         created.add_event(
             TaskCreatedEvent(
+                occurred_at=now,
                 title=str(created.title),
                 task_id=created.id,
                 due_date=created.due_date.materialize() if created.due_date else None,
@@ -434,6 +435,7 @@ class Task(Entity):
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.add_event(
             TaskCompletedEvent(
+                occurred_at=now,
                 task_id=self.id,
                 user_id=self.user_id,
                 estimated_minutes=self.estimated_duration_minutes,
