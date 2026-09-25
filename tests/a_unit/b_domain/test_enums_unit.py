@@ -1,10 +1,12 @@
 import pytest
 
+from a_core.exceptions import InvalidValueError
 from b_domain.value_objects import (
     Priority,
     RecurrenceInterval,
     TaskStatus,
 )
+from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 
 # ============================================================
 # Group 1: TaskStatus Transitions
@@ -105,6 +107,55 @@ def test_priority_weight_allows_sorting() -> None:
         Priority.HIGH,
         Priority.CRITICAL,
     ]
+
+
+# ============================================================
+# Group 3: Parsing levels typed by the user
+# ============================================================
+
+
+@pytest.mark.parametrize(
+    "raw,expected",
+    [
+        ("high", Priority.HIGH),
+        ("HIGH", Priority.HIGH),
+        (" Critical ", Priority.CRITICAL),
+        ("1", Priority.LOW),
+        (2, Priority.MEDIUM),
+        (Priority.HIGH, Priority.HIGH),
+    ],
+)
+def test_priority_parse_accepts_name_or_number(
+    raw: str | int, expected: Priority
+) -> None:
+    assert Priority.parse(raw) is expected
+
+
+@pytest.mark.parametrize("raw", ["urgent", "", "0", "5", "-1", "hi"])
+def test_priority_parse_rejects_unknown(raw: str) -> None:
+    with pytest.raises(InvalidValueError, match="Invalid priority"):
+        Priority.parse(raw)
+
+
+def test_complexity_parse_accepts_separators() -> None:
+    assert TaskComplexity.parse("very-low") is TaskComplexity.VERY_LOW
+    assert TaskComplexity.parse("very high") is TaskComplexity.VERY_HIGH
+    assert TaskComplexity.parse("very_high") is TaskComplexity.VERY_HIGH
+
+
+def test_parse_error_lists_the_options() -> None:
+    with pytest.raises(InvalidValueError) as exc:
+        EnergyLevel.parse("tired")
+
+    assert str(exc.value) == (
+        "Invalid energy level: 'tired'. "
+        "Valid options are: drained, low, balanced, high, peak."
+    )
+
+
+def test_level_str_is_readable() -> None:
+    assert str(Priority.HIGH) == "High"
+    assert str(TaskComplexity.VERY_LOW) == "Very low"
 
 
 # ============================================================

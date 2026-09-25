@@ -64,9 +64,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 dto.description if dto.description else None
             )
 
-            energy_level_enum = (
-                EnergyLevel(dto.required_energy_level) or EnergyLevel.BALANCED
-            )
+            energy_level_enum = EnergyLevel.parse(dto.required_energy_level)
 
         except ValidationException as e:
             raise ValidationException(e)
@@ -114,17 +112,9 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             # 5. Timezone & priority inheritance
             tz_to_use: str = dto.timezone or user.preferences.timezone
 
-            if dto.priority:
-                priority_to_use: int = dto.priority
-            else:
-                priority_to_use = Priority.from_string(
-                    user.preferences.default_task_priority
-                )
-
-            try:
-                priority: Priority = Priority(priority_to_use)
-            except (ValueError, TypeError):
-                raise ValidationException("Invalid priority.")
+            priority: Priority = Priority.parse(
+                dto.priority or user.preferences.default_task_priority
+            )
 
             # 6. Configure recurrence
             recurrence_vo: RecurrenceRule | None = None

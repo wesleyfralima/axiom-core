@@ -2,8 +2,15 @@ from datetime import UTC, datetime
 from uuid import uuid4
 
 from b_domain.entities import Task
-from b_domain.value_objects import RecurrenceInterval, Title, UserId
+from b_domain.value_objects import (
+    ContextId,
+    Priority,
+    RecurrenceInterval,
+    Title,
+    UserId,
+)
 from b_domain.value_objects.dates import AxiomDate, DueDate
+from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 from b_domain.value_objects.recurrences import SimpleIntervalRule
 
 # ============================================================
@@ -209,3 +216,24 @@ def test_timezone_comparison_mixed_inputs() -> None:
     assert next_task.due_date is not None
     assert next_task.due_date.is_floating is True
     assert next_task.due_date.value == datetime(2026, 1, 11, 9, 0)  # Naive
+
+
+def test_next_occurrence_keeps_what_the_user_set() -> None:
+    """A próxima ocorrência herda contexto, energia, complexidade e estimativa."""
+
+    task = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    task.context_id = ContextId(uuid4())
+    task.required_energy_level = EnergyLevel.PEAK
+    task.complexity = TaskComplexity.HIGH
+    task.priority = Priority.CRITICAL
+    task.estimated_duration_minutes = 90
+
+    next_task = task.create_next_occurrence(now=datetime(2026, 1, 1, 10, 0))
+
+    assert next_task is not None
+    assert next_task.id != task.id
+    assert next_task.context_id == task.context_id
+    assert next_task.required_energy_level is EnergyLevel.PEAK
+    assert next_task.complexity is TaskComplexity.HIGH
+    assert next_task.priority is Priority.CRITICAL
+    assert next_task.estimated_duration_minutes == 90

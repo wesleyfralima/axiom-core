@@ -2,6 +2,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from a_core.text import join_naturally
 from b_domain.exceptions.recurrence import InvalidMonthDayValue
 from b_domain.value_objects.recurrences import RecurrenceRule
 
@@ -50,6 +51,13 @@ class MonthlyByDaysRule(RecurrenceRule):
         """
         days_str = ",".join(str(d) for d in sorted(self.days_of_month))
         return [f"BYMONTHDAY={days_str}"]
+
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every month on days 10 and 20"."""
+
+        label: str = "day" if len(self.days_of_month) == 1 else "days"
+        days: str = join_naturally(str(d) for d in sorted(self.days_of_month))
+        return f"{self._every('month')} on {label} {days}"
 
     def get_first_valid_occurrence(self) -> datetime:
         """

@@ -7,6 +7,7 @@ from typing import Any, ClassVar, Literal
 from a_core import Entity, ValueObject
 from a_core.exceptions import DomainException, ValidationException
 from b_domain.value_objects import UserId
+from b_domain.value_objects.enums import Priority
 from b_domain.value_objects.identifiers import ContextId
 
 
@@ -88,6 +89,11 @@ class UserPrefs(ValueObject):
             raise ValidationException(
                 f"Invalid fields for UserPrefs: {', '.join(invalid_keys)}"
             )
+
+        if "default_task_priority" in changes:
+            changes["default_task_priority"] = Priority.parse(
+                changes["default_task_priority"]
+            ).name.lower()
 
         return replace(self, **changes)
 

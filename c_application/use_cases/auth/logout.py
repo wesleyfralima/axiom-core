@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field
 
 from a_core import DTO
+from b_domain.exceptions.security import NotAuthenticatedError
 from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
 
@@ -14,14 +15,14 @@ class LogoutInputDTO(DTO):
     """Input DTO for logging out a user.
 
     This DTO encapsulates the data required to perform a logout
-    operation. It contains the access token that must be invalidated
-    or revoked to terminate the user's session.
+    operation: the access token the client holds, if any.
 
     Attributes:
-        access_token (str): The active access token to be invalidated.
+        access_token (str | None): The client's access token, or None when
+            the client has no session.
     """
 
-    access_token: str = field(repr=False)
+    access_token: str | None = field(repr=False)
 
 
 @dataclass(frozen=True)
@@ -34,10 +35,14 @@ class LogoutOutputDTO(DTO):
     Attributes:
         success (bool): Indicates whether the logout was successful.
         message (str): A status message describing the result.
+        token_revoked (bool): Whether the token stopped being valid on the
+            server side. When False, the session ends only because the client
+            discards its token — which the client must do.
     """
 
     success: bool = True
     message: str = "logout_success"
+    token_revoked: bool = False
 
 
 # ==========================================
@@ -48,13 +53,13 @@ class LogoutOutputDTO(DTO):
 class LogoutUseCase(UseCase[LogoutInputDTO, LogoutOutputDTO]):
     """Use case for logging out a user.
 
-    This use case orchestrates the logout process, which typically involves:
-    1. Decoding and validating the provided access token.
-    2. Invalidating the token (e.g., adding it to a blacklist or
-       removing the active session from persistent storage).
+    Access tokens are stateless and there is no session store yet, so nothing
+    is revoked here: logging out means the client discards its token, and the
+    output says so (``token_revoked=False``). Real revocation (a denylist or
+    a session table) belongs to the day a server exists (sync/web).
 
-    It ensures that the user's session is properly terminated and
-    communicates the result back via an output DTO.
+    The token is deliberately not validated: an expired or tampered token
+    must still be discardable.
     """
 
     def __init__(
@@ -81,9 +86,14 @@ class LogoutUseCase(UseCase[LogoutInputDTO, LogoutOutputDTO]):
             dto (LogoutInputDTO): The input DTO containing the access token.
 
         Returns:
-            LogoutOutputDTO: Confirmation that the logout was successful.
+            LogoutOutputDTO: Confirmation, telling the client to discard the
+                token.
+
+        Raises:
+            NotAuthenticatedError: If there is no token (nobody is logged in).
         """
 
-        # TODO: Implement token invalidation logic (e.g., blacklist, session removal)
+        if not dto.access_token:
+            raise NotAuthenticatedError()
 
-        return LogoutOutputDTO()
+        return LogoutOutputDTO(token_revoked=False)

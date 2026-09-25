@@ -38,7 +38,8 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
         Raises:
             ValidationException: If prefix is too short, user ID is invalid,
-            priority is invalid, task not found, or multiple ambiguous matches exist.
+                task not found, or multiple ambiguous matches exist.
+            InvalidValueError: If priority is unknown.
         """
 
         # 1. Fail fast: UX safeguard
@@ -50,10 +51,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         except ValidationException as e:
             raise ValidationException(e) from e
 
-        try:
-            priority: Priority = Priority(request.priority)
-        except ValueError as e:
-            raise ValidationException(f"Invalid priority: {request.priority}") from e
+        priority: Priority | None = (
+            Priority.parse(request.priority) if request.priority is not None else None
+        )
 
         async with self.uow as uow:
             # 2. Search by prefix scoped to user
@@ -85,7 +85,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if request.description is not None:
                 task.update_description(now, request.description)
 
-            if request.priority is not None:
+            if priority is not None:
                 task.update_priority(now, priority)
 
             if request.due_date is not None:

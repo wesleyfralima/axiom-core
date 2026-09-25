@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 
 from a_core import DTO
 from b_domain.entities import User
-from b_domain.exceptions.security import InvalidTokenError
+from b_domain.exceptions.security import InvalidTokenError, NotAuthenticatedError
 from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
 from c_application.dtos.user_dtos import UserOutputDTO
@@ -17,11 +17,11 @@ class GetCurrentUserInputDTO(DTO):
     ensuring it adheres to the Use Case input contract.
 
     Attributes:
-        token (str): The raw JWT access token.
-            Marked as `repr=False` to avoid accidental logging.
+        token (str | None): The raw JWT access token, or None when the client
+            has no session. Marked as `repr=False` to avoid accidental logging.
     """
 
-    token: str = field(repr=False)
+    token: str | None = field(repr=False)
 
 
 @dataclass(kw_only=True)
@@ -43,8 +43,8 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutput
     """Use case for retrieving the current authenticated user from an access token.
 
     This use case validates a JWT access token and, if valid, resolves
-    the corresponding user entity. If the token is expired, invalid,
-    or the user does not exist, it returns None.
+    the corresponding user entity. A missing token means nobody is logged in;
+    a bad token or an unknown user means the session is invalid.
     """
 
     def __init__(
@@ -82,9 +82,14 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutput
             GetCurrentUserOutputDTO: The authenticated user as an output DTO.
 
         Raises:
-            InvalidTokenError: If the user could not be retrieved (invalid or
-                expired token).
+            NotAuthenticatedError: If there is no token.
+            InvalidTokenError: If the user could not be retrieved (invalid
+                token or unknown user).
+            ExpiredTokenError: If the token has expired.
         """
+
+        if not request.token:
+            raise NotAuthenticatedError()
 
         # 1. Technical validation of the token via provider
         payload: dict[str, str] = self.token_provider.decode_access_token(request.token)

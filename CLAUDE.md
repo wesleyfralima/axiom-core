@@ -31,7 +31,7 @@ camada só importa das anteriores.
 
 | Pasta | Papel |
 | --- | --- |
-| `a_core/` | Base genérica, sem nada de Axiom: `ddd/` (`Entity`, `ValueObject`, `SimpleValueObject`, `TextValueObject`, `UniqueId`, `IdPrefix`, `DomainEvent`), `persistence/` (`BaseRepository`, `@tracks_entity`), `application/` (`DTO`, `InputDTO`, `OutputDTO`, `PaginatedResponse`), `exceptions.py` |
+| `a_core/` | Base genérica, sem nada de Axiom: `ddd/` (`Entity`, `ValueObject`, `SimpleValueObject`, `TextValueObject`, `UniqueId`, `IdPrefix`, `DomainEvent`), `persistence/` (`BaseRepository`, `@tracks_entity`), `application/` (`DTO`, `InputDTO`, `OutputDTO`, `PaginatedResponse`), `exceptions.py`, `text.py` (ordinais, listas em inglês) |
 | `b_domain/` | `entities/` (Task, User, Context, TimeEntry, OutboxEvent), `value_objects/` (datas, enums, recorrências, textos, ids, flow state, perfil/métricas de comportamento, reward), `events/`, `exceptions/`, `ports/`, `services/`, `engines/` |
 | `c_application/` | `use_cases/` (auth, task, user, contexts), `handlers/` + `wiring.py`, `dtos/`, `mappers/` (entidade → OutputDTO), `utils/` |
 
@@ -58,7 +58,11 @@ Flow), `todo.md` (backlog "master" de março/2026) e `d_fake_infra/`
   Tarefa flutuante exige recorrência flutuante, e vice-versa.
 - **Recorrências:** `b_domain/value_objects/recurrences/` — uma classe por
   regra, `_base.py` com o contrato, `_factory.py` monta a partir do
-  `RecurrenceInputDTO`.
+  `RecurrenceInputDTO`. Cada regra se descreve (`describe_pattern()`); regra
+  nova tem de implementar esse método.
+- **Entrada de nível pelo usuário:** `Priority`, `EnergyLevel` e
+  `TaskComplexity` herdam `LevelEnum`; converta texto/número com
+  `.parse(...)` (falha com `InvalidValueError`), nunca com `Priority(texto)`.
 - **Motores (ainda sem use case):** `b_domain/engines/flow_engine.py`
   (`FlowEngine.get_next_action` → `FlowDecision`) e
   `b_domain/engines/task_language_engine.py`
@@ -124,8 +128,9 @@ retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
 
 ## Estado atual (24/09/2026)
 
-- Versão `0.2.0`: o WIP de jun/2026 foi consolidado (Backlog 01, Parte 1).
-- 190 testes passando; cobertura 57%; **mypy com 18 erros** — por isso os
+- Versão `0.2.2`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
+  1º item) e bugs do levantamento (Parte 3).
+- 269 testes passando; cobertura 67%; **mypy com 15 erros** — por isso os
   commits ainda usam `SKIP=mypy` até a Parte 2 do Backlog 01.
 - O CI (`.github/workflows/ci.yml`) veio do base-python-project e está errado:
   roda em `main`/`develop` (o branch é `master`) e mede cobertura de

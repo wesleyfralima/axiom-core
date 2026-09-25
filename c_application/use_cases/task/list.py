@@ -39,8 +39,8 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             TaskListOutputDTO: List of tasks matching the filters.
 
         Raises:
-            EntityNotFound: If status or priority values are invalid.
-            ValidationException: If the user ID is invalid.
+            InvalidValueError: If priority, complexity or max_energy is unknown.
+            ValidationException: If the user ID or the status is invalid.
         """
 
         async with self.uow as uow:
@@ -60,23 +60,12 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             except ValueError as e:
                 raise ValidationException(f"Invalid status: {request.status}.") from e
 
-            try:
-                f_priority: Priority | None = (
-                    Priority(request.priority) if request.priority else None
-                )
-            except ValueError as e:
-                raise ValidationException(
-                    f"Invalid priority: {request.priority}."
-                ) from e
-
-            try:
-                f_complexity: TaskComplexity | None = (
-                    TaskComplexity(request.complexity) if request.complexity else None
-                )
-            except ValueError as e:
-                raise ValidationException(
-                    f"Invalid complexity: {request.complexity}."
-                ) from e
+            f_priority: Priority | None = (
+                Priority.parse(request.priority) if request.priority else None
+            )
+            f_complexity: TaskComplexity | None = (
+                TaskComplexity.parse(request.complexity) if request.complexity else None
+            )
 
             f_parent_id: TaskId | None = None
             if request.parent_id:
@@ -106,14 +95,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                         "One or more IDs in the list are invalid."
                     ) from e
 
-            energy_level: EnergyLevel | None = None
-            if request.max_energy:
-                try:
-                    energy_level = EnergyLevel(request.max_energy)
-                except (ValueError, TypeError) as e:
-                    raise ValidationException(
-                        "The provided max_energy is invalid."
-                    ) from e
+            energy_level: EnergyLevel | None = (
+                EnergyLevel.parse(request.max_energy) if request.max_energy else None
+            )
 
             # 2. Build complete domain filter (Mapping DTO -> TaskFilter)
             filters: TaskFilter = TaskFilter(

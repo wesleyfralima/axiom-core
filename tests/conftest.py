@@ -99,6 +99,10 @@ class FakeTaskRepository(TaskRepository):
             results = [t for t in results if t.status == filters.status]
         if filters.context_id:
             results = [t for t in results if t.context_id == filters.context_id]
+        if filters.priority:
+            results = [t for t in results if t.priority == filters.priority]
+        if filters.complexity:
+            results = [t for t in results if t.complexity == filters.complexity]
 
         return results
 

@@ -6,6 +6,45 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.2.2] — 24/09/2026
+
+Fecha a Parte 3 do Backlog 01: os bugs que o levantamento achou rodando o CLI.
+
+### Corrigido
+- **Recorrência exibida como "-"** para toda regra que não era intervalo
+  simples: `format_task_recurrence` procurava atributos de antes do refactor de
+  mar/2026. Agora cada regra se descreve (`describe_pattern()`, abstrato em
+  `RecurrenceRule`) e o formatador só acrescenta o fim (`for N occurrences` /
+  `until AAAA-MM-DD`).
+- **Prioridade, complexidade e energia digitadas como texto** (`"high"`)
+  quebravam `ListTasksUseCase` e `UpdateTaskUseCase`; o update falhava até sem
+  prioridade no pedido (`Priority(None)`). Novo `LevelEnum.parse`: aceita nome
+  (qualquer caixa, `-`/espaço no lugar de `_`) ou número e **falha** com
+  `InvalidValueError` listando as opções.
+- **A próxima ocorrência de tarefa recorrente perdia atributos**: contexto,
+  energia, complexidade, dependências e duração estimada passam adiante; o
+  `CreateRecurringTaskHandler` só troca a estimativa pela média medida quando
+  há média (antes gravava 0).
+- `GetCurrentUserUseCase` sem token levanta `NotAuthenticatedError` (antes
+  "token inválido").
+- `ordinal_phrase`: "21st"/"22nd"/"23rd" (antes "21th"), e posições do fim como
+  "third to last"/"4th to last".
+
+### Alterado
+- **Quebra:** `Priority.from_string` removido (devolvia `MEDIUM` para qualquer
+  texto); use `Priority.parse`. `Priority`, `EnergyLevel` e `TaskComplexity`
+  herdam de `LevelEnum`; `str()` passa a dar "Very low" em vez de "Very_low".
+- `CreateTaskInputDTO.priority` passa a ser `None` por padrão, e aí vale
+  `UserPrefs.default_task_priority` — antes o padrão do DTO (`MEDIUM`) sempre
+  vencia a preferência. `UserPrefs.update` valida e normaliza essa preferência.
+- `LogoutUseCase` assume o que faz: sem sessão no servidor, logout é o cliente
+  descartar o token; a saída diz isso (`token_revoked=False`). Sem token,
+  `NotAuthenticatedError`. `LogoutInputDTO.access_token` e
+  `GetCurrentUserInputDTO.token` aceitam `None`.
+- Helpers de texto (`ordinal`, `ordinal_phrase`, `join_naturally`) saem de
+  `c_application/utils/string_utils.py` para `a_core/text.py`, porque o
+  domínio passou a usá-los.
+
 ## [0.2.1] — 24/09/2026
 
 ### Adicionado

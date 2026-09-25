@@ -28,7 +28,7 @@ O levantamento de 24/09/2026 encontrou:
 | --- | --- | --- | --- |
 | **1** ✅ | Consolidar o WIP em commits temáticos | `chore/backlog01-parte1-consolidar-wip` | — |
 | **2** | `make check` verde e CI de verdade | `chore/backlog01-parte2-check-verde` | 1 |
-| **3** | Bugs encontrados no levantamento | `fix/backlog01-parte3-bugs-do-levantamento` | 1 |
+| **3** ✅ | Bugs encontrados no levantamento | `fix/backlog01-parte3-bugs-do-levantamento` | 1 |
 | **4** | Contextos: da entidade ao use case | `feat/backlog01-parte4-contextos` | 1 |
 | **5** | Vitrine: README, licença, badges | `docs/backlog01-parte5-vitrine` | 2 |
 
@@ -69,48 +69,65 @@ staged foi feito em algum momento e o trabalho continuou por cima.
   sobre os três pacotes (o mesmo comando do `make check`).
 - [x] Alinhar versões do pre-commit com as do `pyproject`. *Resolvido em
   24/09/2026, na Parte 1 (`68076b2`).*
-- [ ] Zerar os 18 erros do mypy. Grupos:
+- [ ] Zerar os erros do mypy (18 no levantamento; **15** depois da Parte 3).
+  Grupos:
   - `User | None` atribuído a `User` depois do `if not user` (create,
     get_prefs, update_prefs) — só tipagem;
-  - `Priority(str)` / `TaskComplexity(str)` — **bug**, ver Parte 3;
+  - ~~`Priority(str)` / `TaskComplexity(str)`~~ — resolvido na Parte 3;
   - `ListTasksRequest.ids` → `TaskFilter.ids` (`TaskId` × `UniqueId`);
   - `export_task_handler.py` (`str | None`, `DueDate | None`, `Task | None`);
   - `contexts/activate_context.py` — esboço quebrado, ver Parte 4.
-- [ ] Cobertura: 57% hoje. Fixar o piso **no valor real** (ex.:
+- [ ] Cobertura: 57% no levantamento, **67%** depois da Parte 3. Fixar o piso **no valor real** (ex.:
   `--cov-fail-under=57`) para o check ficar verde já, e subir o piso a cada
   parte que acrescentar teste. Os maiores buracos: engines, services de
   comportamento, handlers, use cases de auth/user.
 - [ ] Testar `ruff` com o conjunto do base-python-project (`B`, `RUF`) e
   adotar se o custo for baixo.
 
-## Parte 3 — Bugs encontrados no levantamento
+## Parte 3 — Bugs encontrados no levantamento ✅ (24/09/2026)
 
-Todos confirmados rodando o CLI contra o core atual (24/09/2026).
+Todos confirmados rodando o CLI contra o core atual (24/09/2026). Fechados no
+core 0.2.2 e conferidos no CLI (HOME descartável).
 
-- [ ] **Recorrência exibida como "-"** para toda regra que não é
+- [x] **Recorrência exibida como "-"** para toda regra que não é
   `SimpleIntervalRule`. `format_task_recurrence`
   (`c_application/utils/task_utils.py`) procura `frequency`, `by_week_days`,
   `by_month_days`, `nth_business_day` — nomes de antes do refactor de
   28/03/2026; as regras atuais têm `days_of_week`, `days_of_month`, `nth_day`
   etc. Proposta: cada regra sabe se descrever (método polimórfico), e o
-  formatador só monta a frase. Teste por tipo de regra.
-- [ ] **`task ls --priority high` falha** ("Invalid priority: high"):
+  formatador só monta a frase. Teste por tipo de regra. *Resolvido em
+  24/09/2026:* `describe_pattern()` abstrato em `RecurrenceRule`, um por regra;
+  o formatador acrescenta `count`/`until`. Os helpers de texto foram para
+  `a_core/text.py` (o domínio passou a usá-los), com os ordinais corrigidos.
+- [x] **`task ls --priority high` falha** ("Invalid priority: high"):
   `ListTasksUseCase` faz `Priority(dto.priority)` com texto. Mesmo erro em
   `TaskComplexity(dto.complexity)` e em `UpdateTaskUseCase`. Converter por nome.
   Atenção: `Priority.from_string` devolve `MEDIUM` para qualquer texto
   desconhecido — silencioso demais para entrada de usuário; deve falhar.
-- [ ] **A próxima ocorrência de tarefa recorrente perde atributos.**
+  *Resolvido em 24/09/2026:* `LevelEnum.parse` (nome ou número; desconhecido →
+  `InvalidValueError` com as opções) em `Priority`, `EnergyLevel` e
+  `TaskComplexity`; `from_string` removido. Achado no caminho: o update
+  quebrava **sempre** sem prioridade no pedido (`Priority(None)`), e o padrão
+  `MEDIUM` do `CreateTaskInputDTO` impedia a preferência
+  `default_task_priority` de valer — ambos corrigidos.
+- [x] **A próxima ocorrência de tarefa recorrente perde atributos.**
   `Task._recreate_task_with_date` chama `Task.create` só com título,
   descrição, prioridade, prazo, pai e recorrência: somem `context_id`,
   `required_energy_level`, `complexity`, `depends_on`. E o
   `CreateRecurringTaskHandler` sobrescreve `estimated_duration_minutes` com
-  `average_duration_minutes`, que é **0** porque nada o calcula.
-- [ ] `whoami` sem login responde "The provided token is invalid."
+  `average_duration_minutes`, que é **0** porque nada o calcula. *Resolvido
+  em 24/09/2026:* tudo o que o usuário definiu para a série passa adiante; a
+  média só substitui a estimativa quando existe (> 0). Quem calcula a média
+  continua em aberto — é assunto do aprendizado (Backlog 02).
+- [x] `whoami` sem login responde "The provided token is invalid."
   (`GetCurrentUserUseCase` levanta `InvalidTokenError` para token ausente);
-  token ausente deve ser `NotAuthenticatedError`.
-- [ ] `LogoutUseCase` não invalida nada (TODO no código). Decidir: para o uso
+  token ausente deve ser `NotAuthenticatedError`. *Resolvido em 24/09/2026.*
+- [x] `LogoutUseCase` não invalida nada (TODO no código). Decidir: para o uso
   local, logout = apagar o token do cliente, e o use case diz isso; revogação
-  de verdade só quando houver servidor (sync/web).
+  de verdade só quando houver servidor (sync/web). *Resolvido em
+  24/09/2026:* é essa a decisão; a saída traz `token_revoked=False` e o token
+  não é validado (expirado também se descarta). Sem token,
+  `NotAuthenticatedError`.
 
 ## Parte 4 — Contextos: da entidade ao use case
 

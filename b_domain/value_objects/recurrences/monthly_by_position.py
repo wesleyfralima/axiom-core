@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from a_core.exceptions import ValidationException
+from a_core.text import ordinal_phrase
 from b_domain.value_objects.recurrences import RecurrenceRule
 
 
@@ -47,6 +48,13 @@ class MonthlyPositionalRule(RecurrenceRule):
                 clause with the positional index.
         """
         return [f"BYMONTHDAY={self.set_pos}"]
+
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every month on day 15", "… on the last day"."""
+
+        if self.set_pos > 0:
+            return f"{self._every('month')} on day {self.set_pos}"
+        return f"{self._every('month')} on the {ordinal_phrase(self.set_pos)} day"
 
     def get_first_valid_occurrence(self) -> datetime:
         """

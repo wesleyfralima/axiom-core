@@ -41,6 +41,12 @@ class WeeklyByDaysRule(RecurrenceRule):
         days_str = ",".join(day_map[d] for d in sorted(self.days_of_week))
         return [f"BYDAY={days_str}"]
 
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every week on Mondays and Wednesdays"."""
+
+        days: str = self._weekdays(self.days_of_week, plural=True)
+        return f"{self._every('week')} on {days}"
+
     def get_first_valid_occurrence(self) -> datetime:
         """
         Calculate the first valid occurrence.
