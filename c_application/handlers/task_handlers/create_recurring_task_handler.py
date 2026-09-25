@@ -25,7 +25,8 @@ class CreateRecurringTaskHandler:
             1. Load the full task entity to access recurrence rules.
             2. If no recurrence is defined, exit early.
             3. Create the next occurrence based on the completion date.
-            4. Estimate duration using the average of past occurrences.
+            4. Estimate duration using the average of past occurrences, when
+               there is one.
             5. Persist the new task.
 
         Args:
@@ -44,8 +45,10 @@ class CreateRecurringTaskHandler:
             if not next_task:
                 return
 
-            # Use the average duration of previous occurrences as an estimate
-            next_task.estimated_duration_minutes = task.average_duration_minutes
+            # Once past occurrences have a measured average, it becomes the
+            # estimate; until then the user's own estimate carries over.
+            if task.average_duration_minutes > 0:
+                next_task.estimated_duration_minutes = task.average_duration_minutes
 
             # Persist the new recurring task
             await self.uow.tasks.add(next_task)

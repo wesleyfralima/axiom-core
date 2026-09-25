@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from a_core import ValidationException
+from a_core.text import ordinal_phrase
 from b_domain.value_objects.recurrences import RecurrenceRule
 
 
@@ -70,6 +71,12 @@ class BusinessDayRule(RecurrenceRule):
         """
 
         return ""
+
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every month on the 5th business day"."""
+
+        position: str = ordinal_phrase(self.nth_day)
+        return f"{self._every('month')} on the {position} business day"
 
     def get_first_valid_occurrence(self) -> datetime | None:  # type: ignore[override]
         """

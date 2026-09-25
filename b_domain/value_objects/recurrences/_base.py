@@ -3,12 +3,23 @@ from dataclasses import dataclass, field
 from datetime import date, datetime
 
 from a_core import ValidationException, ValueObject
+from a_core.text import join_naturally
 from b_domain.exceptions.recurrence import (
     EndDateBeforeStartDate,
     InvalidIntervalValue,
     MutuallyExclusiveEndDateAndCount,
 )
 from b_domain.value_objects.dates import AxiomDate
+
+WEEKDAY_NAMES: tuple[str, ...] = (
+    "Monday",
+    "Tuesday",
+    "Wednesday",
+    "Thursday",
+    "Friday",
+    "Saturday",
+    "Sunday",
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -99,6 +110,17 @@ class RecurrenceRule(ValueObject, ABC):
         """
         Calcula a primeira data válida para esta recorrência,
         igual ou após a start_date.
+        """
+
+    @abstractmethod
+    def describe_pattern(self) -> str:
+        """Describe, in English, when the rule repeats — without its end.
+
+        End conditions (``count``/``end_date``) are left to the caller, who
+        decides how to phrase them.
+
+        Returns:
+            str: A phrase such as "Every 2 weeks on Mondays and Fridays".
         """
 
     @property
@@ -233,6 +255,20 @@ class RecurrenceRule(ValueObject, ABC):
     # --------------------------------------------------------------------------
     # UTILITIES FOR SUBCLASSES
     # --------------------------------------------------------------------------
+
+    def _every(self, unit: str) -> str:
+        """Open a description with the interval: "Every day", "Every 3 days"."""
+
+        if self.interval == 1:
+            return f"Every {unit}"
+        return f"Every {self.interval} {unit}s"
+
+    @staticmethod
+    def _weekdays(days: set[int], plural: bool = False) -> str:
+        """Name weekdays in order: "Monday and Friday" or "Mondays and Fridays"."""
+
+        suffix: str = "s" if plural else ""
+        return join_naturally(f"{WEEKDAY_NAMES[d]}{suffix}" for d in sorted(days))
 
     def normalize_comparison_date(self, dt: datetime) -> datetime:
         """Normalize a datetime for comparison with recurrence rules.

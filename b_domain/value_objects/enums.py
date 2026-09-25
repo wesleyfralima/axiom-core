@@ -1,5 +1,64 @@
+import re
 from enum import IntEnum, StrEnum
 from functools import cache
+from typing import Self
+
+from a_core.exceptions import InvalidValueError
+
+
+class LevelEnum(IntEnum):
+    """Base for ordered levels that users type by name or by number.
+
+    Subclasses only declare members; ``parse`` gives all of them the same
+    strict conversion from user input.
+    """
+
+    def __str__(self) -> str:
+        return self.name.replace("_", " ").capitalize()
+
+    @classmethod
+    def parse(cls, value: "str | int") -> Self:
+        """Convert user input into a member, failing on anything unknown.
+
+        Accepts the member itself, its numeric value (``3`` or ``"3"``) or its
+        name in any case, with ``-`` or spaces in place of ``_``
+        (``"high"``, ``"Very-Low"``).
+
+        Args:
+            value: The name or number to convert.
+
+        Returns:
+            The matching member.
+
+        Raises:
+            InvalidValueError: If ``value`` matches no member.
+        """
+
+        if isinstance(value, cls):
+            return value
+
+        text: str = str(value).strip()
+        if text.lstrip("-").isdigit():
+            try:
+                return cls(int(text))
+            except ValueError:
+                pass
+        else:
+            key: str = text.upper().replace("-", "_").replace(" ", "_")
+            if key in cls.__members__:
+                return cls[key]
+
+        raise InvalidValueError(
+            concept=cls._concept(),
+            invalid_value=str(value),
+            valid_options=[m.name.lower() for m in cls],
+        )
+
+    @classmethod
+    def _concept(cls) -> str:
+        """Human name of the enum for error messages (``TaskComplexity`` →
+        ``task complexity``)."""
+        return re.sub(r"(?<!^)(?=[A-Z])", " ", cls.__name__).lower()
 
 
 class TaskStatus(StrEnum):
@@ -138,7 +197,7 @@ class TaskStatus(StrEnum):
         return new_status in transitions[self]
 
 
-class Priority(IntEnum):
+class Priority(LevelEnum):
     """Enumeration of priority levels for tasks or projects.
 
     Supports native Python comparison (e.g., Priority.CRITICAL > Priority.LOW).
@@ -148,18 +207,6 @@ class Priority(IntEnum):
     MEDIUM = 2
     HIGH = 3
     CRITICAL = 4
-
-    def __str__(self) -> str:
-        return self.name.capitalize()
-
-    @staticmethod
-    def from_string(priority: str) -> "Priority":
-        return {
-            "low": Priority.LOW,
-            "medium": Priority.MEDIUM,
-            "high": Priority.HIGH,
-            "critical": Priority.CRITICAL,
-        }.get(priority, Priority.MEDIUM)
 
 
 class RecurrenceInterval(StrEnum):
@@ -172,7 +219,7 @@ class RecurrenceInterval(StrEnum):
     YEARLY = "YE"
 
 
-class EnergyLevel(IntEnum):
+class EnergyLevel(LevelEnum):
     """Represents the cognitive or physical effort required for a task.
 
     Inspired by GTD (Getting Things Done) methodology.
@@ -184,11 +231,8 @@ class EnergyLevel(IntEnum):
     HIGH = 4  # Serious focus, active production
     PEAK = 5  # "God Mode": complex problem-solving / Deep Work
 
-    def __str__(self) -> str:
-        return self.name.capitalize()
 
-
-class TaskComplexity(IntEnum):
+class TaskComplexity(LevelEnum):
     """Represents the complexity level of a task."""
 
     VERY_LOW = 1
@@ -196,9 +240,6 @@ class TaskComplexity(IntEnum):
     MEDIUM = 3
     HIGH = 4
     VERY_HIGH = 5
-
-    def __str__(self) -> str:
-        return self.name.capitalize()
 
 
 class MomentumTrend(StrEnum):

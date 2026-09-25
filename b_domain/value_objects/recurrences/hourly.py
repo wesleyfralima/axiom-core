@@ -44,6 +44,12 @@ class HourlyWindowRule(RecurrenceRule):
         if self.interval > 24:
             raise ValidationException("Hourly interval should not exceed 24 hours.")
 
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every 2 hours between 08:00 and 20:00"."""
+
+        window: str = f"{self.window_start:%H:%M} and {self.window_end:%H:%M}"
+        return f"{self._every('hour')} between {window}"
+
     def _rrule_extra_parts(self) -> list[str]:
         """Generate BYHOUR parts for RFC 5545 RRULE string.
 

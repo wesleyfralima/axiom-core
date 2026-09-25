@@ -311,18 +311,26 @@ class Task(Entity):
                 ),
             )
 
-        # 4. Invocamos o Task.create usando os parâmetros extraídos dinamicamente
+        # 4. Invocamos o Task.create usando os parâmetros extraídos dinamicamente.
+        # Tudo o que o usuário definiu para a série passa adiante; o que é
+        # próprio desta ocorrência (status, contadores, calendário) recomeça.
         return Task.create(
             now=now,
             user_id=self.user_id,
             title=self.title,
             description=self.description,
             priority=self.priority,
+            required_energy_level=self.required_energy_level,
+            context_id=self.context_id,
+            parent_id=self.parent_id,
+            depends_on=set(self.depends_on),
+            recurrence=new_rr,
             due_date=new_dd.value,
             is_floating=is_floating,
             tz_name=tz_name,
-            parent_id=self.parent_id,
-            recurrence=new_rr,
+            complexity=self.complexity,
+            estimated_duration_minutes=self.estimated_duration_minutes,
+            average_duration_minutes=self.average_duration_minutes,
         )
 
     def next_occurrence_due_date(self) -> Optional["DueDate"]:

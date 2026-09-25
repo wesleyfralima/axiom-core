@@ -66,6 +66,18 @@ class SimpleIntervalRule(RecurrenceRule):
 
         object.__setattr__(self, "_freq", freq_map[self.frequency])
 
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every day", "Every 2 weeks"."""
+
+        units: dict[RecurrenceInterval, str] = {
+            RecurrenceInterval.HOURLY: "hour",
+            RecurrenceInterval.DAILY: "day",
+            RecurrenceInterval.WEEKLY: "week",
+            RecurrenceInterval.MONTHLY: "month",
+            RecurrenceInterval.YEARLY: "year",
+        }
+        return self._every(units[self.frequency])
+
     def get_first_valid_occurrence(self) -> datetime:
         """
         For simple intervals, the first occurrence is the start_date itself.

@@ -2,7 +2,7 @@ from dataclasses import dataclass, field
 from datetime import datetime
 
 from a_core import DTO
-from b_domain.value_objects.enums import EnergyLevel, Priority
+from b_domain.value_objects.enums import EnergyLevel
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 
 
@@ -19,8 +19,8 @@ class CreateTaskInputDTO(DTO):
     title: str
     description: str = ""
 
-    # Priority and energy requirements
-    priority: int = Priority.MEDIUM.value
+    # Priority and energy requirements (no priority: the user's default)
+    priority: int | None = None
     required_energy_level: int = EnergyLevel.BALANCED.value
 
     # Contextual grouping (e.g., project, workspace)

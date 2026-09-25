@@ -58,6 +58,12 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
 
         return [f"BYDAY={days_str}"]
 
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every month on every Tuesday and Thursday"."""
+
+        days: str = self._weekdays(self.days_of_week)
+        return f"{self._every('month')} on every {days}"
+
     def get_first_valid_occurrence(self) -> datetime:
         """
         Locate the first occurrence (allowed weekday)

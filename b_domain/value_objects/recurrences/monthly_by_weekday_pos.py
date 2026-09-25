@@ -3,6 +3,7 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from a_core.exceptions import ValidationException
+from a_core.text import ordinal_phrase
 from b_domain.exceptions.recurrence import InvalidWeekDayValue
 from b_domain.value_objects.recurrences import RecurrenceRule
 
@@ -72,6 +73,13 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
         )
 
         return [f"BYDAY={days_str}"]
+
+    def describe_pattern(self) -> str:
+        """Describe the rule: "Every month on the second Friday"."""
+
+        position: str = ordinal_phrase(self.set_pos)
+        days: str = self._weekdays(self.days_of_week)
+        return f"{self._every('month')} on the {position} {days}"
 
     def get_first_valid_occurrence(self) -> datetime:
         """
