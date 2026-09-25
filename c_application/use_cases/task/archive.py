@@ -3,27 +3,26 @@ from datetime import datetime
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
-from c_application.dtos import TaskOutputDTO
-from c_application.dtos.task_dtos import TaskByUserRequest
+from c_application.dtos.task_dtos import TaskByUserRequest, TaskStatusChangedOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils.task_utils import find_task
 
 
-class ArchiveTaskUseCase(UseCase[TaskByUserRequest, TaskOutputDTO]):
+class ArchiveTaskUseCase(UseCase[TaskByUserRequest, TaskStatusChangedOutputDTO]):
     """Put a done or cancelled task away for good.
 
     It leaves even the full task list; only asking for the ``archived``
     status shows it again. There is no way back.
     """
 
-    async def execute(self, request: TaskByUserRequest) -> TaskOutputDTO:
+    async def execute(self, request: TaskByUserRequest) -> TaskStatusChangedOutputDTO:
         """Archive the task.
 
         Args:
             request (TaskByUserRequest): The task's ID prefix and its owner.
 
         Returns:
-            TaskOutputDTO: The archived task.
+            TaskStatusChangedOutputDTO: The archived task.
 
         Raises:
             ValidationException: If the user ID or the prefix is invalid, or
@@ -46,4 +45,6 @@ class ArchiveTaskUseCase(UseCase[TaskByUserRequest, TaskOutputDTO]):
                 if task.context_id
                 else None
             )
-            return TaskMapper.to_output(task, now, context=context)
+            return TaskStatusChangedOutputDTO(
+                task=TaskMapper.to_output(task, now, context=context)
+            )

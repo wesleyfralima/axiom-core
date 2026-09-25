@@ -153,6 +153,17 @@ class CancelTaskInputDTO(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
+class TaskStatusChangedOutputDTO(DTO):
+    """The result of reopening, archiving or cancelling a task.
+
+    Attributes:
+        task (TaskOutputDTO): The task, already in its new status.
+    """
+
+    task: TaskOutputDTO
+
+
+@dataclass(frozen=True, kw_only=True)
 class CompleteTaskOutputDTO(DTO):
     """Composite DTO for the result of completing a task.
 

@@ -3,13 +3,12 @@ from datetime import datetime
 from b_domain.entities import Task, TimeEntry
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
-from c_application.dtos import TaskOutputDTO
-from c_application.dtos.task_dtos import CancelTaskInputDTO
+from c_application.dtos.task_dtos import CancelTaskInputDTO, TaskStatusChangedOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils.task_utils import find_task
 
 
-class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskOutputDTO]):
+class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO]):
     """Cancel a task: the user decided not to do it.
 
     Side effects go through the ``TaskCancelledEvent``: for a recurring task
@@ -17,7 +16,7 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskOutputDTO]):
     tasks that depended on this one are unblocked.
     """
 
-    async def execute(self, request: CancelTaskInputDTO) -> TaskOutputDTO:
+    async def execute(self, request: CancelTaskInputDTO) -> TaskStatusChangedOutputDTO:
         """Cancel the task, stopping its running timers.
 
         Args:
@@ -25,7 +24,7 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskOutputDTO]):
                 whether a recurring series ends here.
 
         Returns:
-            TaskOutputDTO: The cancelled task.
+            TaskStatusChangedOutputDTO: The cancelled task.
 
         Raises:
             ValidationException: If the user ID or the prefix is invalid, or
@@ -58,4 +57,6 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskOutputDTO]):
                 if task.context_id
                 else None
             )
-            return TaskMapper.to_output(task, now, context=context)
+            return TaskStatusChangedOutputDTO(
+                task=TaskMapper.to_output(task, now, context=context)
+            )

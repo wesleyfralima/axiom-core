@@ -3,27 +3,26 @@ from datetime import datetime
 from b_domain.entities import Task
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
-from c_application.dtos import TaskOutputDTO
-from c_application.dtos.task_dtos import TaskByUserRequest
+from c_application.dtos.task_dtos import TaskByUserRequest, TaskStatusChangedOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils.task_utils import find_task
 
 
-class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskOutputDTO]):
+class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskStatusChangedOutputDTO]):
     """Bring a done or cancelled task back to the open ones.
 
     A reopened recurring occurrence becomes a one-off task (see
     ``Task.reopen``): its series already moved on.
     """
 
-    async def execute(self, request: TaskByUserRequest) -> TaskOutputDTO:
+    async def execute(self, request: TaskByUserRequest) -> TaskStatusChangedOutputDTO:
         """Reopen the task.
 
         Args:
             request (TaskByUserRequest): The task's ID prefix and its owner.
 
         Returns:
-            TaskOutputDTO: The reopened task.
+            TaskStatusChangedOutputDTO: The reopened task.
 
         Raises:
             ValidationException: If the user ID or the prefix is invalid, or
@@ -46,4 +45,6 @@ class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskOutputDTO]):
                 if task.context_id
                 else None
             )
-            return TaskMapper.to_output(task, now, context=context)
+            return TaskStatusChangedOutputDTO(
+                task=TaskMapper.to_output(task, now, context=context)
+            )
