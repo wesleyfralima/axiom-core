@@ -129,7 +129,7 @@ retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
 
 ## Estado atual (24/09/2026)
 
-- Versão `0.3.5`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
+- Versão `0.3.6`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
   1º item), bugs do levantamento (Parte 3) e o que o CLI pediu para o uso
   diário (listar só abertas, editar prazo, validar preferências).
 - 295 testes passando; **mypy zerado** (pacotes e testes); cobertura 68%,

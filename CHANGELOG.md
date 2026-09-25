@@ -6,6 +6,13 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.6] — 24/09/2026
+
+### Corrigido
+- Marcadores `py.typed` (PEP 561) em `a_core`, `b_domain` e `c_application`:
+  sem eles, o mypy de quem usa o core (enterprise, CLI) ignorava todos os
+  tipos daqui (`import-untyped`) — 110 dos 153 erros do enterprise eram isso.
+
 ## [0.3.5] — 24/09/2026
 
 Achados pelos primeiros testes de integração do enterprise (banco real +
