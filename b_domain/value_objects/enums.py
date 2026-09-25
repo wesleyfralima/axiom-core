@@ -173,6 +173,20 @@ class TaskStatus(StrEnum):
             cls.ARCHIVED: set(),  # Estado Terminal
         }
 
+    @property
+    def is_closed(self) -> bool:
+        """Whether the task is out of the way: done, cancelled or archived.
+
+        Closed tasks leave the everyday lists; ``reopen`` brings done and
+        cancelled ones back.
+        """
+        return self in self.closed()
+
+    @classmethod
+    def closed(cls) -> frozenset["TaskStatus"]:
+        """The statuses that take a task out of the everyday lists."""
+        return frozenset({cls.DONE, cls.CANCELLED, cls.ARCHIVED})
+
     def can_transition_to(
         self,
         new_status: "TaskStatus",

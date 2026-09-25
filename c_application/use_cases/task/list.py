@@ -109,6 +109,12 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 offset=request.offset,
                 # Core attributes
                 status=f_status,
+                # An explicit status wins over hiding the closed ones
+                exclude_statuses=(
+                    TaskStatus.closed()
+                    if not request.include_closed and f_status is None
+                    else frozenset()
+                ),
                 priority=f_priority,
                 context_id=f_context_id,
                 tags=request.tags,

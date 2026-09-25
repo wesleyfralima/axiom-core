@@ -130,3 +130,40 @@ async def test_create_with_explicit_priority(
     )
 
     assert result.priority == "HIGH"
+
+
+async def _user_with_done_task(uow_factory: UowFactoryType, now) -> tuple[User, Task]:
+    user, open_task = await _user_with_tasks(uow_factory, now)
+    done = Task.create(now=now, user_id=user.id, title=Title("Feita"))
+    done.mark_as_done(now)
+    async with uow_factory() as uow:
+        await uow.tasks.add(done)
+    return user, done
+
+
+async def test_list_can_hide_closed_tasks(
+    fake_uow_factory: UowFactoryType, fake_clock: FakeClock
+) -> None:
+    user, done = await _user_with_done_task(fake_uow_factory, fake_clock.now())
+    use_case = ListTasksUseCase(fake_uow_factory, fake_clock)
+
+    everything = await use_case.execute(ListTasksRequest(user_id=str(user.id)))
+    open_only = await use_case.execute(
+        ListTasksRequest(user_id=str(user.id), include_closed=False)
+    )
+
+    assert str(done.id) in [t.id for t in everything.tasks]
+    assert str(done.id) not in [t.id for t in open_only.tasks]
+    assert len(open_only.tasks) == 2
+
+
+async def test_explicit_status_wins_over_hiding_closed(
+    fake_uow_factory: UowFactoryType, fake_clock: FakeClock
+) -> None:
+    user, done = await _user_with_done_task(fake_uow_factory, fake_clock.now())
+
+    result = await ListTasksUseCase(fake_uow_factory, fake_clock).execute(
+        ListTasksRequest(user_id=str(user.id), status="done", include_closed=False)
+    )
+
+    assert [t.id for t in result.tasks] == [str(done.id)]

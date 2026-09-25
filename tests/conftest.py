@@ -97,6 +97,8 @@ class FakeTaskRepository(TaskRepository):
             results = [t for t in results if t.user_id == filters.user_id]
         if filters.status:
             results = [t for t in results if t.status == filters.status]
+        if filters.exclude_statuses:
+            results = [t for t in results if t.status not in filters.exclude_statuses]
         if filters.context_id:
             results = [t for t in results if t.context_id == filters.context_id]
         if filters.priority:

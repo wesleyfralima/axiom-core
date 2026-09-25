@@ -182,6 +182,7 @@ class ListTasksRequest(DTO):
 
     # Status & Priority
     status: str | None = None
+    include_closed: bool = True  # False hides done/cancelled/archived
     priority: str | None = None
 
     # GTD & Organization
