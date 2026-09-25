@@ -16,7 +16,7 @@ O código está organizado em camadas concêntricas:
 
 ## 🚀 Tecnologias Principais
 
-* **Python 3.10+**: Utilizando tipagem estática e funcionalidades modernas.
+* **Python 3.12+**: tipagem estática e sintaxe moderna (PEP 695, `X | None`).
 * **Poetry**: Para gerenciamento de dependências e empacotamento.
 * **Timezone-aware**: Gestão rigorosa de tempo com `ZoneInfo` (Fixed vs Floating dates).
 
@@ -49,3 +49,18 @@ cd axiom-core
 
 # Instale as dependências
 poetry install
+```
+
+## 📄 Licença
+
+[Axiom Core License 1.0](LICENSE). Em resumo (o texto que vale é o do
+arquivo `LICENSE`):
+
+* **Pode** usar, estudar, copiar, modificar e redistribuir, e usar o código
+  para construir outras aplicações — inclusive comerciais.
+* **Precisa** dar o crédito: a origem (https://github.com/wesleyfralima/axiom-core)
+  e os autores (Wesley Francisco de Lima, com Claude, da Anthropic), e dizer
+  quando a cópia foi modificada.
+* **Não pode** vender o próprio Axiom Core como está, ou com alterações
+  pequenas (renomear, trocar a marca, reempacotar…). Vender uma aplicação que
+  o usa como parte e acrescenta funcionalidade própria substancial é permitido.

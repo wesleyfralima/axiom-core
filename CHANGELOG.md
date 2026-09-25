@@ -6,6 +6,17 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.2.1] — 24/09/2026
+
+### Adicionado
+- `LICENSE`: Axiom Core License 1.0 — uso, modificação e redistribuição
+  livres, inclusive para construir aplicações comerciais, com crédito à origem
+  e aos autores; proibida a venda do próprio core como está ou com alterações
+  pequenas. Resumo em português no README.
+
+### Corrigido
+- README: Python 3.12+ (dizia 3.10+) e bloco de código que não fechava.
+
 ## [0.2.0] — 24/09/2026
 
 Consolida o trabalho de jun/2026, que estava sem commit, e fecha a Parte 1 do

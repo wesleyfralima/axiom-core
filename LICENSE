@@ -1,0 +1,38 @@
+Axiom Core License, Version 1.0
+
+Copyright (c) 2026 Wesley Francisco de Lima
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to use,
+copy, study, modify, merge, publish, distribute and sublicense the Software,
+and to build other software and applications with it, including commercial
+ones, subject to the following conditions:
+
+1. Attribution. This license must be kept in every copy or substantial portion
+   of the Software. Every work that includes the Software, or is derived from
+   it, must give visible credit to its origin, stating at least:
+
+     - the source: https://github.com/wesleyfralima/axiom-core
+     - the authors: Wesley Francisco de Lima, with Claude (Anthropic)
+
+   In an application, the credit may be given in its documentation, in an
+   "about" or credits screen, or in a NOTICE file distributed with it.
+
+2. Modified versions. Modified copies of the Software must say that they were
+   modified.
+
+3. No resale as-is. You may not sell the Software itself, or charge for access
+   to it, whether alone, unchanged, or with only minor changes, as a product or
+   service whose value comes mainly from the Software. Minor changes include,
+   for example, renaming, rebranding, repackaging, reformatting, translating
+   messages or fixing bugs. Selling an application or service that uses the
+   Software as one of its parts, and that adds substantial functionality of
+   its own, is allowed.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.

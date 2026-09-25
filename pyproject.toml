@@ -1,9 +1,10 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.2.0"
+version = "0.2.1"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
+license = "LicenseRef-Axiom-Core-1.0"
 
 packages = [
     { include = "a_core" },
