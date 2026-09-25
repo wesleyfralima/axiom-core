@@ -161,7 +161,7 @@ there too.
   formatter; the active context can limit the task list (0.5.0); reopen,
   archive and cancel a task (0.6.0, Backlog 02, Part 1). Backlog 01 only
   lacks the rest of Part 5 (showcase).
-- 367 tests passing; **`make check` green**: mypy at zero (packages and
+- 368 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 73.8% over a 73.8% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

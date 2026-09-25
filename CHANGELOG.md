@@ -17,9 +17,8 @@ Enterprise and the CLI pick it up in 0.5.0 and 0.9.0.
 - Use cases `ReopenTaskUseCase`, `ArchiveTaskUseCase` (both take
   `TaskByUserRequest`) and `CancelTaskUseCase` (`CancelTaskInputDTO`, with
   `end_series`); they return a `TaskStatusChangedOutputDTO(task,
-  series_ended)`, so an
-  interface can present the change apart from the task's detail. Cancelling
-  stops the task's running timers.
+  series_ended)`, so an interface can present the change apart from the
+  task's detail. Cancelling stops the task's running timers.
 - `TaskCancelledEvent(task_id, user_id, end_series)`, raised by
   `Task.mark_as_cancelled`. `CreateRecurringTaskHandler` reacts to it (the
   next occurrence, unless `end_series`) and so does
@@ -45,7 +44,7 @@ Enterprise and the CLI pick it up in 0.5.0 and 0.9.0.
 - `REOPENED` and `PAUSED` can go to `CANCELLED`.
 - The fake `TaskRepository.find_by_id_prefix` in the tests is scoped by
   user, like the real one.
-- Coverage floor 73% → 73.8% (367 tests).
+- Coverage floor 73% → 73.8% (368 tests).
 
 ## [0.5.0] — 2026-09-25
 
