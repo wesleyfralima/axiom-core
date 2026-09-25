@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 from a_core import DTO
 from b_domain.value_objects import UserId
@@ -21,4 +20,4 @@ class SwitchContextRequest(DTO):
     """
 
     user_id: UserId
-    context_id: Optional[ContextId]  # None disables the filter
+    context_id: ContextId | None  # None disables the filter

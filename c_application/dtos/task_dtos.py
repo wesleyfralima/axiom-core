@@ -1,6 +1,5 @@
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List, Optional
 
 from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel, Priority
@@ -25,19 +24,19 @@ class CreateTaskInputDTO(DTO):
     required_energy_level: int = EnergyLevel.BALANCED.value
 
     # Contextual grouping (e.g., project, workspace)
-    context_id: Optional[str] = None
+    context_id: str | None = None
 
     # Due date information
-    due_date: Optional[datetime] = None
-    is_floating: Optional[bool] = True
-    timezone: Optional[str] = None
+    due_date: datetime | None = None
+    is_floating: bool = True
+    timezone: str | None = None
 
     # Hierarchy and dependencies
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
     depends_on: set[str] = field(default_factory=set)
 
     # Recurrence configuration
-    recurrence: Optional[RecurrenceInputDTO] = None
+    recurrence: RecurrenceInputDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -53,21 +52,21 @@ class UpdateTaskInputDTO(DTO):
     user_id: str
 
     # Editable fields (optional for partial updates)
-    title: Optional[str] = None
-    description: Optional[str] = None
-    priority: Optional[str] = None
+    title: str | None = None
+    description: str | None = None
+    priority: str | None = None
 
     # Contextual grouping and energy requirements
-    context_id: Optional[str] = None
-    energy_level: Optional[int] = None
+    context_id: str | None = None
+    energy_level: int | None = None
 
     # Due date information
-    due_date: Optional[datetime] = None
-    is_floating: bool = True
-    timezone: Optional[str] = None
+    due_date: datetime | None = None
+    is_floating: bool | None = None
+    timezone: str | None = None
 
     # Recurrence configuration
-    recurrence: Optional[RecurrenceInputDTO] = None
+    recurrence: RecurrenceInputDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -82,14 +81,14 @@ class TaskOutputDTO(DTO):
     # Core identifiers and metadata
     id: str
     title: str
-    description: Optional[str] = None
+    description: str | None = None
     status: str
     priority: str
 
     # Contextual information (project, workspace, etc.)
-    context_name: Optional[str] = None
-    context_icon: Optional[str] = None
-    required_energy_level: Optional[int] = None
+    context_name: str | None = None
+    context_icon: str | None = None
+    required_energy_level: int | None = None
     is_blocked: bool = False
 
     # Audit timestamps
@@ -97,13 +96,13 @@ class TaskOutputDTO(DTO):
     updated_at: datetime
 
     # Hierarchy and deadlines
-    parent_id: Optional[str] = None
-    due_date: Optional[datetime] = None
+    parent_id: str | None = None
+    due_date: datetime | None = None
     is_overdue: bool = False
 
     # Recurrence and scheduling
-    recurrence_display: Optional[str] = None
-    next_occurrences: List[datetime] = field(default_factory=list)
+    recurrence_display: str | None = None
+    next_occurrences: list[datetime] = field(default_factory=list)
 
     # Focus state (e.g., currently active or highlighted)
     is_in_focus: bool = False
@@ -132,7 +131,7 @@ class TaskByUserRequest(DTO):
     user_id: str
 
     # Completion metadata
-    completed_at: Optional[datetime] = None
+    completed_at: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -147,7 +146,7 @@ class CompleteTaskOutputDTO(DTO):
     completed_task: TaskOutputDTO
 
     # The next occurrence of the task, if recurrence rules apply
-    next_occurrence: Optional[TaskOutputDTO] = None
+    next_occurrence: TaskOutputDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -177,38 +176,38 @@ class ListTasksRequest(DTO):
     """
 
     # Identifiers
-    ids: Optional[List[str]] = None
+    ids: list[str] | None = None
     user_id: str
-    parent_id: Optional[str] = None
+    parent_id: str | None = None
 
     # Status & Priority
-    status: Optional[str] = None
-    priority: Optional[str] = None
+    status: str | None = None
+    priority: str | None = None
 
     # GTD & Organization
-    context_id: Optional[str] = None
-    max_energy: Optional[int] = None
-    complexity: Optional[str] = None
-    tags: List[str] = field(default_factory=list)
+    context_id: str | None = None
+    max_energy: int | None = None
+    complexity: str | None = None
+    tags: list[str] = field(default_factory=list)
 
     # Behavior Flags
-    include_blocked: bool = True   # Maps to is_blocked in TaskFilter
-    is_recurring: Optional[bool] = None
+    include_blocked: bool = True  # Maps to is_blocked in TaskFilter
+    is_recurring: bool | None = None
     only_roots: bool = False
 
     # Temporal Filters (Task Specific)
-    due_before: Optional[datetime] = None
-    due_after: Optional[datetime] = None
+    due_before: datetime | None = None
+    due_after: datetime | None = None
 
     # Pagination (from BaseFilter)
     limit: int = 100
     offset: int = 0
 
     # Auditing Filters (from BaseFilter)
-    created_after: Optional[datetime] = None
-    created_before: Optional[datetime] = None
-    updated_after: Optional[datetime] = None
-    updated_before: Optional[datetime] = None
+    created_after: datetime | None = None
+    created_before: datetime | None = None
+    updated_after: datetime | None = None
+    updated_before: datetime | None = None
 
 
 @dataclass(frozen=True)
@@ -221,4 +220,4 @@ class TaskListOutputDTO(DTO):
     """
 
     # Collection of task output DTOs
-    tasks: List[TaskOutputDTO]
+    tasks: list[TaskOutputDTO]

@@ -1,30 +1,31 @@
-from datetime import datetime, date, timezone
-from typing import List
+from datetime import UTC, date, datetime, tzinfo
 from zoneinfo import ZoneInfo
 
 import pytest
 
-from a_core.exceptions import DomainException
-from b_domain.value_objects import RecurrenceRule
+from a_core import DomainException
+from b_domain.exceptions import MutuallyExclusiveEndDateAndCount
+from b_domain.value_objects import RecurrenceInterval, RecurrenceRule
 from b_domain.value_objects.dates import AxiomDate
-from b_domain.value_objects.enums import RecurrenceInterval
-from b_domain.value_objects.recurrences.by_business_days import BusinessDayRule
-from b_domain.value_objects.recurrences.monthly_by_days import MonthlyByDaysRule
-from b_domain.value_objects.recurrences.monthly_by_position import MonthlyPositionalRule
-from b_domain.value_objects.recurrences.monthly_by_weekday_pos import MonthlyWeekdayPositionalRule
-from b_domain.value_objects.recurrences.monthly_by_weekdays import MonthlyAllWeekdaysRule
-from b_domain.value_objects.recurrences.simple import SimpleIntervalRule, add_months
-from b_domain.value_objects.recurrences.weekly_by_days import WeeklyByDaysRule
+from b_domain.value_objects.recurrences import (
+    BusinessDayRule,
+    MonthlyAllWeekdaysRule,
+    MonthlyByDaysRule,
+    MonthlyPositionalRule,
+    MonthlyWeekdayPositionalRule,
+    SimpleIntervalRule,
+    WeeklyByDaysRule,
+)
+from b_domain.value_objects.recurrences.simple import add_months
 
-
-# ============================================================
 # Group 1: Validation Rules
 # ============================================================
+
 
 def test_end_date_and_count_are_mutually_exclusive() -> None:
     """Ensure RecurrenceRule does not allow both end_date and count simultaneously."""
 
-    with pytest.raises(DomainException):
+    with pytest.raises(MutuallyExclusiveEndDateAndCount):
         SimpleIntervalRule(
             frequency=RecurrenceInterval.DAILY,
             start_date=AxiomDate.floating(datetime(2024, 1, 1), "UTC"),
@@ -44,14 +45,20 @@ def test_start_date_must_be_before_end_date() -> None:
         )
 
 
-@pytest.mark.parametrize("frequency, interval", [
-    (RecurrenceInterval.DAILY, 1),
-    (RecurrenceInterval.DAILY, 366),
-    (RecurrenceInterval.WEEKLY, 52),
-    (RecurrenceInterval.MONTHLY, 13),
-    (RecurrenceInterval.YEARLY, 5),
-])
-def test_recurrence_rule_valid_boundaries(frequency, interval):
+@pytest.mark.parametrize(
+    "frequency, interval",
+    [
+        (RecurrenceInterval.DAILY, 1),
+        (RecurrenceInterval.DAILY, 366),
+        (RecurrenceInterval.WEEKLY, 52),
+        (RecurrenceInterval.MONTHLY, 13),
+        (RecurrenceInterval.YEARLY, 5),
+    ],
+)
+def test_recurrence_rule_valid_boundaries(
+    frequency: RecurrenceInterval,
+    interval: int,
+) -> None:
     """Ensure recurrence rule accepts boundary values without error."""
 
     rule = SimpleIntervalRule(
@@ -102,13 +109,14 @@ def test_nth_business_day_validation() -> None:
         BusinessDayRule(
             start_date=AxiomDate.floating(datetime(2024, 1, 1), "UTC"),
             nth_day=1,
-            is_business_day=None,  # noqa
+            is_business_day=None,  # type: ignore[arg-type] # noqa
         )
 
 
 # ============================================================
 # Group 2: add_months Utility Function
 # ============================================================
+
 
 def test_add_months_clamps_to_last_day_of_month() -> None:
     """Ensure add_months clamps to the last valid day of the target month."""
@@ -148,6 +156,7 @@ def test_add_months_preserves_target_day_when_possible() -> None:
 # Group 3: Daily Recurrence
 # ============================================================
 
+
 def test_daily_recurrence_every_two_days() -> None:
     """Ensure daily recurrence with interval=2 generates occurrences every two days."""
 
@@ -159,11 +168,14 @@ def test_daily_recurrence_every_two_days() -> None:
         start_date=start,
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
 
+    assert first is not None
     assert first == start.materialize()
-    assert second == datetime(2024, 1, 3, 10, 0, tzinfo=ZoneInfo(key='UTC'))
+
+    assert second is not None
+    assert second == datetime(2024, 1, 3, 10, 0, tzinfo=ZoneInfo(key="UTC"))
 
 
 def test_recurrence_stops_at_end_date() -> None:
@@ -175,13 +187,18 @@ def test_recurrence_stops_at_end_date() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 3, 23, 59), "UTC"),
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
     third: datetime | None = rule.get_next_occurrence(second)
     fourth: datetime | None = rule.get_next_occurrence(third)
 
+    assert first is not None
     assert first.date() == datetime(2024, 1, 1).date()
+
+    assert second is not None
     assert second.date() == datetime(2024, 1, 2).date()
+
+    assert third is not None
     assert third.date() == datetime(2024, 1, 3).date()
     assert fourth is None
 
@@ -189,6 +206,7 @@ def test_recurrence_stops_at_end_date() -> None:
 # ============================================================
 # Group 4: Weekly Recurrence
 # ============================================================
+
 
 def test_weekly_recurrence_basic() -> None:
     """Ensure weekly recurrence generates occurrences every week by default."""
@@ -200,15 +218,21 @@ def test_weekly_recurrence_basic() -> None:
         start_date=start,
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
 
-    assert first == start.value.replace(tzinfo=ZoneInfo(key='UTC'))
+    assert first is not None
+    assert first == start.value.replace(tzinfo=ZoneInfo(key="UTC"))
+
+    assert second is not None
     assert second == datetime(2024, 1, 8, 10, 0, tzinfo=ZoneInfo("UTC"))
 
 
 def test_weekly_recurrence_every_two_weeks() -> None:
-    """Ensure weekly recurrence with interval=2 generates occurrences every two weeks."""
+    """
+    Ensure weekly recurrence with interval=2
+    generates occurrences every two weeks.
+    """
 
     start: AxiomDate = AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC")  # Monday
 
@@ -218,10 +242,13 @@ def test_weekly_recurrence_every_two_weeks() -> None:
         start_date=start,
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
 
-    assert first == start.value.replace(tzinfo=ZoneInfo(key='UTC'))
+    assert first is not None
+    assert first == start.value.replace(tzinfo=ZoneInfo(key="UTC"))
+
+    assert second is not None
     assert second == datetime(2024, 1, 15, 10, 0, tzinfo=ZoneInfo("UTC"))
 
 
@@ -235,21 +262,30 @@ def test_weekly_multiple_weekdays() -> None:
         days_of_week={0, 3},  # Monday, Thursday
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
-    third: datetime = rule.get_next_occurrence(second)
-    forth: datetime = rule.get_next_occurrence(third)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
+    third: datetime | None = rule.get_next_occurrence(second)
+    forth: datetime | None = rule.get_next_occurrence(third)
 
+    assert first is not None
     assert first == datetime(2024, 1, 1, 10, 0, tzinfo=ZoneInfo("UTC"))
+
+    assert second is not None
     assert second == datetime(2024, 1, 4, 10, 0, tzinfo=ZoneInfo("UTC"))
+
+    assert third is not None
     assert third == datetime(2024, 1, 8, 10, 0, tzinfo=ZoneInfo("UTC"))
+
+    assert forth is not None
     assert forth == datetime(2024, 1, 11, 10, 0, tzinfo=ZoneInfo("UTC"))
 
 
 def test_weekly_does_not_return_past_days_before_start_date() -> None:
     """Ensure recurrence does not return past weekdays before the start_date."""
 
-    start: AxiomDate = AxiomDate.floating(datetime(2024, 1, 3, 10, 0), "UTC")  # Wednesday
+    start: AxiomDate = AxiomDate.floating(
+        datetime(2024, 1, 3, 10, 0), "UTC"
+    )  # Wednesday
 
     rule: RecurrenceRule = WeeklyByDaysRule(
         start_date=start,
@@ -257,8 +293,9 @@ def test_weekly_does_not_return_past_days_before_start_date() -> None:
     )
 
     # Monday (0) is before start (Wednesday), so should start on Wednesday
-    first: datetime = rule.get_next_occurrence()
+    first: datetime | None = rule.get_next_occurrence()
 
+    assert first is not None
     assert first == datetime(2024, 1, 3, 10, 0, tzinfo=ZoneInfo("UTC"))
 
 
@@ -274,14 +311,14 @@ def test_weekly_interval_with_multiple_weekdays() -> None:
     )
 
     # First week
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
     assert first == datetime(2024, 1, 1, 10, 0, tzinfo=ZoneInfo("UTC"))
     assert second == datetime(2024, 1, 5, 10, 0, tzinfo=ZoneInfo("UTC"))
 
     # Third week (second week is ignored due to interval=2)
-    third: datetime = rule.get_next_occurrence(second)
-    forth: datetime = rule.get_next_occurrence(third)
+    third: datetime | None = rule.get_next_occurrence(second)
+    forth: datetime | None = rule.get_next_occurrence(third)
     assert third == datetime(2024, 1, 15, 10, 0, tzinfo=ZoneInfo("UTC"))
     assert forth == datetime(2024, 1, 19, 10, 0, tzinfo=ZoneInfo("UTC"))
 
@@ -295,18 +332,23 @@ def test_weekly_recurrence_stops_at_end_date() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 8, 10, 0), "UTC"),
     )
 
-    first: datetime = rule.get_next_occurrence()
-    second: datetime = rule.get_next_occurrence(first)
+    first: datetime | None = rule.get_next_occurrence()
+    second: datetime | None = rule.get_next_occurrence(first)
     third: datetime | None = rule.get_next_occurrence(second)
 
+    assert first is not None
     assert first.date() == datetime(2024, 1, 1).date()
+
+    assert second is not None
     assert second.date() == datetime(2024, 1, 8).date()
+
     assert third is None
 
 
 # ============================================================
 # Group 5: Monthly Recurrence
 # ============================================================
+
 
 def test_monthly_recurrence_clamps_end_of_month() -> None:
     """Ensure monthly recurrence clamps to last valid day of month when needed."""
@@ -318,9 +360,9 @@ def test_monthly_recurrence_clamps_end_of_month() -> None:
         start_date=start,
     )
 
-    feb: datetime = rule.get_next_occurrence(start.value)
-    mar: datetime = rule.get_next_occurrence(feb)
-    abr: datetime = rule.get_next_occurrence(mar)
+    feb: datetime | None = rule.get_next_occurrence(start.value)
+    mar: datetime | None = rule.get_next_occurrence(feb)
+    abr: datetime | None = rule.get_next_occurrence(mar)
 
     assert feb == datetime(2024, 2, 29, 10, 0, tzinfo=ZoneInfo("UTC"))
     assert mar == datetime(2024, 3, 31, 10, 0, tzinfo=ZoneInfo("UTC"))
@@ -333,7 +375,7 @@ def test_monthly_by_month_days() -> None:
     # Start date is Jan 1st
     rule = MonthlyByDaysRule(
         start_date=AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC"),
-        days_of_month={10, 20}
+        days_of_month={10, 20},
     )
 
     # First occurrence should be Jan 10th (since Jan 1st is not in the list)
@@ -356,13 +398,14 @@ def test_monthly_by_weekdays_all_occurrences() -> None:
         days_of_week={0},
     )
 
-    occurrences: List[datetime] = []
+    occurrences: list[datetime] = []
     current: datetime | None = None
     for _ in range(5):
         current = rule.get_next_occurrence(current)
+        assert current is not None
         occurrences.append(current)
 
-    expected: List[datetime] = [
+    expected: list[datetime] = [
         datetime(2024, 1, 1, 10, 0, tzinfo=ZoneInfo("UTC")),
         datetime(2024, 1, 8, 10, 0, tzinfo=ZoneInfo("UTC")),
         datetime(2024, 1, 15, 10, 0, tzinfo=ZoneInfo("UTC")),
@@ -376,8 +419,7 @@ def test_monthly_by_set_pos_only_last_day() -> None:
     """Ensure recurrence on last day of month via set_pos=-1."""
 
     rule: RecurrenceRule = MonthlyPositionalRule(
-        start_date=AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC"),
-        set_pos=-1
+        start_date=AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC"), set_pos=-1
     )
 
     jan: datetime | None = rule.get_next_occurrence()
@@ -403,6 +445,8 @@ def test_first_monday_of_month() -> None:
     assert first == datetime(2024, 1, 1, 10, 0, tzinfo=ZoneInfo("UTC"))
 
     feb: datetime | None = rule.get_next_occurrence(first)
+
+    assert feb is not None
     assert feb.date() == datetime(2024, 2, 5).date()
 
 
@@ -416,9 +460,11 @@ def test_last_friday_of_month() -> None:
     )
 
     jan: datetime | None = rule.get_next_occurrence()
+    assert jan is not None
     assert jan.date() == datetime(2024, 1, 26).date()
 
     feb: datetime | None = rule.get_next_occurrence(jan)
+    assert feb is not None
     assert feb.date() == datetime(2024, 2, 23).date()
 
 
@@ -434,8 +480,12 @@ def test_fifth_monday_skips_months_without_five_occurrences() -> None:
     jan: datetime | None = rule.get_next_occurrence()
     apr: datetime | None = rule.get_next_occurrence(jan)
 
+    assert jan is not None
     assert jan.date() == datetime(2024, 1, 29).date()
+
     # Feb and Mar 2024 don't have 5 Mondays
+
+    assert apr is not None
     assert apr.date() == datetime(2024, 4, 29).date()
 
 
@@ -443,8 +493,12 @@ def test_fifth_monday_skips_months_without_five_occurrences() -> None:
 # Group 6: Yearly Recurrence
 # ============================================================
 
+
 def test_yearly_recurrence_from_feb_29() -> None:
-    """Ensure yearly recurrence handles leap day correctly across leap and non-leap years."""
+    """
+    Ensure yearly recurrence handles leap day
+     correctly across leap and non-leap years.
+    """
 
     start: AxiomDate = AxiomDate.floating(datetime(2024, 2, 29, 10, 0), "UTC")
 
@@ -457,8 +511,13 @@ def test_yearly_recurrence_from_feb_29() -> None:
     y2026: datetime | None = rule.get_next_occurrence(y2025)
     y2028: datetime | None = rule.get_next_occurrence(rule.get_next_occurrence(y2026))
 
+    assert y2025 is not None
     assert y2025.date() == datetime(2025, 2, 28).date()
+
+    assert y2026 is not None
     assert y2026.date() == datetime(2026, 2, 28).date()
+
+    assert y2028 is not None
     assert y2028.date() == datetime(2028, 2, 29).date()
 
 
@@ -466,25 +525,27 @@ def test_yearly_recurrence_from_feb_29() -> None:
 # Group 7: Business Days
 # ============================================================
 
+
 def simple_business_day(d: date) -> bool:
-    # Segunda (0) a sexta (4) e não é o ano novo de 2024
+    # segunda (0) a sexta (4) e não é o ano novo de 2024
     return d.weekday() < 5 and d != date(2024, 1, 1)
 
 
 def test_fifth_business_day_of_month() -> None:
     """Ensure recurrence selects the 5th business day of the month."""
 
-    start: AxiomDate = AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC")  # Jan 1, 2024 is Monday
+    start: AxiomDate = AxiomDate.floating(
+        datetime(2024, 1, 1, 10, 0), "UTC"
+    )  # Jan 1, 2024 is Monday
 
     rule: RecurrenceRule = BusinessDayRule(
-        start_date=start,
-        nth_day=5,
-        is_business_day=simple_business_day
+        start_date=start, nth_day=5, is_business_day=simple_business_day
     )
 
     # 1st business day: Jan 2 (Jan 1 is holiday)
     # 2: Jan 3, 3: Jan 4, 4: Jan 5 (Fri), 5: Jan 8 (Mon)
     jan: datetime | None = rule.get_next_occurrence()
+    assert jan is not None
     assert jan.date() == datetime(2024, 1, 8).date()
 
 
@@ -494,10 +555,11 @@ def test_last_business_day_of_month() -> None:
     rule: RecurrenceRule = BusinessDayRule(
         start_date=AxiomDate.floating(datetime(2024, 2, 1, 10, 0), "UTC"),
         nth_day=-1,
-        is_business_day=simple_business_day
+        is_business_day=simple_business_day,
     )
 
     feb: datetime | None = rule.get_next_occurrence()
+    assert feb is not None
     assert feb.date() == datetime(2024, 2, 29).date()  # Leap year, Friday
 
 
@@ -508,13 +570,15 @@ def test_business_day_respects_monthly_interval() -> None:
         interval=2,
         start_date=AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC"),
         nth_day=1,
-        is_business_day=simple_business_day
+        is_business_day=simple_business_day,
     )
 
     jan: datetime | None = rule.get_next_occurrence()
+    assert jan is not None
     assert jan.date() == datetime(2024, 1, 2).date()  # Jan 2 (Jan 1 holiday)
 
     mar: datetime | None = rule.get_next_occurrence(jan)
+    assert mar is not None
     assert mar.date() == datetime(2024, 3, 1).date()  # Mar 1 (Friday)
 
 
@@ -524,7 +588,7 @@ def test_nth_business_day_out_of_range_returns_none() -> None:
     rule: RecurrenceRule = BusinessDayRule(
         start_date=AxiomDate.floating(datetime(2024, 2, 1, 10, 0), "UTC"),
         nth_day=30,  # impossible
-        is_business_day=simple_business_day
+        is_business_day=simple_business_day,
     )
 
     result: datetime | None = rule.get_next_occurrence()
@@ -538,7 +602,7 @@ def test_business_day_respects_end_date() -> None:
         start_date=AxiomDate.floating(datetime(2024, 1, 1, 10, 0), "UTC"),
         nth_day=5,
         end_date=AxiomDate.floating(datetime(2024, 1, 4, 23, 59), "UTC"),
-        is_business_day=simple_business_day
+        is_business_day=simple_business_day,
     )
 
     result: datetime | None = rule.get_next_occurrence()
@@ -551,14 +615,13 @@ def test_business_day_never_returns_before_start_date() -> None:
     start_date: AxiomDate = AxiomDate.floating(datetime(2024, 1, 10, 10, 0), "UTC")
 
     rule: RecurrenceRule = BusinessDayRule(
-        start_date=start_date,
-        nth_day=1,
-        is_business_day=simple_business_day
+        start_date=start_date, nth_day=1, is_business_day=simple_business_day
     )
 
     first: datetime | None = rule.get_next_occurrence()
     # 1st business day of Jan is Jan 2, but start_date is Jan 10.
     # Should skip Jan entirely and go to Feb
+    assert first is not None
     assert first.date() > start_date.materialize().date()
     assert first.date() == datetime(2024, 2, 1).date()
 
@@ -566,6 +629,7 @@ def test_business_day_never_returns_before_start_date() -> None:
 # ============================================================
 # Group 8: _get_closest_occurrence
 # ============================================================
+
 
 def test_get_closest_occurrence_after_reference() -> None:
     """Ensure the closest occurrence after reference is returned."""
@@ -756,7 +820,8 @@ def test_monthly_nth_business_day() -> None:
 # Group 9: Timezone Consistency & Agnostic Behavior
 # ============================================================
 
-def test_constructor_enforces_timezone_consistency_naive_start_aware_end():
+
+def test_constructor_enforces_timezone_consistency_naive_start_aware_end() -> None:
     """
     Ensure we cannot create a rule with Naive start (Floating) and Aware end (Fixed).
     Must raise DomainException (ValidationException).
@@ -765,13 +830,17 @@ def test_constructor_enforces_timezone_consistency_naive_start_aware_end():
     with pytest.raises(DomainException) as exc:
         SimpleIntervalRule(
             frequency=RecurrenceInterval.DAILY,
-            start_date=AxiomDate.floating(datetime(2026, 1, 1), "UTC"),  # Naive (Floating)
-            end_date=AxiomDate.fixed(datetime(2026, 1, 10, tzinfo=timezone.utc)),  # Aware (Fixed)
+            start_date=AxiomDate.floating(
+                datetime(2026, 1, 1), "UTC"
+            ),  # Naive (Floating)
+            end_date=AxiomDate.fixed(
+                datetime(2026, 1, 10, tzinfo=UTC)
+            ),  # Aware (Fixed)
         )
         assert "must both be timezone-aware or both be naive" in str(exc.value)
 
 
-def test_constructor_enforces_timezone_consistency_aware_start_naive_end():
+def test_constructor_enforces_timezone_consistency_aware_start_naive_end() -> None:
     """
     Ensure we cannot create a rule with Aware start (Fixed) and Naive end (Floating).
     """
@@ -779,29 +848,31 @@ def test_constructor_enforces_timezone_consistency_aware_start_naive_end():
     with pytest.raises(DomainException) as exc:
         SimpleIntervalRule(
             frequency=RecurrenceInterval.DAILY,
-            start_date=AxiomDate.fixed(datetime(2026, 1, 1, tzinfo=timezone.utc)),  # Aware
+            start_date=AxiomDate.fixed(datetime(2026, 1, 1, tzinfo=UTC)),  # Aware
             end_date=AxiomDate.floating(datetime(2026, 1, 10), "UTC"),  # Naive
         )
         assert "must both be timezone-aware or both be naive" in str(exc.value)
 
 
-def test_floating_rule_sanitizes_aware_input():
+def test_floating_rule_sanitizes_aware_input() -> None:
     """
     Scenario: User has a Floating task (Every day at 09:00 Wall Clock).
     Input: The system passes a 'last_occurrence' or 'reference' that is UTC (Aware).
-    Expected: The rule should strip the timezone from the input and treat it as 09:00 naive.
+    Expected: The rule should strip the tz from the input and treat it as 09:00 naive.
     """
 
     # 1. Regra Floating (Naive) - Todo dia às 09:00
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
-        start_date=AxiomDate.floating(datetime(2026, 1, 1, 9, 0, 0), "America/Sao_Paulo"),
-        interval=1
+        start_date=AxiomDate.floating(
+            datetime(2026, 1, 1, 9, 0, 0), "America/Sao_Paulo"
+        ),
+        interval=1,
     )
 
     # 2. Input "sujo" com UTC (Ex: 09:00 UTC)
     # Se o sistema não sanitizasse, isso daria TypeError aqui.
-    input_aware = datetime(2026, 1, 1, 9, 0, 0, tzinfo=timezone.utc)
+    input_aware = datetime(2026, 1, 1, 9, 0, 0, tzinfo=UTC)
 
     # 3. Executa
     next_occurrence = rule.get_next_occurrence(last_occurrence=input_aware)
@@ -815,7 +886,7 @@ def test_floating_rule_sanitizes_aware_input():
     assert next_occurrence == expected
 
 
-def test_floating_rule_ignores_timezone_offset_semantics():
+def test_floating_rule_ignores_timezone_offset_semantics() -> None:
     """
     Scenario: Floating Rule at 10:00.
     Input: A date representing 10:00-03:00 (Sao Paulo).
@@ -827,8 +898,10 @@ def test_floating_rule_ignores_timezone_offset_semantics():
 
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
-        start_date=AxiomDate.floating(datetime(2026, 1, 1, 10, 0, 0), "UTC"),  # Naive (10am)
-        interval=1
+        start_date=AxiomDate.floating(
+            datetime(2026, 1, 1, 10, 0, 0), "UTC"
+        ),  # Naive (10am)
+        interval=1,
     )
 
     # Input: 10:00 em SP (Aware)
@@ -843,7 +916,7 @@ def test_floating_rule_ignores_timezone_offset_semantics():
     assert next_occurrence == datetime(2026, 1, 2, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
 
 
-def test_fixed_rule_sanitizes_naive_input():
+def test_fixed_rule_sanitizes_naive_input() -> None:
     """
     Scenario: Fixed Task (UTC).
     Input: A Naive date (e.g., from a legacy part of the system or user error).
@@ -853,23 +926,29 @@ def test_fixed_rule_sanitizes_naive_input():
     # Regra Fixed (UTC) - Todo dia às 15:00 UTC
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
-        start_date=AxiomDate.fixed(datetime(2026, 1, 1, 15, 0, 0, tzinfo=timezone.utc)),
-        interval=1
+        start_date=AxiomDate.fixed(datetime(2026, 1, 1, 15, 0, 0, tzinfo=UTC)),
+        interval=1,
     )
 
     # Input Naive (15:00 sem fuso)
     input_naive = datetime(2026, 1, 1, 15, 0, 0)
 
-    next_occurrence = rule.get_next_occurrence(last_occurrence=input_naive)
+    next_occurrence: datetime | None = rule.get_next_occurrence(
+        last_occurrence=input_naive
+    )
 
     # Deve retornar dia 02 às 15:00 UTC
-    expected = datetime(2026, 1, 2, 15, 0, 0, tzinfo=timezone.utc)
+    expected = datetime(2026, 1, 2, 15, 0, 0, tzinfo=UTC)
 
+    assert next_occurrence is not None
     assert next_occurrence == expected
-    assert next_occurrence.tzinfo == ZoneInfo("UTC")
+
+    tz_info: tzinfo | None = getattr(next_occurrence, "tzinfo", None)
+    assert tz_info is not None
+    assert tz_info == UTC
 
 
-def test_check_end_conditions_logic_agnostic():
+def test_check_end_conditions_logic_agnostic() -> None:
     """
     Verify that _check_end_conditions handles mixed types gracefully
     due to the sanitization logic.
@@ -880,7 +959,7 @@ def test_check_end_conditions_logic_agnostic():
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
         start_date=AxiomDate.floating(datetime(2026, 1, 1, 10, 0, 0), "UTC"),
-        end_date=end_date
+        end_date=end_date,
     )
 
     # Candidato Válido (Naive)
@@ -893,19 +972,20 @@ def test_check_end_conditions_logic_agnostic():
 
     # TESTE CRÍTICO: Passar um candidato AWARE para uma regra NAIVE.
     # O método _check_end_conditions deve lidar ou o chamador deve sanitizar.
-    # Baseado na nossa correção, quem chama sanitiza, mas vamos testar se o _get_closest_occurrence
+    # Baseado na nossa correção, quem chama sanitiza,
+    # mas vamos testar se o _get_closest_occurrence
     # (que chama o check) resolve isso.
 
-    candidate_aware_valid = datetime(2026, 1, 4, 10, 0, 0, tzinfo=timezone.utc)
+    candidate_aware_valid = datetime(2026, 1, 4, 10, 0, 0, tzinfo=UTC)
 
     # Chamamos via public method para exercitar o fluxo completo
     # Se eu pedir a ocorrência DEPOIS do dia 4 (aware), ele deve achar o dia 5 (naive)
     # Se o check_end_conditions falhasse com TypeError, esse teste quebraria.
     res = rule.get_next_occurrence(last_occurrence=candidate_aware_valid)
-    assert res == datetime(2026, 1, 5, 10, 0, 0, tzinfo=timezone.utc)
+    assert res == datetime(2026, 1, 5, 10, 0, 0, tzinfo=UTC)
 
 
-def test_rrule_string_until_format_floating():
+def test_rrule_string_until_format_floating() -> None:
     """
     RFC 5545: Floating events MUST NOT have 'Z' in UNTIL.
     Format: YYYYMMDDThhmmss
@@ -924,7 +1004,7 @@ def test_rrule_string_until_format_floating():
     assert "Z" not in rrule_str.split("UNTIL=")[1]  # Garante que não tem Z no valor
 
 
-def test_rrule_string_until_format_fixed():
+def test_rrule_string_until_format_fixed() -> None:
     """
     RFC 5545: Fixed events (UTC) MUST have 'Z' in UNTIL.
     Format: YYYYMMDDThhmmssZ
@@ -932,8 +1012,10 @@ def test_rrule_string_until_format_fixed():
 
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
-        start_date=AxiomDate.fixed(datetime(2026, 1, 1, 9, 0, 0, tzinfo=timezone.utc)),  # Aware
-        end_date=AxiomDate.fixed(datetime(2026, 12, 31, 23, 59, 59, tzinfo=timezone.utc)),  # Aware
+        start_date=AxiomDate.fixed(datetime(2026, 1, 1, 9, 0, 0, tzinfo=UTC)),  # Aware
+        end_date=AxiomDate.fixed(
+            datetime(2026, 12, 31, 23, 59, 59, tzinfo=UTC)
+        ),  # Aware
     )
 
     rrule_str = rule.rrule_string
@@ -946,7 +1028,8 @@ def test_rrule_string_until_format_fixed():
 # Group 10: DST & Timezone Transitions (The "Wall Clock" Tests)
 # ============================================================
 
-def test_daily_recurrence_across_dst_spring_forward():
+
+def test_daily_recurrence_across_dst_spring_forward() -> None:
     """
     Scenario: In London (Europe/London), DST starts on March 29, 2026.
     Clocks jump from 01:00 to 02:00.
@@ -959,9 +1042,7 @@ def test_daily_recurrence_across_dst_spring_forward():
     start = AxiomDate.floating(start_dt, tz_name)
 
     rule = SimpleIntervalRule(
-        frequency=RecurrenceInterval.DAILY,
-        start_date=start,
-        interval=1
+        frequency=RecurrenceInterval.DAILY, start_date=start, interval=1
     )
 
     # First: March 28 @ 09:00 (GMT)
@@ -974,11 +1055,13 @@ def test_daily_recurrence_across_dst_spring_forward():
 
     # Crucial: If we materialize them with the timezone, they should both be 09:00
     assert start.materialize().hour == 9
-    # The recurrence engine returns Naive for Floating, so we check if the hour is preserved
+    # The recurrence engine returns Naive for
+    # Floating, so we check if the hour is preserved
+    assert occ2 is not None
     assert occ2.hour == 9
 
 
-def test_weekly_recurrence_across_dst_fallback():
+def test_weekly_recurrence_across_dst_fallback() -> None:
     """
     Scenario: In New York (America/New_York), DST ends on Nov 1, 2026.
     Clocks jump back from 02:00 to 01:00.
@@ -990,23 +1073,21 @@ def test_weekly_recurrence_across_dst_fallback():
     start_dt = datetime(2026, 10, 26, 8, 0)
     start = AxiomDate.floating(start_dt, tz_name)
 
-    rule = WeeklyByDaysRule(
-        start_date=start,
-        days_of_week={0},  # Monday
-        interval=1
-    )
+    rule = WeeklyByDaysRule(start_date=start, days_of_week={0}, interval=1)  # Monday
 
     occ1 = rule.get_next_occurrence()
     occ2 = rule.get_next_occurrence(occ1)  # This crosses the DST boundary
 
+    assert occ1 is not None
     assert occ1.date() == datetime(2026, 10, 26).date()
     assert occ1.hour == 8
 
+    assert occ2 is not None
     assert occ2.date() == datetime(2026, 11, 2).date()
     assert occ2.hour == 8  # Still 08:00 AM Wall Clock
 
 
-def test_fixed_rule_conversion_to_utc_consistency():
+def test_fixed_rule_conversion_to_utc_consistency() -> None:
     """
     Verify that a FIXED rule (UTC-based) maintains its absolute instant
     even if the start_date was provided in a different timezone offset.
@@ -1020,21 +1101,21 @@ def test_fixed_rule_conversion_to_utc_consistency():
     start = AxiomDate.fixed(local_dt)
 
     rule = SimpleIntervalRule(
-        frequency=RecurrenceInterval.DAILY,
-        start_date=start,
-        interval=1
+        frequency=RecurrenceInterval.DAILY, start_date=start, interval=1
     )
 
     occ = rule.get_next_occurrence()
+
+    assert occ is not None
 
     # Should be 13:00 UTC
     assert occ.tzinfo is not None
     assert occ.hour == 13
     assert occ.minute == 0
-    assert occ.tzinfo == ZoneInfo("UTC")
+    assert occ.tzinfo == UTC
 
 
-def test_recurrence_logic_with_microsecond_sanitization():
+def test_recurrence_logic_with_microsecond_sanitization() -> None:
     """
     Ensure microsecond noise in datetimes doesn't leak into recurrence calculations
     or comparisons, which could cause "next_occurrence" to return the same day twice.
@@ -1045,13 +1126,12 @@ def test_recurrence_logic_with_microsecond_sanitization():
     start = AxiomDate.floating(start_dt, "UTC")
 
     rule = SimpleIntervalRule(
-        frequency=RecurrenceInterval.DAILY,
-        start_date=start,
-        interval=1
+        frequency=RecurrenceInterval.DAILY, start_date=start, interval=1
     )
 
     # The implementation should truncate or ignore microseconds
     occ1 = rule.get_next_occurrence()
 
+    assert occ1 is not None
     assert occ1.microsecond == 0
     assert occ1 == datetime(2026, 1, 1, 10, 0, 0, tzinfo=ZoneInfo("UTC"))

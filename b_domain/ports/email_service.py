@@ -10,11 +10,7 @@ class AbstractEmailService(ABC):
 
     @abstractmethod
     def send_mail(
-            self,
-            recipients: list[str],
-            subject: str,
-            body: str,
-            is_html: bool = False
+        self, recipients: list[str], subject: str, body: str, is_html: bool = False
     ) -> None:
         """Send an email message.
 

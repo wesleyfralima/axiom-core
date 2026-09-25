@@ -1,6 +1,6 @@
 import pytest
 
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unit_of_work import UnitOfWork
 
 
 class FakeUnitOfWork(UnitOfWork):
@@ -11,7 +11,7 @@ class FakeUnitOfWork(UnitOfWork):
     logic in `__aenter__` and `__aexit__`.
     """
 
-    def __init__(self) -> None:
+    def __init__(self) -> None:  # noqa
         self._trigger_relay = False
         self.committed: bool = False
         self.rolled_back: bool = False
@@ -29,6 +29,7 @@ class FakeUnitOfWork(UnitOfWork):
 # ============================================================
 # Group: Async Context Manager Behavior
 # ============================================================
+
 
 @pytest.mark.asyncio
 async def test_unit_of_work_commits_when_no_exception_is_raised() -> None:

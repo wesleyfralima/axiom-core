@@ -1,16 +1,22 @@
 import logging
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import Optional, Self, Type, Protocol
+from typing import Protocol, Self
 
 from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.repositories import TaskRepository, UserRepository
-from b_domain.ports.repositories.outbox_event_repository import OutboxEventRepository
+from b_domain.ports.repositories.outbox_event_repository import (
+    OutboxEventRepository,
+)
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
-from b_domain.ports.repositories.user_behavior_metrics_repository import UserBehaviorMetricsRepository
-from b_domain.ports.repositories.user_behavior_profile_repository import UserBehaviorProfileRepository
+from b_domain.ports.repositories.user_behavior_metrics_repository import (
+    UserBehaviorMetricsRepository,
+)
+from b_domain.ports.repositories.user_behavior_profile_repository import (
+    UserBehaviorProfileRepository,
+)
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -55,9 +61,9 @@ class UnitOfWork(ABC):
     user_behavior_profiles: UserBehaviorProfileRepository
 
     def __init__(
-            self,
-            event_bus: EventBus,
-            trigger_relay: bool = True,
+        self,
+        event_bus: EventBus,
+        trigger_relay: bool = True,
     ):
         """Initialize the UnitOfWork with an event bus.
 
@@ -78,10 +84,10 @@ class UnitOfWork(ABC):
         return self
 
     async def __aexit__(
-            self,
-            exc_type: Optional[Type[BaseException]],
-            exc: Optional[BaseException],
-            traceback: Optional[TracebackType],
+        self,
+        exc_type: type[BaseException] | None,
+        exc: BaseException | None,
+        traceback: TracebackType | None,
     ) -> None:
         """Exit the UnitOfWork context.
 
@@ -119,7 +125,10 @@ class UnitOfWork(ABC):
             raise
 
     async def _process_events(self) -> None:
-        """Extract domain events from tracked entities and prepare them for the Outbox."""
+        """
+        Extract domain events from tracked entities
+        and prepare them for the Outbox.
+        """
 
         outbox_entries: list[OutboxEvent] = []
 

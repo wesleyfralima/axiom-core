@@ -1,7 +1,6 @@
 import calendar
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Optional, Set
 
 from b_domain.exceptions.recurrence import InvalidMonthDayValue
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -21,7 +20,7 @@ class MonthlyByDaysRule(RecurrenceRule):
 
     """
 
-    days_of_month: Set[int]
+    days_of_month: set[int]
 
     def __post_init__(self) -> None:
         """Validate the invariants for numeric month days.
@@ -54,7 +53,8 @@ class MonthlyByDaysRule(RecurrenceRule):
 
     def get_first_valid_occurrence(self) -> datetime:
         """
-        Locate the first allowed date (day of the month) equal to or later than start_date.
+        Locate the first allowed date (day of the
+        month) equal to or later than start_date.
         """
 
         base_dt: datetime = self.start_date.materialize()
@@ -79,17 +79,22 @@ class MonthlyByDaysRule(RecurrenceRule):
                 if candidate >= start_norm:
                     return candidate
 
-            # If no day in the current month is valid, calculate the next valid month based on the interval
-            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            # If no day in the current month is valid,
+            # calculate the next valid month based on the interval
+            months_since_start = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (total_months // 12)
+            scan_year += total_months // 12
             scan_month = (total_months % 12) + 1
 
         return base_dt
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence scanning through valid month days.
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
@@ -138,8 +143,11 @@ class MonthlyByDaysRule(RecurrenceRule):
             # 2. If no valid day was found in this month, advance to the next
             # valid month, respecting the `interval` (e.g., every 2 months)
 
-            # Calculate the difference in months relative to start_date to maintain cadence
-            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            # Calculate the difference in months relative
+            # to start_date to maintain cadence
+            months_diff: int = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             remainder: int = months_diff % self.interval
             months_to_advance: int = self.interval - remainder
 

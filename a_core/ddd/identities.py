@@ -1,13 +1,13 @@
 from dataclasses import dataclass, field
-from typing import Optional
+from typing import Self
 from uuid import UUID, uuid4
 
-from a_core.ddd.value_objects import TextValueObject, ValueObject
+from a_core.ddd.value_objects import SimpleValueObject, TextValueObject
 from a_core.exceptions import ValidationException
 
 
 @dataclass(frozen=True)
-class UniqueId(ValueObject):
+class UniqueId(SimpleValueObject):
     """Strongly typed unique identifier based on UUID."""
 
     value: UUID = field(default_factory=uuid4)
@@ -17,7 +17,7 @@ class UniqueId(ValueObject):
         return str(self.value)
 
     @classmethod
-    def from_string(cls, value: str, *, error_msg: Optional[str] = None) -> "UniqueId":
+    def from_string(cls, value: str, *, error_msg: str | None = None) -> Self:
         """Create a UniqueId from a string.
 
         Args:
@@ -30,7 +30,9 @@ class UniqueId(ValueObject):
         try:
             return cls(UUID(value))
         except ValueError:
-            raise ValidationException(error_msg or f"The provided value is not a valid UUID: {value}")
+            raise ValidationException(
+                error_msg or f"The provided value is not a valid UUID: {value}"
+            )
 
 
 @dataclass(frozen=True)

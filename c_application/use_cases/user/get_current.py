@@ -1,11 +1,9 @@
 from dataclasses import dataclass, field
-from typing import Dict
 
 from a_core import DTO
 from b_domain.entities import User
 from b_domain.exceptions.security import InvalidTokenError
 from b_domain.ports.providers import ClockProvider, TokenProvider
-from b_domain.ports.unity_of_work import UnitOfWork
 from b_domain.ports.use_case import UowFactoryType, UseCase
 from c_application.dtos.user_dtos import UserOutputDTO
 from c_application.mappers.user_mapper import UserMapper
@@ -22,6 +20,7 @@ class GetCurrentUserInputDTO(DTO):
         token (str): The raw JWT access token.
             Marked as `repr=False` to avoid accidental logging.
     """
+
     token: str = field(repr=False)
 
 
@@ -36,6 +35,7 @@ class GetCurrentUserOutputDTO(UserOutputDTO):
         message (str): Status message confirming retrieval.
             Defaults to "user_retrieved".
     """
+
     message: str = "user_retrieved"
 
 
@@ -48,17 +48,20 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutput
     """
 
     def __init__(
-            self,
-            uow_factory: UowFactoryType,
-            clock: ClockProvider,
-            token_provider: TokenProvider,
+        self,
+        uow_factory: UowFactoryType,
+        clock: ClockProvider,
+        token_provider: TokenProvider,
     ):
         """Initialize the GetCurrentUserUseCase.
 
         Args:
-            uow_factory (UnitOfWork): Unit of Work factory for managing repositories and transactions.
-            clock (ClockProvider): Provides current time for validation (not directly used here).
-            token_provider (TokenProvider): Service for decoding and validating JWT tokens.
+            uow_factory (UnitOfWork): Unit of Work factory for managing
+                repositories and transactions.
+            clock (ClockProvider): Provides current time for validation
+                (not directly used here).
+            token_provider (TokenProvider): Service for decoding and
+                validating JWT tokens.
         """
         super().__init__(uow_factory, clock)
         self.token_provider = token_provider
@@ -79,13 +82,14 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutput
             GetCurrentUserOutputDTO: The authenticated user as an output DTO.
 
         Raises:
-            InvalidTokenError: If the user could not be retrieved (invalid or expired token).
+            InvalidTokenError: If the user could not be retrieved (invalid or
+                expired token).
         """
 
         # 1. Technical validation of the token via provider
-        payload: Dict = self.token_provider.decode_access_token(request.token)
+        payload: dict[str, str] = self.token_provider.decode_access_token(request.token)
 
-        username: str = payload.get("username")
+        username: str = payload.get("username", "")
         if not username:
             raise InvalidTokenError("Token payload is missing user identity.")
 
@@ -93,7 +97,9 @@ class GetCurrentUserUseCase(UseCase[GetCurrentUserInputDTO, GetCurrentUserOutput
         async with self.uow as uow:
             user: User | None = await uow.users.get_by_username(username)
             if not user:
-                raise InvalidTokenError("Could not retrieve an user from the specified token.")
+                raise InvalidTokenError(
+                    "Could not retrieve an user from the specified token."
+                )
 
         # 3. Output mapping
         return UserMapper.to_output(user, dto_class=GetCurrentUserOutputDTO)

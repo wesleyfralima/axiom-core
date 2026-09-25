@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from a_core import ValueObject
 from b_domain.value_objects import UserId
@@ -27,8 +26,10 @@ class UserBehaviorMetrics(ValueObject):
         total_focus_breaks (int): Total number of breaks taken during focus blocks.
         total_focus_abandons (int): Total number of abandoned focus blocks.
         avg_rest_minutes (float): Average duration of rest periods in minutes.
-        avg_completion_interval_minutes (float): Average interval between task completions in minutes.
-        last_task_completion_at (Optional[datetime]): Timestamp of the last task completion.
+        avg_completion_interval_minutes (float): Average interval between task
+            completions in minutes.
+        last_task_completion_at (Optional[datetime]): Timestamp of the last
+            task completion.
         avg_task_reward (float): Average reward score assigned to tasks.
         total_pauses (int): Total number of pauses recorded.
         avg_pause_minutes (float): Average duration of pauses in minutes.
@@ -82,4 +83,4 @@ class UserBehaviorMetrics(ValueObject):
     # -------------------------------
     # Internal control
     # -------------------------------
-    last_task_completion_at: Optional[datetime] = None
+    last_task_completion_at: datetime | None = None

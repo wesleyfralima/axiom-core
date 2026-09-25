@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 
 class TokenRepository(ABC):
@@ -18,7 +17,7 @@ class TokenRepository(ABC):
         """
 
     @abstractmethod
-    async def load(self) -> Optional[str]:
+    async def load(self) -> str | None:
         """Load the currently stored authentication token.
 
         Returns:

@@ -1,4 +1,4 @@
-from typing import Iterable, List
+from collections.abc import Iterable
 
 
 def ordinal_phrase(n: int) -> str:
@@ -21,7 +21,7 @@ def ordinal_phrase(n: int) -> str:
     special_cases = {
         1: ("first", "last"),
         2: ("second", "second to last"),
-        3: ("third", "3rd from the end")
+        3: ("third", "3rd from the end"),
     }
 
     if abs_n in special_cases:
@@ -55,7 +55,7 @@ def join_naturally(items: Iterable[str]) -> str:
         str: A human-readable string joined with commas and "and".
     """
 
-    items_list: List[str] = list(items)
+    items_list: list[str] = list(items)
     length: int = len(items_list)
 
     if length == 0:
@@ -65,4 +65,4 @@ def join_naturally(items: Iterable[str]) -> str:
     if length == 2:
         return f"{items_list[0]} and {items_list[1]}"
 
-    return f"{', '.join(items_list[:-1])} and {items_list[-1]}"
+    return f"{', '.join(items_list[:-1])}, and {items_list[-1]}"

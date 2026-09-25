@@ -38,8 +38,4 @@ class Context(Entity):
         Returns:
             Context: A new Context entity with the given attributes.
         """
-        return cls(
-            user_id=user_id,
-            name=name,
-            icon=icon
-        )
+        return cls(user_id=user_id, name=name, icon=icon)

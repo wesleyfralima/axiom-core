@@ -1,7 +1,7 @@
-from dataclasses import dataclass, field, fields, is_dataclass, asdict
-from datetime import datetime, timezone
+from dataclasses import dataclass, field, fields, is_dataclass
+from datetime import UTC, datetime
 from enum import Enum
-from typing import Optional, ClassVar, Any, get_origin, get_args
+from typing import Any, ClassVar, get_args, get_origin
 from uuid import UUID
 
 from a_core.ddd.identities import UniqueId
@@ -19,15 +19,15 @@ class DomainEvent:
     id: UniqueId = field(default_factory=lambda: UniqueId())
     """Unique event ID (may ensure idempotency)."""
 
-    occurred_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    occurred_at: datetime = field(default_factory=lambda: datetime.now(UTC))
     """Exact moment when the fact occurred (always stored in UTC at the root level)"""
 
-    correlation_id: Optional[UniqueId] = None
+    correlation_id: UniqueId | None = None
     """Correlation ID allows tracking which command/request originated this event."""
 
     # Metadata constants
     EVENT_VERSION: ClassVar[int] = 1
-    AGGREGATE_TYPE: ClassVar[Optional[str]] = None
+    AGGREGATE_TYPE: ClassVar[str | None] = None
     BASE_FIELDS: ClassVar[set[str]] = {"id", "occurred_at", "correlation_id"}
 
     def event_name(self) -> str:
@@ -48,7 +48,6 @@ class DomainEvent:
         payload: dict[str, Any] = {}
 
         for f in fields(self):
-
             if f.name in self.BASE_FIELDS:
                 continue
 
@@ -86,7 +85,10 @@ class DomainEvent:
             return {k: self._serialize_value(v) for k, v in value.items()}
 
         if is_dataclass(value):
-            return {k: self._serialize_value(v) for k, v in asdict(value).items()}
+            return {
+                f.name: self._serialize_value(getattr(value, f.name))
+                for f in fields(value)
+            }
 
         return str(value)
 
@@ -101,7 +103,6 @@ class DomainEvent:
         kwargs: dict[str, Any] = {}
 
         for f in fields(cls):
-
             if f.name in cls.BASE_FIELDS:
                 continue
 
@@ -161,7 +162,6 @@ class DomainEvent:
         # Complex types (check once)
         # -------------------------
         if isinstance(expected_type, type):
-
             # -------------------------
             # 7. Enum
             # -------------------------
@@ -172,7 +172,6 @@ class DomainEvent:
             # 8. UniqueId (TaskId, UserId etc)
             # -------------------------
             if issubclass(expected_type, UniqueId):
-
                 if isinstance(value, str):
                     return expected_type(UUID(value))
 
@@ -182,12 +181,13 @@ class DomainEvent:
                 return expected_type(value)
 
             # -------------------------
-            # 9. Generic Value Objects
+            # 9. Simple Value Objects
             # -------------------------
-            from a_core import ValueObject
-            if issubclass(expected_type, ValueObject):
+            from a_core import SimpleValueObject
+
+            if issubclass(expected_type, SimpleValueObject):
                 try:
-                    return expected_type(value)  # noqa
+                    return expected_type(value=value)
                 except Exception:  # noqa
                     pass
 

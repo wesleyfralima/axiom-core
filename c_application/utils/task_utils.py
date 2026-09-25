@@ -1,17 +1,23 @@
-from typing import Optional
-
 from b_domain.value_objects.recurrences import RecurrenceRule
 from c_application.utils.string_utils import (
-    ordinal_weekday_phrase,
     join_naturally,
-    ordinal_phrase
+    ordinal_phrase,
+    ordinal_weekday_phrase,
 )
 
 # Invertemos o WEEKDAY_MAP para facilitar a busca por índice
-WEEKDAY_LABELS = {v: k.capitalize() for k, v in {
-    "Monday": 0, "Tuesday": 1, "Wednesday": 2, "Thursday": 3,
-    "Friday": 4, "Saturday": 5, "Sunday": 6
-}.items()}
+WEEKDAY_LABELS = {
+    v: k.capitalize()
+    for k, v in {
+        "Monday": 0,
+        "Tuesday": 1,
+        "Wednesday": 2,
+        "Thursday": 3,
+        "Friday": 4,
+        "Saturday": 5,
+        "Sunday": 6,
+    }.items()
+}
 
 # Invertemos o INTERVALS_MAP ou usamos um mapeamento direto de códigos
 FREQ_INFO = {
@@ -22,7 +28,7 @@ FREQ_INFO = {
 }
 
 
-def format_task_recurrence(recurrence: RecurrenceRule) -> Optional[str]:
+def format_task_recurrence(recurrence: RecurrenceRule) -> str | None:
     """Format a recurrence rule into a human-readable string."""
 
     if not recurrence:
@@ -30,10 +36,10 @@ def format_task_recurrence(recurrence: RecurrenceRule) -> Optional[str]:
 
     # --- 1. Frequência e Intervalo ---
     freq_str: str | None = getattr(recurrence, "frequency", None)
-    unit_singular, unit_plural = FREQ_INFO.get(
-        freq_str,
-        ("period", "periods")
-    )
+    if freq_str is None:
+        return None
+
+    unit_singular, unit_plural = FREQ_INFO.get(freq_str, ("period", "periods"))
 
     interval = recurrence.interval or 1
     if interval == 1:
@@ -46,8 +52,7 @@ def format_task_recurrence(recurrence: RecurrenceRule) -> Optional[str]:
     # --- 2. Dias da Semana ---
     if hasattr(recurrence, "by_week_days") and recurrence.by_week_days:
         days = [
-            f"{WEEKDAY_LABELS.get(d, str(d))}s"
-            for d in sorted(recurrence.by_week_days)
+            f"{WEEKDAY_LABELS.get(d, str(d))}s" for d in sorted(recurrence.by_week_days)
         ]
 
         day_prefix = "on"
@@ -71,7 +76,9 @@ def format_task_recurrence(recurrence: RecurrenceRule) -> Optional[str]:
     if recurrence.count:
         parts.append(f"for {recurrence.count} times")
     elif recurrence.end_date:
-        parts.append(f"until {recurrence.end_date.value:%Y-%m-%d} {recurrence.end_date.timezone}")
+        parts.append(
+            f"until {recurrence.end_date.value:%Y-%m-%d} {recurrence.end_date.timezone}"
+        )
 
     # Unimos tudo com espaços e adicionamos o ponto final
     return " ".join(parts).strip() + "."

@@ -1,15 +1,15 @@
 from abc import ABC, abstractmethod
-from typing import Generic, TypeVar
+from typing import TypeVar
 
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork, UowFactoryType
+from b_domain.ports.unit_of_work import UnitOfWork, UowFactoryType
 
 # Generic types for Use Case Input (Request) and Output (Response)
-TRequest: TypeVar = TypeVar("TRequest")
-TResponse: TypeVar = TypeVar("TResponse")
+TRequest = TypeVar("TRequest")
+TResponse = TypeVar("TResponse")
 
 
-class UseCase(ABC, Generic[TRequest, TResponse]):
+class UseCase[TRequest, TResponse](ABC):
     """Base contract for all application Use Cases.
 
     Enforces that all interaction with the core system (Web, CLI, etc.)
@@ -17,9 +17,9 @@ class UseCase(ABC, Generic[TRequest, TResponse]):
     """
 
     def __init__(
-            self,
-            uow_factory: UowFactoryType,
-            clock: ClockProvider,
+        self,
+        uow_factory: UowFactoryType,
+        clock: ClockProvider,
     ):
         self._uow_factory = uow_factory
         self.clock = clock

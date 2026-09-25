@@ -1,12 +1,12 @@
 import pytest
 
 from a_core.exceptions import ValidationException
-from b_domain.value_objects import Title, Description
-
+from b_domain.value_objects import Description, Title
 
 # ============================================================
 # Fixtures
 # ============================================================
+
 
 @pytest.fixture
 def valid_title() -> Title:
@@ -23,6 +23,7 @@ def valid_description() -> Description:
 # ============================================================
 # Group 1: Title Creation and Validation
 # ============================================================
+
 
 @pytest.mark.unit
 def test_title_create_with_valid_value(valid_title: Title) -> None:
@@ -76,6 +77,7 @@ def test_title_must_have_at_least_three_non_whitespace_chars() -> None:
 # Group 2: Title Equality and String Behavior
 # ============================================================
 
+
 @pytest.mark.unit
 def test_title_equality_with_same_title_object(valid_title: Title) -> None:
     """Ensure Title objects with same value are equal."""
@@ -109,6 +111,7 @@ def test_title_string_representation(valid_title: Title) -> None:
 # Group 3: Description Creation and Validation
 # ============================================================
 
+
 @pytest.mark.unit
 def test_description_create_with_valid_value(valid_description: Description) -> None:
     """Ensure Description is created successfully with valid content."""
@@ -119,15 +122,18 @@ def test_description_create_with_valid_value(valid_description: Description) -> 
 
 @pytest.mark.unit
 def test_description_empty_param() -> None:
-    """Ensure Description is accepted based on empty params (no param, None, and empty str)."""
+    """
+    Ensure Description is accepted based on
+    empty params (no param, None, and empty str).
+    """
 
     description: Description = Description(None)
     assert description.value is None
 
-    description: Description = Description()
+    description = Description()
     assert description.value is None
 
-    description: Description = Description("")
+    description = Description("")
     assert description.value == ""
 
 
@@ -144,8 +150,11 @@ def test_description_cannot_exceed_max_length() -> None:
 # Group 4: Description Equality and String Behavior
 # ============================================================
 
+
 @pytest.mark.unit
-def test_description_equality_with_same_description_object(valid_description: Description) -> None:
+def test_description_equality_with_same_description_object(
+    valid_description: Description,
+) -> None:
     """Ensure Description objects with same value are equal."""
 
     other: Description = Description("This is a valid description.")
@@ -155,19 +164,18 @@ def test_description_equality_with_same_description_object(valid_description: De
 @pytest.mark.unit
 def test_description_equality_with_string(valid_description: Description) -> None:
     """Ensure Description can be compared directly with a string."""
-
     assert valid_description == "This is a valid description."
 
 
 @pytest.mark.unit
-def test_description_inequality_with_different_value(valid_description: Description) -> None:
+def test_description_inequality_with_different_value(
+    valid_description: Description,
+) -> None:
     """Ensure Description is not equal to different string values."""
-
     assert valid_description != "Another description"
 
 
 @pytest.mark.unit
 def test_description_string_representation(valid_description: Description) -> None:
     """Ensure __str__ returns the raw description value."""
-
     assert str(valid_description) == "This is a valid description."

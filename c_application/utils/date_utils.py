@@ -1,14 +1,13 @@
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime, tzinfo
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def adjust_date_semantics(
-        dt_utc: Optional[datetime],
-        is_floating: bool,
-        user_tz_str: str
-) -> Optional[datetime]:
-    """Adjust date semantics based on task type.
+    dt_utc: datetime | None,
+    is_floating: bool,
+    user_tz_str: str,
+) -> datetime | None:
+    """Adjust date semantics based on type.
 
     - If `is_floating=True`: Converts the UTC datetime to the user's local
       timezone and removes tzinfo, making it naive (wall-clock time).
@@ -27,30 +26,27 @@ def adjust_date_semantics(
     if not dt_utc:
         return None
 
-    try:
-        tz = ZoneInfo(user_tz_str)
-    except ZoneInfoNotFoundError:
-        tz = timezone.utc
+    tz: ZoneInfo | tzinfo = _get_local_tz_obj(user_tz_str)
 
     if is_floating:
         # Garante que dt_utc seja aware antes de converter para local
-        temp_dt = dt_utc if dt_utc.tzinfo else dt_utc.replace(tzinfo=timezone.utc)
-        local_dt = temp_dt.astimezone(tz)
+        temp_dt: datetime = dt_utc if dt_utc.tzinfo else dt_utc.replace(tzinfo=UTC)
+        local_dt: datetime = temp_dt.astimezone(tz)
         return local_dt.replace(tzinfo=None)
 
     # Para tarefas fixas, garante que o retorno seja sempre aware UTC
     if dt_utc.tzinfo is None:
-        return dt_utc.replace(tzinfo=timezone.utc)
+        return dt_utc.replace(tzinfo=UTC)
 
-    return dt_utc.astimezone(timezone.utc)
+    return dt_utc.astimezone(UTC)
 
 
 def normalize_datetime(
-        date_str: Optional[str],
-        *,
-        tz_local: str = "UTC",
-        assume_end_of_day: bool = True,
-) -> Optional[datetime]:
+    date_str: str | None,
+    *,
+    tz_local: str = "UTC",
+    assume_end_of_day: bool = True,
+) -> datetime | None:
     """Normalize a date string into a datetime object.
 
     Interprets a date string in ISO format. If both date and time are
@@ -72,7 +68,9 @@ def normalize_datetime(
 
     # 1. Initial parse
     try:
-        dt = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+        dt: datetime = datetime.fromisoformat(
+            date_str.replace("Z", "+00:00"),
+        )
     except ValueError:
         return None
 
@@ -83,13 +81,16 @@ def normalize_datetime(
     # 3. Convert to UTC
     # Se a string já veio com timezone, apenas converte para UTC
     if dt.tzinfo is not None:
-        return dt.astimezone(timezone.utc)
+        return dt.astimezone(UTC)
 
     # Caso contrário, trata como local e converte
     return local_to_utc(local_dt=dt, tz_local=tz_local)
 
 
-def local_to_utc(local_dt: datetime, tz_local: str) -> datetime:
+def local_to_utc(
+    local_dt: datetime,
+    tz_local: str,
+) -> datetime:
     """Convert a local datetime to UTC.
 
     Args:
@@ -100,19 +101,19 @@ def local_to_utc(local_dt: datetime, tz_local: str) -> datetime:
         datetime: UTC-aware datetime.
     """
 
-    try:
-        local_tz_obj = ZoneInfo(tz_local)
-    except ZoneInfoNotFoundError:
-        local_tz_obj = timezone.utc
+    local_tz_obj: ZoneInfo | tzinfo = _get_local_tz_obj(tz_local)
 
     # If datetime is naive, apply local timezone
     if local_dt.tzinfo is None:
         local_dt = local_dt.replace(tzinfo=local_tz_obj)
 
-    return local_dt.astimezone(timezone.utc)
+    return local_dt.astimezone(UTC)
 
 
-def utc_to_local(utc_dt: datetime, tz_local: str = "UTC") -> datetime:
+def utc_to_local(
+    utc_dt: datetime,
+    tz_local: str = "UTC",
+) -> datetime:
     """Convert a UTC datetime to a local timezone.
 
     Args:
@@ -123,13 +124,20 @@ def utc_to_local(utc_dt: datetime, tz_local: str = "UTC") -> datetime:
         datetime: Local timezone-aware datetime.
     """
 
-    try:
-        local_tz_obj = ZoneInfo(tz_local)
-    except ZoneInfoNotFoundError:
-        local_tz_obj = timezone.utc
-
     # If datetime is naive, apply local timezone
     if utc_dt.tzinfo is None:
-        utc_dt = utc_dt.replace(tzinfo=timezone.utc)
+        utc_dt = utc_dt.replace(tzinfo=UTC)
 
+    local_tz_obj: ZoneInfo | tzinfo = _get_local_tz_obj(tz_local)
     return utc_dt.astimezone(local_tz_obj)
+
+
+def _get_local_tz_obj(tz_local: str) -> ZoneInfo | tzinfo:
+    """
+    Get local timezone object based on IANA timezone string.
+    Returns UTC tzinfo object if any exception occurs.
+    """
+    try:
+        return ZoneInfo(tz_local)
+    except ZoneInfoNotFoundError:
+        return UTC

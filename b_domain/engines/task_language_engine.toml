@@ -1,0 +1,204 @@
+[archetypes.DEEP_WORK]
+energy = "HIGH"
+complexity = "VERY_HIGH"
+base_duration = 60
+weight = 3
+
+[archetypes.LEARNING]
+energy = "HIGH"
+complexity = "MEDIUM"
+base_duration = 45
+weight = 2
+
+[archetypes.ADMIN]
+energy = "LOW"
+complexity = "VERY_LOW"
+base_duration = 15
+weight = 1
+
+[archetypes.MEETING]
+energy = "BALANCED"
+complexity = "MEDIUM"
+base_duration = 30
+weight = 1
+
+[archetypes.MAINTENANCE]
+energy = "BALANCED"
+complexity = "LOW"
+base_duration = 20
+weight = 1
+
+[archetypes.CREATIVE]
+energy = "HIGH"
+complexity = "HIGH"
+base_duration = 50
+weight = 2
+
+[archetypes.COMMUNICATION]
+energy = "BALANCED"
+complexity = "MEDIUM"
+base_duration = 25
+weight = 1
+
+[archetypes.PLANNING]
+energy = "BALANCED"
+complexity = "HIGH"
+base_duration = 40
+weight = 1
+
+[archetypes.SUPPORT]
+energy = "LOW"
+complexity = "MEDIUM"
+base_duration = 20
+weight = 1
+
+
+[lexicons.pt]
+DEEP_WORK = "(codar|programar|desenvolver|refatorar|build|criar)"
+LEARNING = "(estudar|aprender|ler|revisar|pesquisar|documentação)"
+ADMIN = "(pagar|comprar|boleto|nota|fiscal|enviar|responder|email|e-mail)"
+MEETING = "(reunião|call|sync|feedback|alinhamento|daily)"
+MAINTENANCE = "(limpar|organizar|arrumar|lavar|louça|casa)"
+CREATIVE = "(escrever|redigir|criar|design|desenhar|pintar|ilustrar)"
+COMMUNICATION = "(ligar|telefonar|mensagem|comunicar|avisar|informar)"
+PLANNING = "(planejar|estratégia|agenda|cronograma|organizar|mapear)"
+SUPPORT = "(ajudar|suporte|assistir|auxiliar|colaborar)"
+
+[lexicons.en]
+DEEP_WORK = "(code|develop|refactor|build|create|programming)"
+LEARNING = "(study|learn|read|review|research|docs)"
+ADMIN = "(pay|buy|invoice|bill|send|reply|email|e-mail)"
+MEETING = "(meeting|call|sync|feedback|alignment|daily)"
+MAINTENANCE = "(clean|organize|fix|wash|dishes|house)"
+CREATIVE = "(write|draft|create|design|draw|paint|illustrate)"
+COMMUNICATION = "(call|phone|message|communicate|notify|inform)"
+PLANNING = "(plan|strategy|schedule|organize|map|arrange)"
+SUPPORT = "(help|support|assist|aid|collaborate)"
+
+
+[modifiers.pt."(rápido|vapt-vupt|fast)"]
+duration_mult = 0.5
+
+[modifiers.pt."(longo|detalhado|devagar)"]
+duration_mult = 1.6
+
+[modifiers.pt."(difícil|complexo|pesado|hard)"]
+complexity_shift = 1
+energy_shift = 1
+
+[modifiers.pt."(fácil|simples|bobagem|easy)"]
+complexity_shift = -1
+energy_shift = -1
+
+[modifiers.pt."(urgente|crítico)"]
+energy_shift = 1
+duration_mult = 0.8
+
+[modifiers.pt."(rápda reunião|call curto)"]
+duration_mult = 0.7
+
+[modifiers.pt."(brainstorm|ideação)"]
+energy_shift = 1
+complexity_shift = 1
+
+
+[modifiers.en."(quick|fast)"]
+duration_mult = 0.5
+
+[modifiers.en."(hard|complex|heavy)"]
+complexity_shift = 1
+energy_shift = 1
+
+[modifiers.en."(easy|simple)"]
+complexity_shift = -1
+energy_shift = -1
+
+[modifiers.en."(quick meeting|short call)"]
+duration_mult = 0.7
+
+[modifiers.en."(brainstorm|ideation)"]
+energy_shift = 1
+complexity_shift = 1
+
+
+[priority_map]
+"!" = "LOW"
+"!!" = "MEDIUM"
+"!!!" = "HIGH"
+"!!!!" = "CRITICAL"
+"p0" = "CRITICAL"
+"p1" = "HIGH"
+"p2" = "MEDIUM"
+"p3" = "LOW"
+"p4" = "LOW"
+"critico" = "CRITICAL"
+"crítico" = "CRITICAL"
+"urgente" = "CRITICAL"
+"alta" = "HIGH"
+"media" = "MEDIUM"
+"médio" = "MEDIUM"
+"normal" = "MEDIUM"
+"baixa" = "LOW"
+"baixo" = "LOW"
+"blocker" = "CRITICAL"
+"critical" = "CRITICAL"
+"urgent" = "CRITICAL"
+"high" = "HIGH"
+"important" = "HIGH"
+"medium" = "MEDIUM"
+"standard" = "MEDIUM"
+"low" = "LOW"
+"minor" = "LOW"
+"optional" = "LOW"
+
+
+[date_words.pt]
+"hoje" = "today"
+"ainda hoje" = "today"
+"hoje mesmo" = "today"
+"hoje cedo" = "today_morning"
+"hoje à tarde" = "today_afternoon"
+"hoje a tarde" = "today_afternoon"
+"hoje à noite" = "today_night"
+"hoje a noite" = "today_night"
+"esta manhã" = "today_morning"
+"esta tarde" = "today_afternoon"
+"esta noite" = "today_night"
+"amanhã" = "tomorrow"
+"amanha" = "tomorrow"
+"amanhã cedo" = "tomorrow_morning"
+"amanhã à tarde" = "tomorrow_afternoon"
+"amanhã a tarde" = "tomorrow_afternoon"
+"amanhã à noite" = "tomorrow_night"
+"amanhã a noite" = "tomorrow_night"
+"depois de amanhã" = "day_after_tomorrow"
+"depois de amanha" = "day_after_tomorrow"
+"ontem" = "yesterday"
+"anteontem" = "day_before_yesterday"
+"depois" = "later"
+"mais tarde" = "later"
+"daqui a pouco" = "soon"
+"em breve" = "soon"
+"esta semana" = "this_week"
+"semana que vem" = "next_week"
+"este mês" = "this_month"
+"mês que vem" = "next_month"
+
+[date_words.en]
+"today" = "today"
+"still today" = "today"
+"this morning" = "today_morning"
+"this afternoon" = "today_afternoon"
+"this evening" = "today_night"
+"tomorrow" = "tomorrow"
+"tomorrow morning" = "tomorrow_morning"
+"tomorrow afternoon" = "tomorrow_afternoon"
+"tomorrow evening" = "tomorrow_night"
+"day after tomorrow" = "day_after_tomorrow"
+"yesterday" = "yesterday"
+"later" = "later"
+"soon" = "soon"
+"this week" = "this_week"
+"next week" = "next_week"
+"this month" = "this_month"
+"next month" = "next_month"

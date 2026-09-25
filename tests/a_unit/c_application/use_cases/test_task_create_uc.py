@@ -1,13 +1,13 @@
-from datetime import datetime, timezone, timedelta
-from uuid import uuid4, UUID
+from datetime import UTC, datetime, timedelta
+from uuid import UUID, uuid4
 
 import pytest
 
 from a_core import ValidationException
-from b_domain.entities import User, UserPrefs, Task
+from b_domain.entities import Task, User, UserPrefs
 from b_domain.value_objects import ContextId, RecurrenceInterval, TaskId, Title
+from c_application.dtos import CreateTaskInputDTO
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
-from c_application.dtos.task_dtos import CreateTaskInputDTO
 from c_application.use_cases import CreateTaskUseCase
 
 
@@ -49,12 +49,10 @@ async def test_create_task_successfully(fake_clock, fake_uow_factory):
 async def test_create_task_fails_if_title_is_invalid(use_case_context):
     # Setup com título que viola a regra do VO Title (ex: vazio ou muito curto)
     use_case = CreateTaskUseCase(**use_case_context)
-    dto = CreateTaskInputDTO(
-        user_id=str(uuid4()),
-        title=""
-    )
+    dto = CreateTaskInputDTO(user_id=str(uuid4()), title="")
 
-    # O Use Case deve capturar o erro do VO e relançar como ValidationException ou DomainException
+    # O Use Case deve capturar o erro do VO e relançar
+    # como ValidationException ou DomainException
     with pytest.raises(ValidationException):
         await use_case.execute(dto)
 
@@ -65,7 +63,7 @@ async def test_create_task_fails_if_user_not_found(use_case_context, fake_uow_fa
     use_case = CreateTaskUseCase(**use_case_context)
     dto = CreateTaskInputDTO(
         user_id=str(uuid4()),  # ID aleatório que não está no fake_uow
-        title="Tarefa Fantasma"
+        title="Tarefa Fantasma",
     )
 
     with pytest.raises(ValidationException, match="not found"):
@@ -74,7 +72,9 @@ async def test_create_task_fails_if_user_not_found(use_case_context, fake_uow_fa
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_inherits_active_context_from_user(use_case_context, fake_uow_factory):
+async def test_create_task_inherits_active_context_from_user(
+    use_case_context, fake_uow_factory
+):
     # 1. Setup: Usuário com contexto ativo "Trabalho"
     work_context_id: ContextId = ContextId(uuid4())
     prefs = UserPrefs(active_context_id=work_context_id)
@@ -84,9 +84,7 @@ async def test_create_task_inherits_active_context_from_user(use_case_context, f
 
     # DTO sem contexto explícito
     dto = CreateTaskInputDTO(
-        user_id=str(user.id),
-        title="Revisão de PR",
-        context_id=None
+        user_id=str(user.id), title="Revisão de PR", context_id=None
     )
 
     # 2. Execução
@@ -101,19 +99,23 @@ async def test_create_task_inherits_active_context_from_user(use_case_context, f
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_with_recurrence_calculates_initial_due_date(use_case_context, fake_uow_factory):
+async def test_create_task_with_recurrence_calculates_initial_due_date(
+    use_case_context, fake_uow_factory
+):
     clock = use_case_context["clock"]
     user = User.create(username="wesley", email="wesley@test.com")
     await fake_uow_factory().users.add(user)
 
     # DTO de recorrência diária
-    recurrence_dto = RecurrenceInputDTO(frequency=RecurrenceInterval.DAILY, interval=1, start_date=clock.now())
+    recurrence_dto = RecurrenceInputDTO(
+        frequency=RecurrenceInterval.DAILY, interval=1, start_date=clock.now()
+    )
 
     dto = CreateTaskInputDTO(
         user_id=str(user.id),
         title="Meditar",
         due_date=None,  # Deixamos vazio para o motor calcular
-        recurrence=recurrence_dto
+        recurrence=recurrence_dto,
     )
 
     # 2. Execução
@@ -132,13 +134,17 @@ async def test_create_task_with_recurrence_calculates_initial_due_date(use_case_
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_context, fake_uow_factory):
+async def test_create_task_fails_if_parent_belongs_to_another_user(
+    use_case_context, fake_uow_factory
+):
     clock = use_case_context["clock"]
     wesley = User.create(username="wesley", email="wesley@test.com")
     outro = User.create(username="outro", email="outro@test.com")
 
     # Tarefa que pertence ao 'outro'
-    task_do_outro = Task.create(title=Title("Tarefa Secreta"), user_id=outro.id, now=clock.now())
+    task_do_outro = Task.create(
+        title=Title("Tarefa Secreta"), user_id=outro.id, now=clock.now()
+    )
 
     async with fake_uow_factory() as uow:
         await uow.users.add(wesley)
@@ -158,7 +164,9 @@ async def test_create_task_fails_if_parent_belongs_to_another_user(use_case_cont
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_floating_task_inherits_timezone_from_user_prefs(use_case_context, fake_uow_factory):
+async def test_create_floating_task_inherits_timezone_from_user_prefs(
+    use_case_context, fake_uow_factory
+):
     clock = use_case_context["clock"]
     # Floating must not have a timezone
     now = clock.now().replace(tzinfo=None)
@@ -189,7 +197,7 @@ async def test_create_floating_task_inherits_timezone_from_user_prefs(use_case_c
 async def test_create_fixed_task_user_utc(use_case_context, fake_uow_factory):
     clock = use_case_context["clock"]
     # Floating must have UTC timezone
-    now = clock.now().replace(tzinfo=timezone.utc)
+    now = clock.now().replace(tzinfo=UTC)
 
     prefs = UserPrefs(timezone="America/Sao_Paulo")
     user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
@@ -214,7 +222,9 @@ async def test_create_fixed_task_user_utc(use_case_context, fake_uow_factory):
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_type(use_case_context, fake_uow_factory):
+async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_type(
+    use_case_context, fake_uow_factory
+):
     """
     Valida que o Use Case tem sucesso se tentarmos criar uma tarefa flutuante (naive)
     mas passarmos um end_date com fuso horário (aware) na recorrência.
@@ -225,23 +235,23 @@ async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_ty
 
     assert user.id is not None
 
-    # Tarefa Flutuante (is_floating=True) -> Deve ser Naive
+    # Tarefa Flutuante (is_floating=True) → Deve ser Naive
     # Mas enviamos um end_date Aware (com UTC)
-    end_date_aware = datetime.now(timezone.utc) + timedelta(days=30)
-    start_date_naive = datetime.now(timezone.utc).replace(tzinfo=None)
+    end_date_aware = datetime.now(UTC) + timedelta(days=30)
+    start_date_naive = datetime.now(UTC).replace(tzinfo=None)
 
     recurrence_dto = RecurrenceInputDTO(
         frequency=RecurrenceInterval.DAILY,
         interval=1,
         start_date=start_date_naive,
-        end_date=end_date_aware
+        end_date=end_date_aware,
     )
 
     dto = CreateTaskInputDTO(
         user_id=str(user.id),
         title="Estudar Consciência de Datas",
         is_floating=True,
-        recurrence=recurrence_dto
+        recurrence=recurrence_dto,
     )
 
     use_case = CreateTaskUseCase(**use_case_context)

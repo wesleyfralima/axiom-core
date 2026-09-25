@@ -1,5 +1,6 @@
+import builtins
 from abc import ABC, abstractmethod
-from typing import Iterable, List, Optional
+from collections.abc import Iterable
 
 from a_core import BaseRepository, IdPrefix, tracks_entity
 from b_domain.entities import Task
@@ -38,7 +39,7 @@ class TaskRepository(ABC, BaseRepository):
         """
 
     @abstractmethod
-    async def update_many(self, tasks: List[Task]) -> List[Task]:
+    async def update_many(self, tasks: list[Task]) -> list[Task]:
         """Update multiple tasks in a single persistence operation.
 
         Useful for cascading effects such as unlocking dependencies.
@@ -60,7 +61,9 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def get_by_id(self, task_id: TaskId, user_id: Optional[UserId] = None) -> Optional[Task]:
+    async def get_by_id(
+        self, task_id: TaskId, user_id: UserId | None = None
+    ) -> Task | None:
         """Retrieve a task by its exact ID.
 
         If user_id is provided, the repository must ensure the task belongs
@@ -76,7 +79,7 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def list(self, filters: TaskFilter) -> List[Task]:
+    async def list(self, filters: TaskFilter) -> list[Task]:
         """Return a paginated list of tasks based on provided filters.
 
         Implementations MUST respect the `limit` and `offset` attributes
@@ -106,7 +109,9 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def get_subtasks(self, parent_id: TaskId, limit: int = 100, offset: int = 0) -> List[Task]:
+    async def get_subtasks(
+        self, parent_id: TaskId, limit: int = 100, offset: int = 0
+    ) -> builtins.list[Task]:
         """Retrieve direct children of a task.
 
         Includes basic pagination to protect the system from massive subtask lists.
@@ -122,7 +127,9 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def find_by_id_prefix(self, id_prefix: IdPrefix, user_id: UserId = None) -> List[Task]:
+    async def find_by_id_prefix(
+        self, id_prefix: IdPrefix, user_id: UserId | None = None
+    ) -> builtins.list[Task]:
         """Find tasks by matching an ID prefix.
 
         Args:
@@ -135,7 +142,7 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def find_tasks_blocked_by(self, target_id: TaskId) -> List[Task]:
+    async def find_tasks_blocked_by(self, target_id: TaskId) -> builtins.list[Task]:
         """Retrieve all tasks that depend on the given task ID.
 
         Args:
@@ -146,7 +153,9 @@ class TaskRepository(ABC, BaseRepository):
         """
 
     @abstractmethod
-    async def task_ids_from_id_prefixes(self, partial_ids: Iterable[IdPrefix]) -> List[TaskId]:
+    async def task_ids_from_id_prefixes(
+        self, partial_ids: Iterable[IdPrefix]
+    ) -> builtins.list[TaskId]:
         """Retrieve TaskId objects from a list of ID prefixes.
 
         This method resolves each provided `IdPrefix` into its corresponding

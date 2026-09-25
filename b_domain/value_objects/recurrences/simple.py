@@ -1,13 +1,14 @@
 import calendar
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from b_domain.value_objects.enums import RecurrenceInterval
 from b_domain.value_objects.recurrences import RecurrenceRule
 
 
-def add_months(source_date: datetime, months: int, target_day: Optional[int] = None) -> datetime:
+def add_months(
+    source_date: datetime, months: int, target_day: int | None = None
+) -> datetime:
     """Add months to a given date, handling end-of-month overflows.
 
     Args:
@@ -17,7 +18,8 @@ def add_months(source_date: datetime, months: int, target_day: Optional[int] = N
             If None, defaults to the day of `source_date`.
 
     Returns:
-        datetime: The adjusted date, clamped to the last valid day of the target month if necessary.
+        datetime: The adjusted date, clamped to the last
+            valid day of the target month if necessary.
 
     Example:
         >>> add_months(datetime(2026, 1, 31), 1)
@@ -25,7 +27,8 @@ def add_months(source_date: datetime, months: int, target_day: Optional[int] = N
     """
     month: int = source_date.month - 1 + months
     year: int = source_date.year + month // 12
-    month: int = month % 12 + 1
+
+    month = month % 12 + 1
 
     days_in_new_month: int = calendar.monthrange(year, month)[1]
     original_day_preference: int = target_day if target_day else source_date.day
@@ -42,13 +45,15 @@ class SimpleIntervalRule(RecurrenceRule):
     or "every month on the exact same numerical day".
 
     Attributes:
-        frequency (RecurrenceInterval): The unit of the interval (HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY).
+        frequency (RecurrenceInterval): The unit of the interval
+            (HOURLY, DAILY, WEEKLY, MONTHLY, YEARLY).
     """
 
     frequency: RecurrenceInterval
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Initialize frequency mapping for RRULE string."""
+
         super().__post_init__()
 
         freq_map = {
@@ -69,7 +74,9 @@ class SimpleIntervalRule(RecurrenceRule):
         """
         return self.start_date.materialize()
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the exact next occurrence by adding the interval unit.
 
         Args:
@@ -122,8 +129,8 @@ class SimpleIntervalRule(RecurrenceRule):
             dt = current + timedelta(weeks=self.interval)
 
         elif self.frequency == RecurrenceInterval.MONTHLY:
-            # Preserve the original day of start_date as anchor to avoid date degradation
-            # (e.g., Jan 31 -> Feb 28 -> back to 31 in March).
+            # Preserve the original day of start_date as anchor to avoid date
+            # degradation (e.g., Jan 31 -> Feb 28 -> back to 31 in March).
             dt = add_months(current, self.interval, target_day=base_dt.day)
 
         elif self.frequency == RecurrenceInterval.YEARLY:

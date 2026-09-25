@@ -1,12 +1,14 @@
-from typing import TypeVar, Type
+from typing import overload
 
 from b_domain.entities.user import User, UserPrefs
-from c_application.dtos.user_dtos import UserOutputDTO, UserPrefsInputDTO, UserPrefsOutputDTO
+from c_application.dtos.user_dtos import (
+    UserOutputDTO,
+    UserPrefsInputDTO,
+    UserPrefsOutputDTO,
+)
 
-TUserDTO = TypeVar('TUserDTO', bound=UserOutputDTO)
 
-
-class UserMapper:
+class UserMapper[D: UserOutputDTO]:
     """Centralized mapper for User transformations.
 
     This class decouples the User Domain Entity from the application DTOs.
@@ -14,12 +16,32 @@ class UserMapper:
     ensuring a clean separation between layers.
     """
 
+    # 1. Quando nenhum dto_class é passado,
+    # retorna estritamente UserOutputDTO
+    @overload
     @staticmethod
     def to_output(
-            user: User,
-            *,
-            dto_class: Type[TUserDTO] = UserOutputDTO,
-    ) -> TUserDTO:
+        user: User,
+    ) -> UserOutputDTO:
+        pass
+
+    # 2. Quando um dto_class específico (subclasse)
+    # é passado, retorna o tipo dessa subclasse
+    @overload
+    @staticmethod
+    def to_output(
+        user: User,
+        *,
+        dto_class: type[D],
+    ) -> D:
+        pass
+
+    @staticmethod
+    def to_output(
+        user: User,
+        *,
+        dto_class: type[UserOutputDTO] = UserOutputDTO,
+    ) -> UserOutputDTO:
         """Map a User entity to a UserOutputDTO.
 
         Args:

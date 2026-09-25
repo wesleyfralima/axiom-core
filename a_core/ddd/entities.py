@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import Any
 
 from a_core.ddd.events import DomainEvent
@@ -16,11 +16,15 @@ class Entity:
     """
 
     id: UniqueId = field(default_factory=lambda: UniqueId())
-    created_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
-    updated_at: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    created_at: datetime = field(default_factory=lambda: datetime.now(UTC))
+    updated_at: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     # Internal list of unpublished domain events
-    _domain_events: list[DomainEvent] = field(default_factory=list, repr=False, init=False)
+    _domain_events: list[DomainEvent] = field(
+        default_factory=list,
+        repr=False,
+        init=False,
+    )
 
     def __eq__(self, other: Any) -> bool:
         """Entities are considered equal if they share the same business ID.

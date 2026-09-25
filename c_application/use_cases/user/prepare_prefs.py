@@ -15,6 +15,7 @@ class PrepareUserPreferencesInputDTO(DTO):
     Attributes:
         username (str): The username whose preferences will be prepared.
     """
+
     username: str
 
 
@@ -30,6 +31,7 @@ class PrepareUserPreferencesOutputDTO(DTO):
         message (str): Status message confirming preparation.
             Defaults to "preferences_prepared".
     """
+
     preferences: UserPrefsOutputDTO
     message: str = "preferences_prepared"
 
@@ -45,8 +47,8 @@ class PrepareUserPreferencesUseCase(
     """
 
     async def execute(
-            self,
-            request: PrepareUserPreferencesInputDTO,
+        self,
+        request: PrepareUserPreferencesInputDTO,
     ) -> PrepareUserPreferencesOutputDTO:
         async with self.uow as uow:
             user: User | None = await uow.users.get_by_username(request.username)

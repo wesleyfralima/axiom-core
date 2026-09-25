@@ -1,5 +1,4 @@
 from dataclasses import dataclass, field
-from typing import Dict
 
 from a_core import DTO
 from b_domain.entities import User
@@ -21,6 +20,7 @@ class LoginInputDTO(DTO):
         password (str): The raw password provided by the user.
             Marked as `repr=False` to avoid accidental logging.
     """
+
     username: str
     password: str = field(repr=False)
 
@@ -36,6 +36,7 @@ class LoginOutputDTO(DTO):
         access_token (str): The JWT access token issued to the user.
         token_type (str): The type of token, typically "bearer".
     """
+
     access_token: str
     token_type: str = "bearer"
 
@@ -50,16 +51,17 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
     """
 
     def __init__(
-            self,
-            uow_factory: UowFactoryType,
-            clock: ClockProvider,
-            hasher: PasswordHasher,
-            token_provider: TokenProvider,
+        self,
+        uow_factory: UowFactoryType,
+        clock: ClockProvider,
+        hasher: PasswordHasher,
+        token_provider: TokenProvider,
     ):
         """Initialize the authentication use case.
 
         Args:
-            uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
+            uow_factory (UowFactoryType): Unit of Work factory for managing
+                repositories and transactions.
             clock (ClockProvider): Provides current time for token claims.
             hasher (PasswordHasher): Service for verifying password hashes securely.
             token_provider (TokenProvider): Service for generating JWT access tokens.
@@ -84,7 +86,8 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
             LoginOutputDTO: Output containing the access token and token type.
 
         Raises:
-            InvalidCredentialsError: If the username does not exist or the password is invalid.
+            InvalidCredentialsError: If the username does not exist or the
+                password is invalid.
         """
 
         async with self.uow as uow:
@@ -92,13 +95,16 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
             # 1. Identity lookup
             user: User | None = await uow.users.get_by_username(dto.username)
 
+            if not user or not user.password_hash:
+                raise InvalidCredentialsError()
+
             # 2. Security validation
-            if not user or not self.hasher.verify(dto.password, user.password_hash):
+            if not self.hasher.verify(dto.password, user.password_hash):
                 # Generic error to prevent user enumeration
                 raise InvalidCredentialsError()
 
             # 3. JWT payload
-            payload: Dict[str, str] = {
+            payload: dict[str, str] = {
                 "sub": str(user.id),  # Subject claim (user ID)
                 "username": user.username,
                 "iat": str(int(self.clock.now().timestamp())),  # Issued At
@@ -107,7 +113,4 @@ class LoginUseCase(UseCase[LoginInputDTO, LoginOutputDTO]):
         # 4. Token generation
         token: str = self.token_provider.create_access_token(payload)
 
-        return LoginOutputDTO(
-            access_token=token,
-            token_type="bearer"
-        )
+        return LoginOutputDTO(access_token=token, token_type="bearer")

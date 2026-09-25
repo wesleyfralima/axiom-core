@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import Optional
 
 from b_domain.entities.task import Task
 from b_domain.value_objects.identifiers import ContextId
@@ -15,10 +14,10 @@ class TaskMapper:
 
     @staticmethod
     def to_output(
-            task: Task,
-            now: datetime,
-            occurrences_count: int = 5,
-            active_context_id: Optional[ContextId] = None
+        task: Task,
+        now: datetime,
+        occurrences_count: int = 5,
+        active_context_id: ContextId | None = None,
     ) -> TaskOutputDTO:
         """Maps a Domain Task entity to a TaskOutputDTO for the outside world."""
         return TaskOutputDTO(
@@ -29,14 +28,21 @@ class TaskMapper:
             priority=task.priority.name,
             required_energy_level=task.required_energy_level.value,
             due_date=task.due_date.value if task.due_date else None,
-            is_overdue=task.due_date.is_overdue(now),
+            is_overdue=task.due_date.is_overdue(now) if task.due_date else False,
             parent_id=str(task.parent_id) if task.parent_id else None,
             created_at=task.created_at,
             updated_at=task.updated_at,
-            recurrence_display=format_task_recurrence(task.recurrence),
-            next_occurrences=task.recurrence.get_next_n_occurrences(
-                n=occurrences_count,
-                start_from=now
-            ) if task.recurrence else [],
-            is_in_focus=(task.context_id == active_context_id) if active_context_id else True,
+            recurrence_display=(
+                format_task_recurrence(task.recurrence) if task.recurrence else None
+            ),
+            next_occurrences=(
+                task.recurrence.get_next_n_occurrences(
+                    n=occurrences_count, start_from=now
+                )
+                if task.recurrence
+                else []
+            ),
+            is_in_focus=(
+                (task.context_id == active_context_id) if active_context_id else True
+            ),
         )

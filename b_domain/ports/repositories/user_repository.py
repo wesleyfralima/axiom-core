@@ -1,5 +1,5 @@
-from abc import abstractmethod, ABC
-from typing import List, Optional
+from abc import ABC, abstractmethod
+from typing import Optional
 
 from a_core import BaseRepository, tracks_entity
 from b_domain.entities import User
@@ -68,7 +68,7 @@ class UserRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def get_by_email(self, email: str) -> Optional[User]:
+    async def get_by_email(self, email: str) -> User | None:
         """Retrieve a user by their email address.
 
         Args:
@@ -77,7 +77,7 @@ class UserRepository(ABC, BaseRepository):
 
     @abstractmethod
     @tracks_entity
-    async def list(self, filters: "UserFilter") -> List["User"]:
+    async def list(self, filters: "UserFilter") -> list["User"]:
         """Return a paginated list of users based on provided filters.
 
         The implementation MUST respect the `limit` and `offset` attributes

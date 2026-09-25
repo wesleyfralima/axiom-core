@@ -1,7 +1,9 @@
+from .calendar_provider import CalendarProvider
 from .clock_provider import ClockProvider
 from .token_provider import TokenProvider
 
 __all__ = [
+    "CalendarProvider",
     "ClockProvider",
     "TokenProvider",
 ]

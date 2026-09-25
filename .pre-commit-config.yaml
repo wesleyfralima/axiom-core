@@ -1,0 +1,31 @@
+# Hooks locais: usam as MESMAS versões do pyproject.toml (o .venv do repo), para o
+# pre-commit nunca discordar do `make check`.
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: end-of-file-fixer
+      - id: trailing-whitespace
+
+  - repo: local
+    hooks:
+      - id: black
+        name: black
+        entry: .venv/bin/black
+        language: system
+        types: [python]
+
+      - id: ruff
+        name: ruff
+        entry: .venv/bin/ruff check --fix
+        language: system
+        types: [python]
+
+      - id: mypy
+        name: mypy
+        entry: .venv/bin/mypy a_core b_domain c_application
+        language: system
+        types: [python]
+        pass_filenames: false

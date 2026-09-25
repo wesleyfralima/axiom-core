@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.1.0"
-description = "Core domain and application rules for Axiom Task Manager"
+version = "0.2.0"
+description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
 
@@ -19,7 +19,53 @@ pytest = "^8.0.0"
 pytest-asyncio = "^0.23.0"
 mypy = "^1.8.0"
 black = "^24.0.0"
+ruff = "^0.15.20"
+pre-commit = "^4.6.0"
+pytest-cov = "^7.1.0"
+coverage = "^7.14.3"
 
 [build-system]
 requires = ["poetry-core"]
 build-backend = "poetry.core.masonry.api"
+
+[tool.black]
+line-length = 88
+target-version = ["py312"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "@abstractmethod",
+    "@abc.abstractmethod"
+]
+
+[tool.ruff]
+line-length = 88
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP"]
+
+[tool.mypy]
+mypy_path = ["."]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+no_implicit_optional = true
+strict_optional = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]
+asyncio_mode = "auto"
+markers = """
+    unit: unit tests (fast, no I/O, no external dependencies)
+    integration: integration tests
+    system: end-to-end tests
+    uc: use cases tests
+"""

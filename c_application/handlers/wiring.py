@@ -1,25 +1,34 @@
 import inspect
-from typing import Optional, Callable, Type, Any, TypeAlias
+from collections.abc import Callable
+from typing import Any
 
 from a_core import DomainEvent
 from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork, UowFactoryType
+from b_domain.ports.unit_of_work import UnitOfWork, UowFactoryType
 from b_domain.services.user_behavior_learner import UserBehaviorLearner
-from b_domain.services.user_behavior_metrics_aggregator import UserBehaviorMetricsAggregator
-from c_application.handlers.task_handlers.create_recurring_task_handler import CreateRecurringTaskHandler
-from c_application.handlers.task_handlers.unlock_task_dependencies_handler import UnlockTaskDependenciesHandler
-from c_application.handlers.user_handlers.update_user_behavior_handler import UpdateUserBehaviorHandler
+from b_domain.services.user_behavior_metrics_aggregator import (
+    UserBehaviorMetricsAggregator,
+)
+from c_application.handlers.task_handlers.create_recurring_task_handler import (
+    CreateRecurringTaskHandler,
+)
+from c_application.handlers.task_handlers.unlock_task_dependencies_handler import (
+    UnlockTaskDependenciesHandler,
+)
+from c_application.handlers.user_handlers.update_user_behavior_handler import (
+    UpdateUserBehaviorHandler,
+)
 
-HandlerFactoryType: TypeAlias = Callable[[UnitOfWork], Any]
+type HandlerFactoryType = Callable[[UnitOfWork], Any]
 
 
 def register_essential_handlers(
-        bus: EventBus,
-        uow_factory: UowFactoryType,
-        clock: ClockProvider,
-):
+    bus: EventBus,
+    uow_factory: UowFactoryType,
+    clock: ClockProvider,
+) -> None:
     """Register essential event handlers required for system integrity.
 
     These handlers are mandatory for the core task management workflow.
@@ -27,8 +36,10 @@ def register_essential_handlers(
     rules are enforced, preventing the system from breaking down.
 
     Args:
-        bus (EventBus): The event bus instance used for publishing and subscribing events.
-        uow_factory (UowFactoryType): Factory of UnitOfWork instances to manage transactional consistency.
+        bus (EventBus): The event bus instance used for publishing and
+            subscribing events.
+        uow_factory (UowFactoryType): Factory of UnitOfWork instances to
+            manage transactional consistency.
         clock (Clock): Clock instance to manage transactional consistency.
     """
 
@@ -58,11 +69,11 @@ def register_essential_handlers(
 
 
 def register_optional_handlers(
-        bus: EventBus,
-        uow_factory: UowFactoryType,
-        aggregator: Optional[UserBehaviorMetricsAggregator],
-        learner: Optional[UserBehaviorLearner],
-):
+    bus: EventBus,
+    uow_factory: UowFactoryType,
+    aggregator: UserBehaviorMetricsAggregator | None,
+    learner: UserBehaviorLearner | None,
+) -> None:
     """Register optional event handlers for advanced analytics and personalization.
 
     These handlers are optional and typically available only in premium
@@ -70,10 +81,14 @@ def register_optional_handlers(
     behavior, aggregating metrics, and adapting productivity models.
 
     Args:
-        bus (EventBus): The event bus instance used for publishing and subscribing events.
-        uow_factory (UowFactoryType): Factory of UnitOfWork instances to manage transactional consistency.
-        aggregator (Optional[UserBehaviorMetricsAggregator]): Aggregator for user behavior metrics.
-        learner (Optional[UserBehaviorLearner]): Learner service for adapting user behavior models.
+        bus (EventBus): The event bus instance used for publishing and
+            subscribing events.
+        uow_factory (UowFactoryType): Factory of UnitOfWork instances to
+            manage transactional consistency.
+        aggregator (Optional[UserBehaviorMetricsAggregator]): Aggregator
+            for user behavior metrics.
+        learner (Optional[UserBehaviorLearner]): Learner service for
+            adapting user behavior models.
     """
 
     if not (aggregator and learner):
@@ -97,12 +112,12 @@ def register_optional_handlers(
 
 
 def _subscribe(
-        bus: EventBus,
-        uow_factory: UowFactoryType,
-        event_type: Type[DomainEvent],
-        handler_cls: Type,
-        **extras: Any,
-):
+    bus: EventBus,
+    uow_factory: UowFactoryType,
+    event_type: type[DomainEvent],
+    handler_cls: type,
+    **extras: Any,
+) -> None:
     """Helper function to subscribe a handler to the event bus.
 
     Wraps the handler execution in its own UnitOfWork transaction to ensure
@@ -110,14 +125,17 @@ def _subscribe(
     without leaking side effects across different event subscribers.
 
     Args:
-        bus (EventBus): The event bus instance used for publishing and subscribing events.
-        uow_factory (UowFactoryType): Factory of UnitOfWork instances to manage transactional consistency.
+        bus (EventBus): The event bus instance used for publishing
+            and subscribing events.
+        uow_factory (UowFactoryType): Factory of UnitOfWork instances
+            to manage transactional consistency.
         event_type (Type[DomainEvent]): The domain event type to subscribe to.
         handler_cls (Type): The handler class to instantiate and execute.
         **extras (Any): Additional dependencies required by the handler.
     """
 
-    async def handler(event: DomainEvent):
+    async def handler(event: DomainEvent) -> None:
+
         async with uow_factory() as uow:
             instance = handler_cls(uow, **extras)
 
@@ -129,11 +147,11 @@ def _subscribe(
                 if inspect.iscoroutinefunction(target):
                     await target(event)
                 else:
-                    # If synchronous, decide whether to execute or raise an error
                     target(event)
             else:
                 raise TypeError(
-                    f"The handler '{handler_cls.__name__}' is not callable and does not contain a 'handle' method.'."
+                    f"The handler '{handler_cls.__name__}' is not "
+                    f"callable and does not contain a 'handle' method.'."
                 )
 
     bus.subscribe(event_type, handler)

@@ -1,7 +1,7 @@
 from b_domain.entities import Task
 from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unit_of_work import UnitOfWork
 
 
 class UnlockTaskDependenciesHandler:
@@ -36,7 +36,9 @@ class UnlockTaskDependenciesHandler:
         async with self.uow:
 
             # Find tasks that are blocked by the completed task
-            blocked_tasks: list[Task] = await self.uow.tasks.find_tasks_blocked_by(event.task_id)
+            blocked_tasks: list[Task] = await self.uow.tasks.find_tasks_blocked_by(
+                event.task_id
+            )
 
             if not blocked_tasks:
                 return

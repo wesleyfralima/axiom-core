@@ -1,5 +1,4 @@
 from datetime import datetime
-from typing import List
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
@@ -45,7 +44,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         # 1. Fail fast: UX safeguard
         try:
             task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
-            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+            user_id: UserId = UserId.from_string(
+                request.user_id, error_msg="Invalid user ID."
+            )
         except ValidationException as e:
             raise ValidationException(e) from e
 
@@ -55,19 +56,23 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             raise ValidationException(f"Invalid priority: {request.priority}") from e
 
         async with self.uow as uow:
-
             # 2. Search by prefix scoped to user
-            tasks_found: List[Task] = await uow.tasks.find_by_id_prefix(
+            tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=task_id_prefix,
-                user_id=user_id
+                user_id=user_id,
             )
 
             if not tasks_found:
-                raise ValidationException(f"No task found with ID prefix '{request.task_id_prefix}'.")
+                raise ValidationException(
+                    f"No task found with ID prefix '{request.task_id_prefix}'."
+                )
 
             if len(tasks_found) > 1:
                 conflicting_ids: str = ", ".join([str(t.id)[:8] for t in tasks_found])
-                raise ValidationException(f"Ambiguous ID. Found {len(tasks_found)} tasks: [{conflicting_ids}].")
+                raise ValidationException(
+                    f"Ambiguous ID. "
+                    f"Found {len(tasks_found)} tasks: [{conflicting_ids}]."
+                )
 
             task: Task = tasks_found[0]
 

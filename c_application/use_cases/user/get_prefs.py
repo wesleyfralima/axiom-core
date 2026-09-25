@@ -18,6 +18,7 @@ class GetUserPreferencesInputDTO(DTO):
     Attributes:
         username (str): The username of the user whose preferences will be retrieved.
     """
+
     username: str
 
 
@@ -34,15 +35,20 @@ class GetUserPreferencesOutputDTO(DTO):
         message (str): Status message confirming the retrieval.
             Defaults to "preferences_retrieved".
     """
+
     username: str
     preferences: UserPrefsOutputDTO
     message: str = "preferences_retrieved"
 
 
-class GetUserPreferencesUseCase(UseCase[GetUserPreferencesInputDTO, GetUserPreferencesOutputDTO]):
+class GetUserPreferencesUseCase(
+    UseCase[GetUserPreferencesInputDTO, GetUserPreferencesOutputDTO]
+):
     """Use case for retrieving user preferences."""
 
-    async def execute(self, request: GetUserPreferencesInputDTO) -> GetUserPreferencesOutputDTO:
+    async def execute(
+        self, request: GetUserPreferencesInputDTO
+    ) -> GetUserPreferencesOutputDTO:
         """Execute the preference retrieval workflow.
 
         Steps:

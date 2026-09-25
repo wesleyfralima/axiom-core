@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional
 
 from a_core import Entity
 from a_core.exceptions import DomainException
@@ -26,10 +25,10 @@ class TimeEntry(Entity):
     task_id: TaskId
     user_id: UserId
     start_time: datetime
-    end_time: Optional[datetime] = None
+    end_time: datetime | None = None
     description: str = ""
 
-    def elapsed_minutes(self, now: Optional[datetime] = None) -> int:
+    def elapsed_minutes(self, now: datetime | None = None) -> int:
         """Calculate the elapsed time in minutes.
 
         If the entry has an `end_time`, the duration is measured between
@@ -47,19 +46,20 @@ class TimeEntry(Entity):
             DomainException: If `end_time` is not set and `now` is missing.
         """
 
-        if not now and not self.end_time:
-            raise DomainException("`now` must be a valid `datetime` when there is no `end_time`")
+        if self.end_time is not None:
+            delta: timedelta = self.end_time - self.start_time
 
-        delta: timedelta
-
-        if not self.end_time:
+        elif now is not None:
             delta = now - self.start_time
+
         else:
-            delta = self.end_time - self.start_time
+            raise DomainException(
+                "`now` must be a valid `datetime` when there is no `end_time`"
+            )
 
         return int(delta.total_seconds() // 60)
 
-    def stop(self, now: datetime):
+    def stop(self, now: datetime) -> None:
         """Stop the timer by setting the `end_time`.
 
         Args:

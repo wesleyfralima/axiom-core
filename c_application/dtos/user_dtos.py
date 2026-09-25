@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, Optional
+from typing import Any
 
 from a_core import DTO
 
@@ -17,6 +17,7 @@ class PreferenceChangeDTO(DTO):
         old_value (Any): The previous value of the preference before the update.
         new_value (Any): The new value of the preference after the update.
     """
+
     field: str
     old_value: Any
     new_value: Any
@@ -29,49 +30,49 @@ class UserPrefsInputDTO(DTO):
     # ------------------------------------------------------------------
     # Calendar & time
     # ------------------------------------------------------------------
-    timezone: Optional[str] = None
-    week_start: Optional[str] = None  # monday | sunday
-    working_hours_start: Optional[int] = None
-    working_hours_end: Optional[int] = None
-    skip_weekends: Optional[bool] = None
+    timezone: str | None = None
+    week_start: str | None = None  # monday | sunday
+    working_hours_start: int | None = None
+    working_hours_end: int | None = None
+    skip_weekends: bool | None = None
 
-    default_task_duration_minutes: Optional[int] = None
+    default_task_duration_minutes: int | None = None
 
     # ------------------------------------------------------------------
     # Task behavior
     # ------------------------------------------------------------------
-    default_task_priority: Optional[str] = None
-    default_task_status: Optional[str] = None
-    auto_schedule_tasks: Optional[bool] = None
-    allow_overdue_tasks: Optional[bool] = None
+    default_task_priority: str | None = None
+    default_task_status: str | None = None
+    auto_schedule_tasks: bool | None = None
+    allow_overdue_tasks: bool | None = None
 
     # ------------------------------------------------------------------
     # Notifications
     # ------------------------------------------------------------------
-    notify_due_soon: Optional[bool] = None
-    notify_overdue: Optional[bool] = None
-    notify_task_completed: Optional[bool] = None
+    notify_due_soon: bool | None = None
+    notify_overdue: bool | None = None
+    notify_task_completed: bool | None = None
 
-    daily_summary_enabled: Optional[bool] = None
-    daily_summary_time: Optional[str] = None  # HH:MM
+    daily_summary_enabled: bool | None = None
+    daily_summary_time: str | None = None  # HH:MM
 
     # ------------------------------------------------------------------
     # Recurrence & automation
     # ------------------------------------------------------------------
-    auto_create_next_recurrence: Optional[bool] = None
-    recurring_tasks_visible_ahead_days: Optional[int] = None
+    auto_create_next_recurrence: bool | None = None
+    recurring_tasks_visible_ahead_days: int | None = None
 
     # ------------------------------------------------------------------
     # Localization
     # ------------------------------------------------------------------
-    language: Optional[str] = None
-    date_format: Optional[str] = None
-    time_format_24h: Optional[bool] = None
+    language: str | None = None
+    date_format: str | None = None
+    time_format_24h: bool | None = None
 
     # ------------------------------------------------------------------
     # UI/UX
     # ------------------------------------------------------------------
-    theme: Optional[str] = None
+    theme: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

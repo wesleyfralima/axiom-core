@@ -1,8 +1,12 @@
 from b_domain.entities import Task, User
 from b_domain.events.task_events import TaskCreatedEvent
 from b_domain.ports.providers import ClockProvider
-from b_domain.ports.providers.calendar_provider import CalendarEventInput, CalendarProvider, CalendarEventOutput
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.providers.calendar_provider import (
+    CalendarEventInput,
+    CalendarEventOutput,
+    CalendarProvider,
+)
+from b_domain.ports.unit_of_work import UnitOfWork
 
 
 class ExportTaskToCalendarHandler:
@@ -16,7 +20,12 @@ class ExportTaskToCalendarHandler:
       5. Persisting the external calendar ID back into the task.
     """
 
-    def __init__(self, uow: UnitOfWork, calendar_provider: CalendarProvider, clock_provider: ClockProvider):
+    def __init__(
+        self,
+        uow: UnitOfWork,
+        calendar_provider: CalendarProvider,
+        clock_provider: ClockProvider,
+    ):
         """Initialize the handler.
 
         Args:
