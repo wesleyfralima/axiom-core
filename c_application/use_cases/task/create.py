@@ -155,6 +155,8 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     is_business_day_checker=lambda dt: (
                         dt.weekday() < 5
                     ),  # Simple weekday check  TODO: change this
+                    window_start=dto.recurrence.window_start,
+                    window_end=dto.recurrence.window_end,
                 )
 
                 # First occurrence becomes the due date

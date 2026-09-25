@@ -1,4 +1,4 @@
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime, time, timedelta
 from uuid import UUID, uuid4
 
 import pytest
@@ -272,3 +272,30 @@ async def test_create_task_success_if_recurrence_end_date_mismatches_timezone_ty
 
     # Se chegou aqui, não houve erros
     assert True
+
+
+@pytest.mark.asyncio
+@pytest.mark.uc
+async def test_create_task_keeps_the_hourly_window(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    """Regression: the window was dropped, leaving "every 2 hours" all day."""
+
+    user = User.create(username="wesley", email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
+
+    result = await CreateTaskUseCase(**use_case_context).execute(
+        CreateTaskInputDTO(
+            user_id=str(user.id),
+            title="Beber água",
+            recurrence=RecurrenceInputDTO(
+                frequency=RecurrenceInterval.HOURLY,
+                interval=2,
+                start_date=datetime(2026, 3, 5, 8, 0),
+                window_start=time(8, 0),
+                window_end=time(20, 0),
+            ),
+        )
+    )
+
+    assert result.recurrence_display == "Every 2 hours between 08:00 and 20:00."
