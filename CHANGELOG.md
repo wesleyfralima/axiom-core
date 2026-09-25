@@ -6,6 +6,15 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.8] — 24/09/2026
+
+### Corrigido
+- **Recorrência "a cada N horas" nunca avançava** (`SimpleIntervalRule`
+  horária): somava as horas e depois reaplicava a hora de início, então toda
+  ocorrência era o próprio início. Concluir uma tarefa assim deixava
+  `create_next_occurrence` (modo hábito) em laço infinito. Achado ao mostrar
+  as próximas ocorrências no `axpro task show`.
+
 ## [0.3.7] — 24/09/2026
 
 ### Corrigido

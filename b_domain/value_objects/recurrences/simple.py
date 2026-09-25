@@ -132,7 +132,9 @@ class SimpleIntervalRule(RecurrenceRule):
         base_dt: datetime = self.start_date.materialize()
 
         if self.frequency == RecurrenceInterval.HOURLY:
-            dt = current + timedelta(hours=self.interval)
+            # The time of day is what moves here: don't snap it back to the
+            # start time (that made every occurrence the same instant).
+            return (current + timedelta(hours=self.interval)).replace(microsecond=0)
 
         elif self.frequency == RecurrenceInterval.DAILY:
             dt = current + timedelta(days=self.interval)

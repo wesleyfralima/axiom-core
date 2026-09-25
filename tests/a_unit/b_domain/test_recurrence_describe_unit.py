@@ -158,3 +158,38 @@ def test_monthly_all_weekdays_crosses_months_without_end_date() -> None:
 
     assert [o.day for o in occurrences] == [5, 12, 19, 26, 2, 9, 16, 23]
     assert all(o.weekday() == 0 for o in occurrences)
+
+
+def test_hourly_interval_moves_forward() -> None:
+    """Regression: every occurrence came back as the start instant."""
+
+    rule = SimpleIntervalRule(
+        start_date=START, frequency=RecurrenceInterval.HOURLY, interval=2
+    )
+
+    hours = [o.hour for o in rule.get_next_n_occurrences(4)]
+
+    assert hours == [9, 11, 13, 15]
+
+
+def test_hourly_task_completion_finds_the_next_occurrence() -> None:
+    """Regression: catch-up mode looped forever on an hourly task."""
+
+    from b_domain.entities import Task
+    from b_domain.value_objects import Title, UserId
+
+    task = Task.create(
+        now=datetime(2026, 1, 5, 9, 0),
+        user_id=UserId(),
+        title=Title("Beber água"),
+        due_date=datetime(2026, 1, 5, 9, 0),
+        tz_name=TZ,
+        recurrence=SimpleIntervalRule(
+            start_date=START, frequency=RecurrenceInterval.HOURLY, interval=2
+        ),
+    )
+
+    following = task.create_next_occurrence(now=datetime(2026, 1, 5, 12, 30))
+
+    assert following is not None and following.due_date is not None
+    assert following.due_date.value == datetime(2026, 1, 5, 13, 0)
