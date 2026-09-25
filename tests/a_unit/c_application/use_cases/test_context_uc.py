@@ -382,3 +382,70 @@ async def test_list_filters_by_context_name_and_shows_each_context(
     shown = {t.title: t.context_name for t in everything.tasks}
     assert shown == {"Report": "Work", "Dishes": "Home", "Free": None}
     assert [t.title for t in only_home.tasks] == ["Dishes"]
+
+
+async def _two_contexts_with_tasks(
+    deps: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> User:
+    user = await _user(fake_uow_factory)
+    await _context(deps, user, "Work")
+    await _context(deps, user, "Home")
+    create = CreateTaskUseCase(**deps)
+    for title, context in (("Report", "Work"), ("Dishes", "Home"), ("Free", None)):
+        await create.execute(
+            CreateTaskInputDTO(user_id=str(user.id), title=title, context_id=context)
+        )
+    await SwitchContextUseCase(**deps).execute(
+        SwitchContextInputDTO(user_id=str(user.id), context="Work")
+    )
+    return user
+
+
+async def test_list_can_stay_in_the_active_context(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    user = await _two_contexts_with_tasks(use_case_context, fake_uow_factory)
+    list_tasks = ListTasksUseCase(**use_case_context)
+
+    scoped = await list_tasks.execute(
+        ListTasksRequest(user_id=str(user.id), use_active_context=True)
+    )
+    everything = await list_tasks.execute(ListTasksRequest(user_id=str(user.id)))
+
+    assert [t.title for t in scoped.tasks] == ["Report"]
+    assert scoped.context is not None
+    assert (scoped.context.name, scoped.context.is_active) == ("Work", True)
+    assert {t.title for t in everything.tasks} == {"Report", "Dishes", "Free"}
+    assert everything.context is None
+
+
+async def test_an_explicit_context_wins_over_the_active_one(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    user = await _two_contexts_with_tasks(use_case_context, fake_uow_factory)
+
+    other = await ListTasksUseCase(**use_case_context).execute(
+        ListTasksRequest(
+            user_id=str(user.id), context_id="home", use_active_context=True
+        )
+    )
+
+    assert [t.title for t in other.tasks] == ["Dishes"]
+    assert other.context is not None
+    assert (other.context.name, other.context.is_active) == ("Home", False)
+
+
+async def test_without_an_active_context_the_list_spans_everything(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    user = await _two_contexts_with_tasks(use_case_context, fake_uow_factory)
+    await SwitchContextUseCase(**use_case_context).execute(
+        SwitchContextInputDTO(user_id=str(user.id), context=None)
+    )
+
+    listed = await ListTasksUseCase(**use_case_context).execute(
+        ListTasksRequest(user_id=str(user.id), use_active_context=True)
+    )
+
+    assert len(listed.tasks) == 3
+    assert listed.context is None

@@ -6,6 +6,19 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.5.0] — 2026-09-25
+
+The active context can limit the task list (owner's decision: with a
+context active, `task ls` shows only its tasks).
+
+### Added
+- `ListTasksRequest.use_active_context` (default `False`, the previous
+  behavior): without a `context_id`, the list is limited to the user's
+  active context, when there is one. An explicit `context_id` still wins.
+- `TaskListOutputDTO.context`: the context the list was limited to
+  (requested or active, with `is_active`), or `None` when it spans every
+  context — so the interface can say which one it is showing.
+
 ## [0.4.0] — 2026-09-25
 
 Closes Backlog 01, Part 4: contexts, from the entity to the use case.

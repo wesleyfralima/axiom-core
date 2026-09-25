@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from a_core.exceptions import ValidationException
-from b_domain.entities import Context, Task
+from b_domain.entities import Context, Task, User
 from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import (
@@ -12,7 +12,9 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
+from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.task_dtos import ListTasksRequest, TaskListOutputDTO
+from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
 
@@ -82,11 +84,16 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             # The user's contexts: to resolve the filter (name or ID prefix)
             # and to show each task's context
             contexts: list[Context] = await uow.contexts.list_by_user(f_user_id)
-            f_context_id: ContextId | None = (
-                find_context(contexts, request.context_id).id
-                if request.context_id
-                else None
-            )
+            scope: Context | None = None
+            active_id: ContextId | None = None
+            if request.context_id or request.use_active_context:
+                user: User | None = await uow.users.get_by_id(f_user_id)
+                active_id = user.preferences.active_context_id if user else None
+            if request.context_id:
+                scope = find_context(contexts, request.context_id)
+            elif request.use_active_context and active_id:
+                scope = next((c for c in contexts if c.id == active_id), None)
+            f_context_id: ContextId | None = scope.id if scope else None
 
             f_ids: list[TaskId] | None = None
             if request.ids:
@@ -151,4 +158,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                     )
                     for task in tasks
                 ],
+                context=(
+                    ContextMapper.to_output(scope, ContextOutputDTO, active_id)
+                    if scope
+                    else None
+                ),
             )
