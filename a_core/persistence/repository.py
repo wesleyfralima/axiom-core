@@ -30,7 +30,7 @@ def tracks_entity[**P, R](
 
         return result
 
-    # Adicionamos o atributo dinamicamente.
+    # Add the attribute dynamically.
     # setattr works around the type system here, since this is
     # an infrastructure decorator.
     setattr(wrapper, "_is_tracked", True)  # noqa: B010

@@ -4,7 +4,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from a_core import ValidationException
-from b_domain.entities import Task, User, UserPrefs
+from b_domain.entities import Context, Task, User, UserPrefs
 from b_domain.value_objects import ContextId, RecurrenceInterval, TaskId, Title
 from c_application.dtos import CreateTaskInputDTO
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
@@ -82,11 +82,13 @@ async def test_create_task_inherits_active_context_from_user(
     use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
 ) -> None:
     # 1. Setup: user with active context "Work"
-    work_context_id: ContextId = ContextId(uuid4())
-    prefs = UserPrefs(active_context_id=work_context_id)
-    user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
+    user = User.create(username="wesley", email="wesley@test.com")
+    work = Context.create(now=datetime.now(UTC), user_id=user.id, name="Work")
+    work_context_id: ContextId = work.id
+    user.preferences = UserPrefs(active_context_id=work_context_id)
 
     await fake_uow_factory().users.add(user)
+    await fake_uow_factory().contexts.add(work)
 
     # DTO without an explicit context
     dto = CreateTaskInputDTO(user_id=str(user.id), title="PR review", context_id=None)
@@ -100,6 +102,23 @@ async def test_create_task_inherits_active_context_from_user(
     task_in_db = await fake_uow_factory().tasks.get_by_id(task_id)
     assert task_in_db is not None
     assert task_in_db.context_id == work_context_id
+    assert result.context_name == "Work"
+
+
+@pytest.mark.asyncio
+@pytest.mark.uc
+async def test_create_task_ignores_an_active_context_that_no_longer_exists(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    prefs = UserPrefs(active_context_id=ContextId(uuid4()))
+    user = User.create(username="wesley", preferences=prefs, email="wesley@test.com")
+    await fake_uow_factory().users.add(user)
+
+    result = await CreateTaskUseCase(**use_case_context).execute(
+        CreateTaskInputDTO(user_id=str(user.id), title="Orphan")
+    )
+
+    assert result.context_id is None
 
 
 @pytest.mark.asyncio

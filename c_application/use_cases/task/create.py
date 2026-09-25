@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task, User
+from b_domain.entities import Context, Task, User
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import (
     ContextId,
@@ -16,6 +16,7 @@ from b_domain.value_objects.enums import EnergyLevel, Priority
 from b_domain.value_objects.recurrences import RecurrenceFactory
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.utils import find_context
 
 
 # TODO: better system of id prefix when needed, because
@@ -52,6 +53,8 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
         Raises:
             ValidationException: If input data is invalid or domain
                 invariants are violated.
+            EntityNotFound: If the requested context does not exist.
+            AmbiguousIdentifierError: If the context's ID prefix matches several.
         """
 
         # 1. Data validation
@@ -100,14 +103,18 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 except (ValueError, TypeError) as e:
                     raise ValidationException("Invalid parent task ID format.") from e
 
-            # 4. Smart context resolution
-            context_id_vo: ContextId | None = None
+            # 4. Smart context resolution: the requested one (name or ID
+            # prefix), else the active one if it still exists
+            context: Context | None = None
             if dto.context_id:
-                context_id_vo = ContextId.from_string(
-                    dto.context_id, error_msg="Invalid context ID."
+                context = find_context(
+                    await uow.contexts.list_by_user(user_id_vo), dto.context_id
                 )
             elif user.preferences.active_context_id:
-                context_id_vo = user.preferences.active_context_id
+                context = await uow.contexts.get_by_id(
+                    user.preferences.active_context_id, user_id_vo
+                )
+            context_id_vo: ContextId | None = context.id if context else None
 
             # 5. Timezone & priority inheritance
             tz_to_use: str = dto.timezone or user.preferences.timezone
@@ -183,4 +190,4 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             await uow.tasks.add(task)
 
         # 8. Return mapped output DTO
-        return TaskMapper.to_output(task, now_system)
+        return TaskMapper.to_output(task, now_system, context=context)

@@ -1,7 +1,7 @@
 from datetime import datetime
 
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task
+from b_domain.entities import Context, Task
 from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import (
@@ -14,6 +14,7 @@ from b_domain.value_objects import (
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 from c_application.dtos.task_dtos import ListTasksRequest, TaskListOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.utils import find_context
 
 
 class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
@@ -41,6 +42,8 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
         Raises:
             InvalidValueError: If priority, complexity or max_energy is unknown.
             ValidationException: If the user ID or the status is invalid.
+            EntityNotFound: If the context filter matches no context.
+            AmbiguousIdentifierError: If the context's ID prefix matches several.
         """
 
         async with self.uow as uow:
@@ -76,14 +79,14 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                     # Safe behavior: return empty list if parent ID is invalid
                     return TaskListOutputDTO(tasks=[])
 
-            f_context_id: ContextId | None = None
-            if request.context_id:
-                try:
-                    f_context_id = ContextId.from_string(
-                        request.context_id, error_msg="Invalid context ID."
-                    )
-                except ValidationException as e:
-                    raise ValidationException(e) from e
+            # The user's contexts: to resolve the filter (name or ID prefix)
+            # and to show each task's context
+            contexts: list[Context] = await uow.contexts.list_by_user(f_user_id)
+            f_context_id: ContextId | None = (
+                find_context(contexts, request.context_id).id
+                if request.context_id
+                else None
+            )
 
             f_ids: list[TaskId] | None = None
             if request.ids:
@@ -138,6 +141,14 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
 
             # 4. Centralized mapping
             now: datetime = self.clock.now()
+            by_id: dict[ContextId, Context] = {c.id: c for c in contexts}
             return TaskListOutputDTO(
-                tasks=[TaskMapper.to_output(task, now) for task in tasks],
+                tasks=[
+                    TaskMapper.to_output(
+                        task,
+                        now,
+                        context=by_id.get(task.context_id) if task.context_id else None,
+                    )
+                    for task in tasks
+                ],
             )

@@ -11,6 +11,7 @@ from a_core.exceptions import (
     InvalidValueError,
     ValidationException,
 )
+from b_domain.events.other_events import ContextSwitchedEvent
 from b_domain.value_objects import UserId
 from b_domain.value_objects.enums import Priority
 from b_domain.value_objects.identifiers import ContextId
@@ -220,6 +221,34 @@ class User(Entity):
         """
         self.preferences = self.preferences.update(**changes)
         self._touch(now)
+
+    def switch_context(self, now: datetime, context_id: ContextId | None) -> bool:
+        """Make ``context_id`` the active context (None turns the filter off).
+
+        Emits ``ContextSwitchedEvent`` when the active context really changes.
+
+        Args:
+            now (datetime): The current timestamp.
+            context_id (ContextId | None): The new active context.
+
+        Returns:
+            bool: True if the active context changed.
+        """
+        old: ContextId | None = self.preferences.active_context_id
+        if old == context_id:
+            return False
+
+        self.preferences = replace(self.preferences, active_context_id=context_id)
+        self._touch(now)
+        self.add_event(
+            ContextSwitchedEvent(
+                occurred_at=now,
+                user_id=self.id,
+                old_context_id=old,
+                new_context_id=context_id,
+            )
+        )
+        return True
 
     def change_password(self, new_hash: str, now: datetime) -> None:
         """Business logic for changing a password."""

@@ -1,3 +1,4 @@
+from .context import ContextNameTakenError
 from .recurrence import (
     BySetPosRequiresMonthlyFrequency,
     BySetPosWithMonthDays,
@@ -23,6 +24,7 @@ __all__ = [
     "BySetPosRequiresMonthlyFrequency",
     "BySetPosWithMonthDays",
     "BySetPosWithoutDaySet",
+    "ContextNameTakenError",
     "EndDateBeforeStartDate",
     "ExpiredTokenError",
     "InvalidIntervalValue",

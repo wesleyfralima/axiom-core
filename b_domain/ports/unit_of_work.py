@@ -6,7 +6,11 @@ from typing import Protocol, Self
 from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
-from b_domain.ports.repositories import TaskRepository, UserRepository
+from b_domain.ports.repositories import (
+    ContextRepository,
+    TaskRepository,
+    UserRepository,
+)
 from b_domain.ports.repositories.outbox_event_repository import (
     OutboxEventRepository,
 )
@@ -55,6 +59,7 @@ class UnitOfWork(ABC):
 
     tasks: TaskRepository
     users: UserRepository
+    contexts: ContextRepository
     time_entries: TimeEntryRepository
     outbox_repo: OutboxEventRepository
     user_behavior_metrics: UserBehaviorMetricsRepository

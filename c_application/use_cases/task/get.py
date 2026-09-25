@@ -72,4 +72,11 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
 
             # 3. Centralized mapping
             # TaskMapper handles status, priority, and upcoming occurrences
-            return TaskMapper.to_output(task, self.clock.now(), n_occurrences)
+            context = (
+                await uow.contexts.get_by_id(task.context_id, user_id)
+                if task.context_id
+                else None
+            )
+            return TaskMapper.to_output(
+                task, self.clock.now(), n_occurrences, context=context
+            )

@@ -2,7 +2,7 @@ from datetime import datetime
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task, TimeEntry
+from b_domain.entities import Context, Task, TimeEntry
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
@@ -62,9 +62,15 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             # 4. Persist changes
             await uow.tasks.update(task)
 
+            context = (
+                await uow.contexts.get_by_id(task.context_id, user_id)
+                if task.context_id
+                else None
+            )
+
             # Next occurrence will be generated asynchronously
             # by CreateRecurringTaskHandler
-            return self._build_response(task, None, now)
+            return self._build_response(task, None, now, context)
 
     @staticmethod
     async def _resolve_task(uow: UnitOfWork, prefix: IdPrefix, user_id: UserId) -> Task:
@@ -134,10 +140,14 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
     @staticmethod
     def _build_response(
-        task: Task, next_task: Task | None, now: datetime
+        task: Task, next_task: Task | None, now: datetime, context: Context | None
     ) -> CompleteTaskOutputDTO:
         """Build output DTO for completed task."""
         return CompleteTaskOutputDTO(
-            completed_task=TaskMapper.to_output(task, now),
-            next_occurrence=TaskMapper.to_output(next_task, now) if next_task else None,
+            completed_task=TaskMapper.to_output(task, now, context=context),
+            next_occurrence=(
+                TaskMapper.to_output(next_task, now, context=context)
+                if next_task
+                else None
+            ),
         )
