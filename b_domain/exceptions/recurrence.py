@@ -11,6 +11,13 @@ class RecurrenceRuleException(DomainException):
         super().__init__(message)
 
 
+class NotRecurringTaskError(DomainException):
+    """Raised when a series operation is asked of a task that does not repeat."""
+
+    def __init__(self) -> None:
+        super().__init__("This task does not repeat: it has no series to end.")
+
+
 class MutuallyExclusiveEndDateAndCount(RecurrenceRuleException):
     """Raised when both `end_date` and `count` are provided."""
 

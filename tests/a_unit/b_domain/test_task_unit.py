@@ -5,14 +5,19 @@ import pytest
 
 from a_core import InvalidStateTransition
 from b_domain.entities import Task, User
+from b_domain.events.task_events import TaskCancelledEvent
+from b_domain.exceptions import NotRecurringTaskError
 from b_domain.value_objects import (
     Description,
     Priority,
+    RecurrenceInterval,
     TaskId,
     TaskStatus,
     Title,
     UserId,
 )
+from b_domain.value_objects.dates import AxiomDate
+from b_domain.value_objects.recurrences import SimpleIntervalRule
 from c_application.mappers.task_mapper import TaskMapper
 
 # ============================================================
@@ -39,6 +44,22 @@ def task(user: User) -> Task:
         user_id=user.id,
         title=Title("Test Task"),
         description=Description("Initial description"),
+    )
+
+
+def _recurring(user: User) -> Task:
+    due = datetime(2026, 1, 1, 9, 0)
+    return Task.create(
+        now=due,
+        user_id=user.id,
+        title=Title("Workout"),
+        due_date=due,
+        is_floating=True,
+        tz_name="UTC",
+        recurrence=SimpleIntervalRule(
+            start_date=AxiomDate.floating(due, "UTC"),
+            frequency=RecurrenceInterval.DAILY,
+        ),
     )
 
 
@@ -149,10 +170,81 @@ def test_reopen_task(task: Task) -> None:
 
 @pytest.mark.unit
 def test_archive_task(task: Task) -> None:
-    """Ensure archiving a task sets status to ARCHIVED."""
+    """Ensure archiving a closed task sets status to ARCHIVED."""
 
-    task.archive(datetime.now())
+    now: datetime = datetime.now()
+    task.mark_as_done(now)
+    task.archive(now)
     assert task.status == TaskStatus.ARCHIVED
+
+
+@pytest.mark.unit
+def test_an_open_task_cannot_be_archived(task: Task) -> None:
+    with pytest.raises(InvalidStateTransition, match="done or cancelled"):
+        task.archive(datetime.now())
+
+
+@pytest.mark.unit
+def test_an_open_task_cannot_be_reopened(task: Task) -> None:
+    with pytest.raises(InvalidStateTransition, match="done or cancelled"):
+        task.reopen(datetime.now())
+
+
+@pytest.mark.unit
+def test_a_cancelled_task_can_be_reopened_and_cancelled_again(task: Task) -> None:
+    now: datetime = datetime.now()
+    task.mark_as_cancelled(now)
+    task.reopen(now)
+    task.mark_as_cancelled(now)
+    assert task.status == TaskStatus.CANCELLED
+
+
+@pytest.mark.unit
+def test_a_closed_task_cannot_be_cancelled(task: Task) -> None:
+    now: datetime = datetime.now()
+    task.mark_as_done(now)
+    with pytest.raises(InvalidStateTransition, match="already done"):
+        task.mark_as_cancelled(now)
+
+
+@pytest.mark.unit
+def test_cancelling_records_the_event(task: Task) -> None:
+    task.mark_as_cancelled(datetime.now())
+
+    [event] = [e for e in task.pull_events() if isinstance(e, TaskCancelledEvent)]
+    assert event.task_id == task.id
+    assert event.user_id == task.user_id
+    assert event.end_series is False
+
+
+@pytest.mark.unit
+def test_only_a_recurring_task_has_a_series_to_end(task: Task) -> None:
+    with pytest.raises(NotRecurringTaskError):
+        task.mark_as_cancelled(datetime.now(), end_series=True)
+    assert task.status == TaskStatus.PENDING
+
+
+@pytest.mark.unit
+def test_ending_the_series_is_in_the_event(user: User) -> None:
+    task = _recurring(user)
+    task.mark_as_cancelled(datetime(2026, 1, 1, 10, 0), end_series=True)
+
+    [event] = [e for e in task.pull_events() if isinstance(e, TaskCancelledEvent)]
+    assert event.end_series is True
+
+
+@pytest.mark.unit
+def test_a_reopened_occurrence_becomes_a_one_off_task(user: User) -> None:
+    """Its series moved on when it closed; closing it again must not fork it."""
+
+    task = _recurring(user)
+    now = datetime(2026, 1, 1, 10, 0)
+    task.mark_as_done(now)
+    task.reopen(now)
+
+    assert task.status == TaskStatus.REOPENED
+    assert task.recurrence is None
+    assert task.create_next_occurrence(now) is None
 
 
 @pytest.mark.unit

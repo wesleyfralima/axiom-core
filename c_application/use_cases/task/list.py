@@ -118,11 +118,14 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 offset=request.offset,
                 # Core attributes
                 status=f_status,
-                # An explicit status wins over hiding the closed ones
+                # An explicit status wins over hiding the closed ones;
+                # archived tasks only show when asked for by status
                 exclude_statuses=(
-                    TaskStatus.closed()
-                    if not request.include_closed and f_status is None
-                    else frozenset()
+                    frozenset()
+                    if f_status is not None
+                    else frozenset({TaskStatus.ARCHIVED})
+                    if request.include_closed
+                    else TaskStatus.closed()
                 ),
                 priority=f_priority,
                 context_id=f_context_id,

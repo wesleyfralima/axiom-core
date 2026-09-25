@@ -3,7 +3,7 @@ from datetime import datetime
 import pytest
 
 from b_domain.entities import Task
-from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.value_objects import RecurrenceInterval, Title, UserId
 from b_domain.value_objects.dates import AxiomDate
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
@@ -76,3 +76,38 @@ async def test_measured_average_becomes_the_estimate(
     next_task = await _complete(fake_uow_factory, _daily_task(45, average=52))
 
     assert next_task.estimated_duration_minutes == 52
+
+
+async def _cancel(
+    uow_factory: FakeUowFactory, task: Task, end_series: bool
+) -> list[Task]:
+    async with uow_factory() as uow:
+        await uow.tasks.add(task)
+
+    event = TaskCancelledEvent(
+        task_id=task.id,
+        user_id=task.user_id,
+        end_series=end_series,
+        occurred_at=datetime(2026, 1, 1, 10, 0),
+    )
+    await CreateRecurringTaskHandler(uow_factory()).handle(event)
+
+    async with uow_factory() as uow:
+        return [t for t in uow.tasks.tasks.values() if t.id != task.id]
+
+
+async def test_cancelling_an_occurrence_skips_it_and_the_series_goes_on(
+    fake_uow_factory: FakeUowFactory,
+) -> None:
+    [next_task] = await _cancel(
+        fake_uow_factory, _daily_task(45, average=0), end_series=False
+    )
+
+    assert next_task.title == Title("Workout")
+    assert next_task.recurrence is not None
+
+
+async def test_cancelling_with_end_series_stops_the_series(
+    fake_uow_factory: FakeUowFactory,
+) -> None:
+    assert await _cancel(fake_uow_factory, _daily_task(45, average=0), True) == []

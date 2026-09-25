@@ -105,14 +105,12 @@ class TaskStatus(StrEnum):
             cls.SOMEDAY: {
                 cls.PENDING,
                 cls.CANCELLED,
-                cls.ARCHIVED,
             },
             cls.PENDING: {
                 cls.SUGGESTED,
                 cls.IN_PROGRESS,
                 cls.DONE,
                 cls.CANCELLED,
-                cls.ARCHIVED,
                 cls.BLOCKED,
                 cls.SOMEDAY,
                 cls.SKIPPED,
@@ -142,18 +140,17 @@ class TaskStatus(StrEnum):
                 cls.DONE,
                 cls.DEFERRED,
                 cls.ABANDONED,
+                cls.CANCELLED,
             },
             cls.SKIPPED: {
                 cls.PENDING,
                 cls.DONE,
-                cls.ARCHIVED,
             },
             cls.DEFERRED: {
                 cls.PENDING,
             },
             cls.ABANDONED: {
                 cls.PENDING,
-                cls.ARCHIVED,
                 cls.CANCELLED,
             },
             cls.DONE: {
@@ -169,8 +166,11 @@ class TaskStatus(StrEnum):
                 cls.SUGGESTED,
                 cls.IN_PROGRESS,
                 cls.DONE,
+                cls.CANCELLED,
             },
-            cls.ARCHIVED: set(),  # Estado Terminal
+            # Only a closed task is archived: an open one is done or cancelled
+            # first. Terminal, no way back.
+            cls.ARCHIVED: set(),
         }
 
     @property

@@ -24,7 +24,6 @@ from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
                 TaskStatus.IN_PROGRESS,
                 TaskStatus.DONE,
                 TaskStatus.CANCELLED,
-                TaskStatus.ARCHIVED,
                 TaskStatus.BLOCKED,
                 TaskStatus.SOMEDAY,
                 TaskStatus.SKIPPED,
@@ -51,6 +50,7 @@ from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
                 TaskStatus.SUGGESTED,
                 TaskStatus.IN_PROGRESS,
                 TaskStatus.DONE,
+                TaskStatus.CANCELLED,
             },
         ),
     ],
@@ -62,6 +62,12 @@ def test_task_status_allows_expected_transitions(
 
     for status in TaskStatus:
         assert current.can_transition_to(status) is (status in allowed)
+
+
+@pytest.mark.parametrize("status", list(TaskStatus), ids=str)
+def test_only_a_closed_task_can_be_archived(status: TaskStatus) -> None:
+    allowed: bool = status in {TaskStatus.DONE, TaskStatus.CANCELLED}
+    assert status.can_transition_to(TaskStatus.ARCHIVED, allow_same=False) is allowed
 
 
 def test_task_status_archived_is_terminal() -> None:

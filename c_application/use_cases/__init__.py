@@ -7,16 +7,21 @@ from .context import (
     SwitchContextUseCase,
     UpdateContextUseCase,
 )
+from .task.archive import ArchiveTaskUseCase
+from .task.cancel import CancelTaskUseCase
 from .task.complete import CompleteTaskUseCase
 from .task.create import CreateTaskUseCase
 from .task.delete import DeleteTaskUseCase
 from .task.get import GetTaskUseCase
 from .task.list import ListTasksUseCase
+from .task.reopen import ReopenTaskUseCase
 from .task.update import UpdateTaskUseCase
 from .user.get_current import GetCurrentUserUseCase
 from .user.update_prefs import UpdateUserPreferencesUseCase
 
 __all__ = [
+    "ArchiveTaskUseCase",
+    "CancelTaskUseCase",
     "CompleteTaskUseCase",
     "CreateContextUseCase",
     "CreateTaskUseCase",
@@ -28,6 +33,7 @@ __all__ = [
     "ListTasksUseCase",
     "LoginUseCase",
     "RegisterUserUseCase",
+    "ReopenTaskUseCase",
     "SwitchContextUseCase",
     "UpdateContextUseCase",
     "UpdateTaskUseCase",

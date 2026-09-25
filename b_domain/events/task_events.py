@@ -59,6 +59,23 @@ class TaskCompletedEvent(DomainEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class TaskCancelledEvent(DomainEvent):
+    """Triggered when the user cancels a task.
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        end_series (bool): For a recurring task, whether the whole series ends
+            here; otherwise only this occurrence is skipped and the series
+            goes on.
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    end_series: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
 class TaskAbandonedEvent(DomainEvent):
     """Triggered when the user abandons a task in progress.
 
