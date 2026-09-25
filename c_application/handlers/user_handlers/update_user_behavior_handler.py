@@ -13,7 +13,7 @@ class UpdateUserBehaviorHandler:
 
     Reacts to task completion events by:
       1. Aggregating new behavioral metrics.
-      2. Updating the user’s behavior profile via learning heuristics/AI.
+      2. Updating the user's behavior profile via learning heuristics/AI.
       3. Persisting both metrics and profile for future recommendations.
     """
 
@@ -40,7 +40,7 @@ class UpdateUserBehaviorHandler:
         Steps:
             1. Load current metrics and profile for the user.
             2. Aggregate new metrics based on the completed task.
-            3. Update the user’s profile using the learner service.
+            3. Update the user's profile using the learner service.
             4. Persist updated metrics and profile.
 
         Args:

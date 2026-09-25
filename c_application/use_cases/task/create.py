@@ -67,7 +67,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             energy_level_enum = EnergyLevel.parse(dto.required_energy_level)
 
         except ValidationException as e:
-            raise ValidationException(e)
+            raise ValidationException(e) from e
 
         try:
             depends_on_vo: set[TaskId] = set(
@@ -97,8 +97,8 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     if not parent or parent.user_id != user_id_vo:
                         raise ValidationException("Parent task not found.")
                     parent_id_vo = parent.id
-                except (ValueError, TypeError):
-                    raise ValidationException("Invalid parent task ID format.")
+                except (ValueError, TypeError) as e:
+                    raise ValidationException("Invalid parent task ID format.") from e
 
             # 4. Smart context resolution
             context_id_vo: ContextId | None = None

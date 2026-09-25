@@ -11,16 +11,16 @@ from b_domain.value_objects.texts import Description, Title
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
 __all__ = [
+    "ContextId",
+    "Description",
     "DueDate",
     "EnergyLevel",
     "Priority",
     "RecurrenceInterval",
-    "TaskStatus",
-    "ContextId",
-    "TaskId",
-    "UserId",
     "RecurrenceRule",
-    "Description",
+    "TaskId",
+    "TaskStatus",
     "Title",
     "UserBehaviorProfile",
+    "UserId",
 ]

@@ -1,42 +1,28 @@
 name: CI
 
 on:
-
   push:
     branches:
-      - main
-      - develop
-
+      - master
   pull_request:
 
 jobs:
-
-  quality:
-
+  check:
     runs-on: ubuntu-latest
 
     steps:
-
       - uses: actions/checkout@v4
 
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Instalar Poetry
+      - name: Install Poetry
         run: pipx install poetry
 
-      - name: Instalar Dependências
+      - name: Install dependencies
         run: poetry install
 
-      - name: Black
-        run: poetry run black --check .
-
-      - name: Ruff
-        run: poetry run ruff check .
-
-      - name: Mypy
-        run: poetry run mypy src
-
-      - name: Pytest
-        run: poetry run pytest --cov=src/arch_pat_with_python --cov-fail-under=95
+      # Same command as local development: black, ruff, mypy, pytest + coverage floor
+      - name: make check
+        run: make check

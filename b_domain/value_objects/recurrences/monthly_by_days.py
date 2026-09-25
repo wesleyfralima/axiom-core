@@ -17,7 +17,7 @@ class MonthlyByDaysRule(RecurrenceRule):
     for that month.
 
     Attributes:
-        days_of_month (Set[int]): Numeric days of the month (1–31).
+        days_of_month (Set[int]): Numeric days of the month (1-31).
 
     """
 
@@ -28,7 +28,7 @@ class MonthlyByDaysRule(RecurrenceRule):
 
         Raises:
             InvalidMonthDayValue: If `days_of_month` is empty or contains
-            values outside the valid range (1–31).
+            values outside the valid range (1-31).
         """
 
         super().__post_init__()
@@ -37,7 +37,7 @@ class MonthlyByDaysRule(RecurrenceRule):
         if not self.days_of_month:
             raise InvalidMonthDayValue("days_of_month cannot be empty.")
 
-        # Validate that all provided days are within 1–31
+        # Validate that all provided days are within 1-31
         invalids: list[int] = [d for d in self.days_of_month if not (1 <= d <= 31)]
         if invalids:
             raise InvalidMonthDayValue(str(invalids))

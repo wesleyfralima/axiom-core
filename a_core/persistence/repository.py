@@ -33,7 +33,7 @@ def tracks_entity[
     # Adicionamos o atributo dinamicamente.
     # Usamos setattr para contornar a rigidez do sistema de
     # tipos aqui, já que é um decorador de infraestrutura.
-    setattr(wrapper, "_is_tracked", True)
+    setattr(wrapper, "_is_tracked", True)  # noqa: B010
 
     return wrapper
 

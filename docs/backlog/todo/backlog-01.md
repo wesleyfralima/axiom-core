@@ -27,7 +27,7 @@ O levantamento de 24/09/2026 encontrou:
 | Parte | Recorte | Branch | Depende de |
 | --- | --- | --- | --- |
 | **1** ✅ | Consolidar o WIP em commits temáticos | `chore/backlog01-parte1-consolidar-wip` | — |
-| **2** | `make check` verde e CI de verdade | `chore/backlog01-parte2-check-verde` | 1 |
+| **2** ✅ | `make check` verde e CI de verdade | `chore/backlog01-parte2-check-verde` | 1 |
 | **3** ✅ | Bugs encontrados no levantamento | `fix/backlog01-parte3-bugs-do-levantamento` | 1 |
 | **4** | Contextos: da entidade ao use case | `feat/backlog01-parte4-contextos` | 1 |
 | **5** | Vitrine: README, licença, badges | `docs/backlog01-parte5-vitrine` | 2 |
@@ -58,15 +58,19 @@ staged foi feito em algum momento e o trabalho continuou por cima.
   errado quando outro estava ativo. *Resolvido em 24/09/2026 (`68076b2`):*
   hooks locais chamando `.venv/bin/…` — era um item da Parte 2.
 
-## Parte 2 — `make check` verde e CI de verdade
+## Parte 2 — `make check` verde e CI de verdade ✅ (25/09/2026)
 
 **No lugar hoje:** o `ci.yml` foi copiado do base-python-project: dispara em
 `main`/`develop` (o branch é `master`), roda `mypy src` e mede cobertura de
 `src/arch_pat_with_python`. O `.pre-commit-config.yaml` fixa versões antigas
 (ruff 0.11, black 25.1, mypy 1.15) diferentes das do `pyproject`.
 
-- [ ] CI: branch `master`; `mypy a_core b_domain c_application`; cobertura
-  sobre os três pacotes (o mesmo comando do `make check`).
+- [x] CI: branch `master`; `mypy a_core b_domain c_application`; cobertura
+  sobre os três pacotes (o mesmo comando do `make check`). *Resolvido em
+  25/09/2026 (0.3.10):* o CI roda o próprio `make check` — não há segundo
+  comando para divergir. Só Python 3.12 (o do build e dos outros repos);
+  3.13/3.14, que o `pyproject` aceita, não estão nesta máquina para conferir
+  antes. Ainda não rodou: falta o repositório no GitHub.
 - [x] Alinhar versões do pre-commit com as do `pyproject`. *Resolvido em
   24/09/2026, na Parte 1 (`68076b2`).*
 - [x] Zerar os erros do mypy (18 no levantamento; **15** depois da Parte 3).
@@ -79,12 +83,21 @@ staged foi feito em algum momento e o trabalho continuou por cima.
   - `ListTasksRequest.ids` → `TaskFilter.ids` (`TaskId` × `UniqueId`);
   - `export_task_handler.py` (`str | None`, `DueDate | None`, `Task | None`);
   - `contexts/activate_context.py` — esboço quebrado, ver Parte 4 (removido).
-- [ ] Cobertura: 57% no levantamento, **68%** em 24/09/2026 (0.3.4). Fixar o piso **no valor real** (ex.:
+- [x] Cobertura: 57% no levantamento, **68%** em 24/09/2026 (0.3.4). Fixar o piso **no valor real** (ex.:
   `--cov-fail-under=57`) para o check ficar verde já, e subir o piso a cada
   parte que acrescentar teste. Os maiores buracos: engines, services de
-  comportamento, handlers, use cases de auth/user.
-- [ ] Testar `ruff` com o conjunto do base-python-project (`B`, `RUF`) e
-  adotar se o custo for baixo.
+  comportamento, handlers, use cases de auth/user. *Resolvido em 25/09/2026
+  (0.3.10):* `fail_under = 68` no `[tool.coverage.report]` (medido 68,7%),
+  lido pelo `make check` e pelo CI; a regra de subir o piso está no
+  CLAUDE.md. Os buracos continuam os mesmos — cobri-los é trabalho de cada
+  parte que mexer neles (o Backlog 02 mexe nos engines).
+- [x] Testar `ruff` com o conjunto do base-python-project (`B`, `RUF`) e
+  adotar se o custo for baixo. *Resolvido em 25/09/2026 (0.3.10):* 56
+  avisos, custo baixo, adotado. 33 eram aspas/travessões tipográficos em
+  docstrings; 12 o autofix resolveu; o resto, à mão — `raise … from e` em 5
+  traduções de exceção, 2 testes com `pytest.raises(Exception)` e 3
+  exceções justificadas (duas classes-marcador `ABC`, o `setattr` que o mypy
+  exige, `Description("")` como default imutável).
 
 ## Parte 3 — Bugs encontrados no levantamento ✅ (24/09/2026)
 

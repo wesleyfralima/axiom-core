@@ -6,7 +6,7 @@ from a_core.exceptions import ValidationException
 
 
 @dataclass(frozen=True, kw_only=True)
-class ValueObject(ABC):
+class ValueObject(ABC):  # noqa: B024 - marker class, no abstract methods
     """Base class for all Value Objects.
 
     Value Objects are immutable. Two value objects are considered equal

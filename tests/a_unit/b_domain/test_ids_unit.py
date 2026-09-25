@@ -1,3 +1,4 @@
+from dataclasses import FrozenInstanceError
 from uuid import UUID, uuid4
 
 import pytest
@@ -39,8 +40,8 @@ def test_unique_id_is_immutable() -> None:
 
     uid: UniqueId = UniqueId()
 
-    with pytest.raises(Exception):
-        uid.value = uuid4()  # type: ignore[misc] # noqa
+    with pytest.raises(FrozenInstanceError):
+        uid.value = uuid4()  # type: ignore[misc]
 
 
 # ============================================================

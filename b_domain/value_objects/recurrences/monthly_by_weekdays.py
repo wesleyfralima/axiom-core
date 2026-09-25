@@ -24,7 +24,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
 
         Raises:
             InvalidWeekDayValue: If `days_of_week` is empty or contains
-            values outside the valid range (0–6).
+            values outside the valid range (0-6).
         """
 
         super().__post_init__()
@@ -33,7 +33,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
         if not self.days_of_week:
             raise InvalidWeekDayValue("days_of_week cannot be empty.")
 
-        # Ensure all weekdays are within 0–6 (Monday–Sunday)
+        # Ensure all weekdays are within 0-6 (Monday-Sunday)
         if any(d < 0 or d > 6 for d in self.days_of_week):
             raise InvalidWeekDayValue(
                 f"Invalid weekdays: {self.days_of_week}. Must be 0-6."
@@ -50,7 +50,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
             list[str]: A list containing the BYDAY clause with the chosen weekdays.
         """
 
-        # Mapping from numeric weekdays (0–6) to RFC 5545 abbreviations
+        # Mapping from numeric weekdays (0-6) to RFC 5545 abbreviations
         day_map: list[str] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
         # Build the BYDAY string with all selected weekdays

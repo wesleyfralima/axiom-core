@@ -274,8 +274,8 @@ class RecurrenceRule(ValueObject, ABC):
         """Normalize a datetime for comparison with recurrence rules.
 
         Ensures consistent comparison between floating (naive) and fixed
-        (timezone‑aware) datetimes. If the rule is floating and the candidate
-        datetime is timezone‑aware, the timezone is stripped. If the rule is
+        (timezone-aware) datetimes. If the rule is floating and the candidate
+        datetime is timezone-aware, the timezone is stripped. If the rule is
         fixed and the candidate datetime is naive, the rule's timezone is applied.
 
         Args:

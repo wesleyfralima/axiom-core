@@ -29,10 +29,10 @@ class UniqueId(SimpleValueObject):
         """
         try:
             return cls(UUID(value))
-        except ValueError:
+        except ValueError as e:
             raise ValidationException(
                 error_msg or f"The provided value is not a valid UUID: {value}"
-            )
+            ) from e
 
 
 @dataclass(frozen=True)
