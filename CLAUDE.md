@@ -128,8 +128,9 @@ retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
 
 ## Estado atual (24/09/2026)
 
-- Versão `0.3.1` (0.2.2 + filtro de encerradas + editar prazo): WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
-  1º item) e bugs do levantamento (Parte 3).
+- Versão `0.3.1`: WIP consolidado (Backlog 01, Parte 1), licença (Parte 5,
+  1º item), bugs do levantamento (Parte 3) e o que o CLI pediu para o uso
+  diário (listar só abertas, editar prazo).
 - 287 testes passando; cobertura 67%; **mypy com 15 erros** — por isso os
   commits ainda usam `SKIP=mypy` até a Parte 2 do Backlog 01.
 - O CI (`.github/workflows/ci.yml`) veio do base-python-project e está errado:
