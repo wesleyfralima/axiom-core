@@ -1,66 +1,67 @@
 # Axiom Core 🧠
 
-O **Axiom Core** é o coração do ecossistema Axiom, contendo todas as regras de domínio, entidades e casos de uso da
-aplicação. Ele é construído seguindo os princípios da **Clean Architecture**, garantindo que a lógica de negócio seja
-independente de frameworks, bancos de dados ou interfaces externas.
+**Axiom Core** is the heart of the Axiom ecosystem: it holds every domain rule, entity and use case of the
+application. It follows the principles of **Clean Architecture**, so the business logic is independent of
+frameworks, databases and external interfaces.
 
-## 🏗️ Estrutura do Projeto
+## 🏗️ Project structure
 
-O código está organizado em camadas concêntricas:
+The code is organized in concentric layers:
 
-* **`a_core/`**: Abstrações-base e tipos universais do sistema.
-* **`b_domain/`**: Entidades, Value Objects e exceções de negócio.
-    * Ex: `Task`, `User`, `AxiomDate`, `RecurrenceRule`.
-* **`c_application/`**: Casos de uso (Use Cases), DTOs e Mappers.
-    * Esta camada orquestra o fluxo de dados de e para as entidades de domínio.
+* **`a_core/`**: base abstractions and the system's universal types.
+* **`b_domain/`**: entities, value objects and business exceptions.
+    * E.g. `Task`, `User`, `AxiomDate`, `RecurrenceRule`.
+* **`c_application/`**: use cases, DTOs and mappers.
+    * This layer orchestrates the data flow to and from the domain entities.
 
-## 🚀 Tecnologias Principais
+## 🚀 Main technologies
 
-* **Python 3.12+**: tipagem estática e sintaxe moderna (PEP 695, `X | None`).
-* **Poetry**: Para gerenciamento de dependências e empacotamento.
-* **Timezone-aware**: Gestão rigorosa de tempo com `ZoneInfo` (Fixed vs Floating dates).
+* **Python 3.12+**: static typing and modern syntax (PEP 695, `X | None`).
+* **Poetry**: dependency management and packaging.
+* **Timezone-aware**: strict time handling with `ZoneInfo` (fixed vs floating dates).
 
-## 🧩 Componentes Chave
+## 🧩 Key components
 
 ### AxiomDate & DueDate
 
-Uma primitiva temporal customizada que resolve o problema de "horário de parede" (Wall-clock time) vs "instantes
-absolutos" (UTC), essencial para sistemas de produtividade globais.
+A custom time primitive that solves the "wall-clock time" vs "absolute instant" (UTC) problem, essential for
+productivity systems used across time zones.
 
-### Recurrence Strategies
+### Recurrence strategies
 
-Sistema polimórfico de recorrência que suporta desde regras simples (diárias) até complexas (enésimo dia útil do mês).
+A polymorphic recurrence system that supports everything from simple rules (daily) to complex ones (the nth
+business day of the month).
 
-### Clean Use Cases
+### Clean use cases
 
-Todos os fluxos (Criar tarefa, Listar, Autenticar) são encapsulados em classes de comando único, facilitando testes e
-auditoria.
+Every flow (create a task, list, authenticate) is wrapped in a single-command class, which makes testing and
+auditing easier.
 
-## 🛠️ Instalação
+## 🛠️ Installation
 
-Certifique-se de ter o [Poetry](https://python-poetry.org/) instalado.
+Make sure [Poetry](https://python-poetry.org/) is installed.
 
 ```bash
-# Clone o repositório
-git clone [https://github.com/wesleyfralima/axiom-core.git](https://github.com/wesleyfralima/axiom-core.git)
+# Clone the repository
+git clone https://github.com/wesleyfralima/axiom-core.git
 
-# Entre na pasta
+# Enter the folder
 cd axiom-core
 
-# Instale as dependências
+# Install the dependencies
 poetry install
 ```
 
-## 📄 Licença
+## 📄 License
 
-[Axiom Core License 1.0](LICENSE). Em resumo (o texto que vale é o do
-arquivo `LICENSE`):
+[Axiom Core License 1.0](LICENSE). In short (the binding text is the one in
+the `LICENSE` file):
 
-* **Pode** usar, estudar, copiar, modificar e redistribuir, e usar o código
-  para construir outras aplicações — inclusive comerciais.
-* **Precisa** dar o crédito: a origem (https://github.com/wesleyfralima/axiom-core)
-  e os autores (Wesley Francisco de Lima, com Claude, da Anthropic), e dizer
-  quando a cópia foi modificada.
-* **Não pode** vender o próprio Axiom Core como está, ou com alterações
-  pequenas (renomear, trocar a marca, reempacotar…). Vender uma aplicação que
-  o usa como parte e acrescenta funcionalidade própria substancial é permitido.
+* You **may** use, study, copy, modify and redistribute it, and use the code
+  to build other applications — commercial ones included.
+* You **must** give credit: the origin (https://github.com/wesleyfralima/axiom-core)
+  and the authors (Wesley Francisco de Lima, with Claude, by Anthropic), and
+  say when your copy was modified.
+* You **may not** sell Axiom Core itself as-is, or with minor changes
+  (renaming, rebranding, repackaging…). Selling an application that uses it as
+  one of its parts and adds substantial functionality of its own is allowed.

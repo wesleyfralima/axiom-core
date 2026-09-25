@@ -1,140 +1,150 @@
 # CLAUDE.md — axiom-core
 
-> Regras de negócio e casos de uso do Axiom Pro. **Repositório público**
-> (github.com/wesleyfralima/axiom-core) e vitrine técnica do autor. O mapa do
-> ecossistema (enterprise, CLI, web) está no `CLAUDE.md` da pasta-mãe
-> (`../CLAUDE.md`), que mora num repositório privado de documentação. Se algo aqui divergir do código, o
-> código ganha — e a linha daqui se corrige na mesma tratativa.
+> Business rules and use cases of Axiom Pro. **Public repository**
+> (github.com/wesleyfralima/axiom-core) and the author's technical showcase.
+> The ecosystem map (enterprise, CLI, web) is in the parent folder's
+> `CLAUDE.md` (`../CLAUDE.md`), which lives in a private documentation
+> repository. If anything here disagrees with the code, the code wins — and
+> the line here gets fixed in the same piece of work.
 
-## Regras inegociáveis
+## Non-negotiable rules
 
-1. **Zero dependências de runtime.** `[tool.poetry.dependencies]` só tem
-   `python`. Tudo o que é framework, banco, rede ou biblioteca de terceiros
-   mora no axiom-enterprise, atrás de uma **porta** em `b_domain/ports/`.
-2. **Nada do plano de negócio entra aqui** (preço, plano pago, estratégia,
-   segredos). O repo é público.
-3. **Autocontido.** Não depender do `base-python-project`; copiar e adaptar,
-   sim.
-4. **O tempo é injetado.** Métodos de domínio recebem `now: datetime`; use
-   cases usam `self.clock.now()` (`ClockProvider`). Nunca `datetime.now()` em
-   regra de negócio (exceções legadas: defaults de `Entity`/`DomainEvent`).
-5. **Efeito colateral vira evento.** O use case muda a entidade; a entidade
-   registra o `DomainEvent`; o `UnitOfWork` grava no Outbox; um handler
-   (`c_application/handlers/`) reage. Ex.: concluir tarefa → desbloquear
-   dependentes e gerar a próxima ocorrência.
-6. **Mudança de API usada pelo enterprise/CLI só fecha com eles adaptados.**
+1. **Zero runtime dependencies.** `[tool.poetry.dependencies]` only has
+   `python`. Anything that is a framework, database, network or third-party
+   library lives in axiom-enterprise, behind a **port** in `b_domain/ports/`.
+2. **Nothing from the business plan goes in here** (pricing, paid plan,
+   strategy, secrets). The repo is public.
+3. **Self-contained.** Do not depend on `base-python-project`; copying and
+   adapting from it is fine.
+4. **Time is injected.** Domain methods receive `now: datetime`; use cases
+   use `self.clock.now()` (`ClockProvider`). Never `datetime.now()` in a
+   business rule (legacy exceptions: `Entity`/`DomainEvent` defaults).
+5. **Side effects become events.** The use case changes the entity; the
+   entity records the `DomainEvent`; the `UnitOfWork` writes it to the Outbox;
+   a handler (`c_application/handlers/`) reacts. E.g. completing a task →
+   unblock dependents and create the next occurrence.
+6. **An API change used by enterprise/CLI only closes once they are adapted.**
+7. **Everything in English** — code, names, comments, docstrings, messages,
+   tests, docs and commit messages. Multi-language support is a future
+   feature (see the CLI's Backlog 02); until then, the only non-English text
+   allowed is language data meant to understand user input (e.g. the `pt`
+   sections of `task_language_engine.toml`).
 
-## Camadas
+## Layers
 
-A letra no nome existe para a ordem de dependência ser visível no `ls`. Uma
-camada só importa das anteriores.
+The letter in the name makes the dependency order visible in `ls`. A layer
+only imports from the ones before it.
 
-| Pasta | Papel |
+| Folder | Role |
 | --- | --- |
-| `a_core/` | Base genérica, sem nada de Axiom: `ddd/` (`Entity`, `ValueObject`, `SimpleValueObject`, `TextValueObject`, `UniqueId`, `IdPrefix`, `DomainEvent`), `persistence/` (`BaseRepository`, `@tracks_entity`), `application/` (`DTO`, `InputDTO`, `OutputDTO`, `PaginatedResponse`), `exceptions.py`, `text.py` (ordinais, listas em inglês) |
-| `b_domain/` | `entities/` (Task, User, Context, TimeEntry, OutboxEvent), `value_objects/` (datas, enums, recorrências, textos, ids, flow state, perfil/métricas de comportamento, reward), `events/`, `exceptions/`, `ports/`, `services/`, `engines/` |
-| `c_application/` | `use_cases/` (auth, task, user, contexts), `handlers/` + `wiring.py`, `dtos/`, `mappers/` (entidade → OutputDTO), `utils/` |
+| `a_core/` | Generic base, nothing Axiom-specific: `ddd/` (`Entity`, `ValueObject`, `SimpleValueObject`, `TextValueObject`, `UniqueId`, `IdPrefix`, `DomainEvent`), `persistence/` (`BaseRepository`, `@tracks_entity`), `application/` (`DTO`, `InputDTO`, `OutputDTO`, `PaginatedResponse`), `exceptions.py`, `text.py` (ordinals, English lists) |
+| `b_domain/` | `entities/` (Task, User, Context, TimeEntry, OutboxEvent), `value_objects/` (dates, enums, recurrences, texts, ids, flow state, behavior profile/metrics, reward), `events/`, `exceptions/`, `ports/`, `services/`, `engines/` |
+| `c_application/` | `use_cases/` (auth, task, user, contexts), `handlers/` + `wiring.py`, `dtos/`, `mappers/` (entity → OutputDTO), `utils/` |
 
-Fora do pacote, **locais e gitignored**: `diretrizes.md` (visão do Axiom
-Flow), `todo.md` (backlog "master" de março/2026) e `d_fake_infra/`
-(repositórios em memória + simulador interativo do FlowEngine:
-`python -m d_fake_infra`).
+Outside the package, **local and gitignored**: `diretrizes.md` (the Axiom
+Flow vision), `todo.md` (the "master" backlog from March 2026) and
+`d_fake_infra/` (in-memory repositories + an interactive FlowEngine
+simulator: `python -m d_fake_infra`).
 
-## Onde procurar cada coisa
+## Where to look for things
 
-- **Contrato de use case:** `b_domain/ports/use_case.py` — `UseCase[TReq, TResp]`
-  recebe `uow_factory` e `clock`; cada `async with self.uow as uow:` abre uma
-  transação nova; `execute` é `async`.
-- **Transação + outbox:** `b_domain/ports/unit_of_work.py`. Repositórios
-  concretos herdam `BaseRepository` e decoram com `@tracks_entity` todo método
-  que devolve entidade — é assim que o UoW acha os eventos. `__init_subclass__`
-  cobra isso na definição da classe.
-- **Registro de handlers:** `c_application/handlers/wiring.py` —
-  `register_essential_handlers` (desbloqueio de dependências, recorrência) e
-  `register_optional_handlers` (métricas + aprendizado; recebe `None` e não
-  registra nada quando o produto não os liga).
-- **Datas:** `b_domain/value_objects/dates.py`. `AxiomDate.fixed` = instante
-  (aware, UTC); `AxiomDate.floating` = hora de parede + fuso de origem (naive).
-  Tarefa flutuante exige recorrência flutuante, e vice-versa.
-- **Recorrências:** `b_domain/value_objects/recurrences/` — uma classe por
-  regra, `_base.py` com o contrato, `_factory.py` monta a partir do
-  `RecurrenceInputDTO`. Cada regra se descreve (`describe_pattern()`); regra
-  nova tem de implementar esse método.
-- **Entrada de nível pelo usuário:** `Priority`, `EnergyLevel` e
-  `TaskComplexity` herdam `LevelEnum`; converta texto/número com
-  `.parse(...)` (falha com `InvalidValueError`), nunca com `Priority(texto)`.
-- **Motores (ainda sem use case):** `b_domain/engines/flow_engine.py`
-  (`FlowEngine.get_next_action` → `FlowDecision`) e
+- **Use case contract:** `b_domain/ports/use_case.py` — `UseCase[TReq, TResp]`
+  receives `uow_factory` and `clock`; each `async with self.uow as uow:` opens
+  a new transaction; `execute` is `async`.
+- **Transaction + outbox:** `b_domain/ports/unit_of_work.py`. Concrete
+  repositories inherit `BaseRepository` and decorate with `@tracks_entity`
+  every method that returns an entity — that is how the UoW finds the events.
+  `__init_subclass__` enforces it when the class is defined.
+- **Handler registration:** `c_application/handlers/wiring.py` —
+  `register_essential_handlers` (dependency unblocking, recurrence) and
+  `register_optional_handlers` (metrics + learning; receives `None` and
+  registers nothing when the product does not turn them on).
+- **Dates:** `b_domain/value_objects/dates.py`. `AxiomDate.fixed` = an instant
+  (aware, UTC); `AxiomDate.floating` = wall-clock time + source timezone
+  (naive). A floating task requires a floating recurrence, and vice versa.
+- **Recurrences:** `b_domain/value_objects/recurrences/` — one class per rule,
+  `_base.py` with the contract, `_factory.py` builds from the
+  `RecurrenceInputDTO`. Each rule describes itself (`describe_pattern()`); a
+  new rule must implement that method.
+- **Level input from the user:** `Priority`, `EnergyLevel` and
+  `TaskComplexity` inherit `LevelEnum`; convert text/numbers with
+  `.parse(...)` (fails with `InvalidValueError`), never with `Priority(text)`.
+- **Engines (no use case yet):** `b_domain/engines/flow_engine.py`
+  (`FlowEngine.get_next_action` → `FlowDecision`) and
   `b_domain/engines/task_language_engine.py`
   (`build_language_engine(config, contexts_map)` →
-  `TaskLanguageEngine.infer(texto, now, lang)`). A configuração padrão do
-  segundo é `b_domain/engines/task_language_engine.toml`, empacotada; quem a
-  lê é o chamador (`importlib.resources` + `tomllib`), nunca o core.
-- **IDs curtos:** use cases de tarefa recebem **prefixo** de UUID
-  (`IdPrefix`) e resolvem via `TaskRepository.task_ids_from_id_prefixes`;
-  ambiguidade é erro.
+  `TaskLanguageEngine.infer(text, now, lang)`). The latter's default
+  configuration is `b_domain/engines/task_language_engine.toml`, packaged;
+  the caller reads it (`importlib.resources` + `tomllib`), never the core.
+- **Short IDs:** task use cases receive a UUID **prefix** (`IdPrefix`) and
+  resolve it via `TaskRepository.task_ids_from_id_prefixes`; ambiguity is an
+  error.
 
-O inventário completo (o que existe, o que falta, o que tem defeito) está em
-`../docs/inventario.md`.
+The full inventory (what exists, what is missing, what is broken) is in
+`../docs/inventory.md`.
 
-## Convenções de código
+## Code conventions
 
-- Python 3.12, sintaxe moderna: `X | None`, generics PEP 695
+- Python 3.12, modern syntax: `X | None`, PEP 695 generics
   (`class UseCase[TReq, TResp]`), `StrEnum`/`IntEnum`, `datetime.UTC`.
-- Entidades: `@dataclass(kw_only=True, eq=False)` + factory `create(...)`.
-  Value objects: `@dataclass(frozen=True)`; métodos que "mudam" devolvem cópia.
-- Código, nomes e docstrings em **inglês**, docstrings no estilo Google (Args /
-  Returns / Raises). Documentação do repo (`README`, `docs/`) em português.
-- Exceções de negócio herdam `DomainException` (`a_core/exceptions.py`) e ficam
-  em `b_domain/exceptions/` por assunto.
-- black + ruff (`E, F, I, UP, B, RUF`), linha de 88; mypy estrito
-  (`disallow_untyped_defs`) em `a_core`, `b_domain`, `c_application` e `tests`
-  — está zerado; commit não usa mais `SKIP=mypy`.
+- Entities: `@dataclass(kw_only=True, eq=False)` + a `create(...)` factory.
+  Value objects: `@dataclass(frozen=True)`; methods that "change" return a
+  copy.
+- Google-style docstrings (Args / Returns / Raises).
+- Business exceptions inherit `DomainException` (`a_core/exceptions.py`) and
+  live in `b_domain/exceptions/` by subject.
+- ruff for formatting and linting (`E, F, I, UP, B, RUF`), line length 88;
+  strict mypy (`disallow_untyped_defs`) on `a_core`, `b_domain`,
+  `c_application` and `tests` — it is at zero; commits no longer use
+  `SKIP=mypy`.
 
-## Comandos
+## Commands
 
-O pre-commit (`.pre-commit-config.yaml`) chama as ferramentas do `.venv` do
-próprio repo, para nunca discordar do `make check`. Não use `poetry run` nos
-hooks: com outro venv ativo no terminal (o VSCode ativa sozinho), o Poetry
-usa o venv errado.
+The pre-commit hooks (`.pre-commit-config.yaml`) call the tools from the
+repo's own `.venv`, so they never disagree with `make check`. Do not use
+`poetry run` in the hooks: with another venv active in the terminal (VSCode
+activates one on its own), Poetry uses the wrong venv.
 
 ```bash
-make check      # black --check, ruff, mypy, pytest com piso de cobertura (o CI roda este)
-make test       # só pytest
-make coverage   # relatório em htmlcov/
+make check      # ruff format --check, ruff, mypy, pytest with the coverage floor (CI runs this)
+make test       # pytest only
+make coverage   # report in htmlcov/
 make lint-fix   # ruff --fix
-make format     # black
+make format     # ruff format
 ```
 
-Testes em `tests/a_unit` (marcador `unit`), `tests/b_integration` e
-`tests/c_system` (vazios). Os fakes de repositório, UoW e relógio estão em
+Tests live in `tests/a_unit` (marker `unit`), `tests/b_integration` and
+`tests/c_system` (empty). The repository, UoW and clock fakes are in
 `tests/conftest.py` (`fake_uow_factory`, `fake_clock`, `use_case_context`).
 
-## Fluxo de trabalho
+## Workflow
 
-1. Um branch por trabalho: `feat/backlogNN-parteN-nome-curto` (ou `fix/…`).
-2. Commit no branch; `merge --no-ff` em `master`. Push só quando o dono pedir.
-3. No mesmo commit do trabalho: suba `version` no `pyproject.toml` (feature →
-   `0.x.0`; correção → `0.x.y`) e escreva a entrada no `CHANGELOG.md`.
-4. `make check` verde antes do merge. O piso de cobertura
-   (`fail_under` no `pyproject.toml`) é a cobertura real: quem acrescenta
-   teste sobe o piso no mesmo commit.
+1. One branch per piece of work: `feat/backlogNN-partN-short-name` (or
+   `fix/…`, `chore/…`, `docs/…`).
+2. Commit on the branch; `merge --no-ff` into `master`. Push only when the
+   owner asks.
+3. In the same commit as the work: bump `version` in `pyproject.toml`
+   (feature → `0.x.0`; fix → `0.x.y`) and write the `CHANGELOG.md` entry.
+4. `make check` green before merging. The coverage floor (`fail_under` in
+   `pyproject.toml`) is the real coverage: whoever adds tests raises the floor
+   in the same commit.
 
-### docs/backlog/todo/ e docs/backlog/done/
+### docs/backlog/todo/ and docs/backlog/done/
 
-Pendências e histórico ficam em **um arquivo por objetivo**, e cada pasta tem
-um `README.md` que é só o índice. Um arquivo só vai para `done/` quando está
-100% concluído, inteiro, com "resolvido em …" em cada item; enquanto houver
-item aberto ele fica em `todo/` (inclusive com os `[x]`). `done/` não se edita
-retroativamente. Se um trabalho fechar item de outro arquivo, feche lá também.
+Pending work and history live in **one file per goal**, and each folder has a
+`README.md` that is only the index. A file only moves to `done/` when it is
+100% done, whole, with "resolved on …" on every item; while any item is open
+it stays in `todo/` (`[x]` items included). `done/` is not edited
+retroactively. If a piece of work closes an item in another file, close it
+there too.
 
-## Estado atual (25/09/2026)
+## Current state (2026-09-25)
 
-- Versão `0.3.10`: WIP consolidado (Backlog 01, Parte 1), `make check` verde
-  e CI (Parte 2), bugs do levantamento (Parte 3), licença (Parte 5, 1º item)
-  e o que o CLI pediu para o uso diário (listar só abertas, editar prazo,
-  validar preferências).
-- 299 testes passando; **`make check` verde**: mypy zerado (pacotes e
-  testes), ruff com `B`/`RUF`, cobertura 68,7% sobre piso de 68%.
-- O CI (`.github/workflows/ci.yml`) roda o `make check` em `master` e em PR;
-  ainda não rodou de verdade porque o repositório não existe no GitHub.
+- Version `0.3.11`: WIP consolidated (Backlog 01, Part 1), `make check` green
+  and CI (Part 2), survey bugs (Part 3), license (Part 5, 1st item), what the
+  CLI asked for daily use (list only open tasks, edit due date, validate
+  preferences), and the whole repo in English with ruff as the formatter.
+- 299 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 68.7% over a 68% floor.
+- CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
+  it has not really run yet because the repository does not exist on GitHub.

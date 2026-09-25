@@ -527,7 +527,7 @@ def test_yearly_recurrence_from_feb_29() -> None:
 
 
 def simple_business_day(d: date) -> bool:
-    # segunda (0) a sexta (4) e não é o ano novo de 2024
+    # Monday (0) to Friday (4), and not New Year's Day 2024
     return d.weekday() < 5 and d != date(2024, 1, 1)
 
 
@@ -641,7 +641,7 @@ def test_get_closest_occurrence_after_reference() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 10), "UTC"),
     )
 
-    # Reference no dia 3 → deve retornar dia 3 (≥ reference)
+    # Reference on day 3 -> must return day 3 (>= reference)
     result = rule._get_closest_occurrence(datetime(2024, 1, 3), before=False)
     assert result == datetime(2024, 1, 3, tzinfo=ZoneInfo("UTC"))
 
@@ -656,7 +656,7 @@ def test_get_closest_occurrence_before_reference() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 10), "UTC"),
     )
 
-    # Reference no dia 5 → deve retornar dia 4 (< reference)
+    # Reference on day 5 -> must return day 4 (< reference)
     result = rule._get_closest_occurrence(datetime(2024, 1, 5), before=True)
     assert result == datetime(2024, 1, 4, tzinfo=ZoneInfo("UTC"))
 
@@ -671,11 +671,11 @@ def test_get_closest_occurrence_respects_end_date() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 5), "UTC"),
     )
 
-    # Reference no dia 6 → não deve retornar nada, pois end_date é 5
+    # Reference on day 6 -> must return nothing, since end_date is 5
     result = rule._get_closest_occurrence(datetime(2024, 1, 6), before=False)
     assert result is None
 
-    # Reference no dia 15, before=True → deve retornar último válido (dia 5)
+    # Reference on day 15, before=True -> must return the last valid one (day 5)
     result_before = rule._get_closest_occurrence(datetime(2024, 1, 15), before=True)
     assert result_before == datetime(2024, 1, 5, tzinfo=ZoneInfo("UTC"))
 
@@ -690,19 +690,19 @@ def test_daily_interval_two_days() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 10), "UTC"),
     )
 
-    # Reference dia 3 → próxima ocorrência é dia 3 (porque 1,3,5,...)
+    # Reference day 3 -> next occurrence is day 3 (because 1,3,5,...)
     result = rule._get_closest_occurrence(datetime(2024, 1, 3), before=False)
     assert result == datetime(2024, 1, 3, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 3 → ocorrência anterior é dia 1 (porque 1,3,5,...)
+    # Reference day 3 -> previous occurrence is day 1 (because 1,3,5,...)
     result = rule._get_closest_occurrence(datetime(2024, 1, 3), before=True)
     assert result == datetime(2024, 1, 1, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 4 → próxima ocorrência é dia 5 (porque 1,3,5,...)
+    # Reference day 4 -> next occurrence is day 5 (because 1,3,5,...)
     result = rule._get_closest_occurrence(datetime(2024, 1, 4), before=False)
     assert result == datetime(2024, 1, 5, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 4 → ocorrência anterior é dia 3 (porque 1,3,5,...)
+    # Reference day 4 -> previous occurrence is day 3 (because 1,3,5,...)
     result = rule._get_closest_occurrence(datetime(2024, 1, 4), before=True)
     assert result == datetime(2024, 1, 3, tzinfo=ZoneInfo("UTC"))
 
@@ -716,19 +716,19 @@ def test_weekly_on_specific_weekday() -> None:
         end_date=AxiomDate.floating(datetime(2024, 1, 31), "UTC"),
     )
 
-    # Reference dia 3 (quarta) → próxima ocorrência é dia 8 (1, 8, 15, 22, 29)
+    # Reference day 3 (Wednesday) -> next occurrence is day 8 (1, 8, 15, 22, 29)
     result = rule._get_closest_occurrence(datetime(2024, 1, 3), before=False)
     assert result == datetime(2024, 1, 8, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 3 (quarta) → ocorrência anterior é dia 1 (1, 8, 15, 22, 29)
+    # Reference day 3 (Wednesday) -> previous occurrence is day 1 (1, 8, 15, 22, 29)
     result = rule._get_closest_occurrence(datetime(2024, 1, 3), before=True)
     assert result == datetime(2024, 1, 1, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 18 → próxima ocorrência é dia 22 (1, 8, 15, 22, 29)
+    # Reference day 18 -> next occurrence is day 22 (1, 8, 15, 22, 29)
     result = rule._get_closest_occurrence(datetime(2024, 1, 18), before=False)
     assert result == datetime(2024, 1, 22, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 18 → ocorrência anterior é dia 15 (1, 8, 15, 22, 29)
+    # Reference day 18 -> previous occurrence is day 15 (1, 8, 15, 22, 29)
     result = rule._get_closest_occurrence(datetime(2024, 1, 18), before=True)
     assert result == datetime(2024, 1, 15, tzinfo=ZoneInfo("UTC"))
 
@@ -742,19 +742,19 @@ def test_monthly_on_specific_day() -> None:
         end_date=AxiomDate.floating(datetime(2024, 3, 31), "UTC"),
     )
 
-    # Reference dia 10/01 → próxima ocorrência é dia 15 de janeiro
+    # Reference 01/10 -> next occurrence is January 15
     result = rule._get_closest_occurrence(datetime(2024, 1, 10), before=False)
     assert result == datetime(2024, 1, 15, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 10/01 → ocorrência anterior None
+    # Reference 01/10 -> previous occurrence is None
     result = rule._get_closest_occurrence(datetime(2024, 1, 10), before=True)
     assert result is None
 
-    # Reference dia 20/01 → próxima ocorrência é 15 de fevereiro
+    # Reference 01/20 -> next occurrence is February 15
     result2 = rule._get_closest_occurrence(datetime(2024, 1, 20), before=False)
     assert result2 == datetime(2024, 2, 15, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 20/01 → ocorrência anterior é 15 de janeiro
+    # Reference 01/20 -> previous occurrence is January 15
     result2 = rule._get_closest_occurrence(datetime(2024, 1, 20), before=True)
     assert result2 == datetime(2024, 1, 15, tzinfo=ZoneInfo("UTC"))
 
@@ -769,19 +769,19 @@ def test_monthly_positional_rule_last_friday() -> None:
         end_date=AxiomDate.floating(datetime(2024, 3, 31), "UTC"),
     )
 
-    # Reference dia 10/01 → próxima ocorrência é dia 26/01
+    # Reference 01/10 -> next occurrence is 01/26
     result = rule._get_closest_occurrence(datetime(2024, 1, 10), before=False)
     assert result == datetime(2024, 1, 26, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 10/01 → ocorrência anterior é None
+    # Reference 01/10 -> previous occurrence is None
     result = rule._get_closest_occurrence(datetime(2024, 1, 10), before=True)
     assert result is None
 
-    # Reference dia 10/03 → próxima ocorrência é dia 29/03
+    # Reference 03/10 -> next occurrence is 03/29
     result = rule._get_closest_occurrence(datetime(2024, 3, 10), before=False)
     assert result == datetime(2024, 3, 29, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 10/03 → ocorrência anterior é dia 23/02
+    # Reference 03/10 -> previous occurrence is 02/23
     result = rule._get_closest_occurrence(datetime(2024, 3, 10), before=True)
     assert result == datetime(2024, 2, 23, tzinfo=ZoneInfo("UTC"))
 
@@ -799,19 +799,19 @@ def test_monthly_nth_business_day() -> None:
         end_date=AxiomDate.floating(datetime(2024, 3, 31), "UTC"),
     )
 
-    # Reference dia 02/01 → próxima ocorrência é dia 03/01
+    # Reference 01/02 -> next occurrence is 01/03
     result = rule._get_closest_occurrence(datetime(2024, 1, 2), before=False)
     assert result == datetime(2024, 1, 3, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 10/01 → ocorrência anterior é 03/01
+    # Reference 01/10 -> previous occurrence is 01/03
     result = rule._get_closest_occurrence(datetime(2024, 1, 10), before=True)
     assert result == datetime(2024, 1, 3, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 02/03 → próxima ocorrência é dia 05/03
+    # Reference 03/02 -> next occurrence is 03/05
     result = rule._get_closest_occurrence(datetime(2024, 3, 2), before=False)
     assert result == datetime(2024, 3, 5, tzinfo=ZoneInfo("UTC"))
 
-    # Reference dia 10/03 → ocorrência anterior é dia 05/03
+    # Reference 03/10 -> previous occurrence is 03/05
     result = rule._get_closest_occurrence(datetime(2024, 3, 10), before=True)
     assert result == datetime(2024, 3, 5, tzinfo=ZoneInfo("UTC"))
 
@@ -861,7 +861,7 @@ def test_floating_rule_sanitizes_aware_input() -> None:
     Expected: The rule should strip the tz from the input and treat it as 09:00 naive.
     """
 
-    # 1. Regra Floating (Naive) - Todo dia às 09:00
+    # 1. Floating rule (naive) - every day at 09:00
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
         start_date=AxiomDate.floating(
@@ -870,15 +870,15 @@ def test_floating_rule_sanitizes_aware_input() -> None:
         interval=1,
     )
 
-    # 2. Input "sujo" com UTC (Ex: 09:00 UTC)
-    # Se o sistema não sanitizasse, isso daria TypeError aqui.
+    # 2. "Dirty" input in UTC (e.g. 09:00 UTC)
+    # Without sanitizing, this would raise TypeError here.
     input_aware = datetime(2026, 1, 1, 9, 0, 0, tzinfo=UTC)
 
     # 3. Executa
     next_occurrence = rule.get_next_occurrence(last_occurrence=input_aware)
 
-    # 4. Verifica
-    # Deve retornar 02/01 às 09:00 NAIVE (Floating)
+    # 4. Check
+    # Must return 01/02 at 09:00 NAIVE (floating)
     expected = datetime(2026, 1, 2, 9, 0, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
 
     assert next_occurrence is not None
@@ -905,14 +905,14 @@ def test_floating_rule_ignores_timezone_offset_semantics() -> None:
     )
 
     # Input: 10:00 em SP (Aware)
-    # Se convertesse para UTC, viraria "13:00". Se a regra usar 13:00, errou.
-    # A regra deve usar o visual "10:00".
+    # Converted to UTC it would become "13:00". If the rule uses 13:00, it is wrong.
+    # The rule must use the wall-clock "10:00".
     sp_tz = ZoneInfo("America/Sao_Paulo")
     last_occ_sp = datetime(2026, 1, 1, 10, 0, 0, tzinfo=sp_tz)
 
     next_occurrence = rule.get_next_occurrence(last_occurrence=last_occ_sp)
 
-    # Deve ser dia 02 às 10:00 Naive
+    # Must be day 02 at 10:00 naive
     assert next_occurrence == datetime(2026, 1, 2, 10, 0, 0, tzinfo=ZoneInfo("UTC"))
 
 
@@ -923,21 +923,21 @@ def test_fixed_rule_sanitizes_naive_input() -> None:
     Expected: The rule assumes the Naive date belongs to the rule's timezone (UTC).
     """
 
-    # Regra Fixed (UTC) - Todo dia às 15:00 UTC
+    # Fixed rule (UTC) - every day at 15:00 UTC
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
         start_date=AxiomDate.fixed(datetime(2026, 1, 1, 15, 0, 0, tzinfo=UTC)),
         interval=1,
     )
 
-    # Input Naive (15:00 sem fuso)
+    # Naive input (15:00, no timezone)
     input_naive = datetime(2026, 1, 1, 15, 0, 0)
 
     next_occurrence: datetime | None = rule.get_next_occurrence(
         last_occurrence=input_naive
     )
 
-    # Deve retornar dia 02 às 15:00 UTC
+    # Must return day 02 at 15:00 UTC
     expected = datetime(2026, 1, 2, 15, 0, 0, tzinfo=UTC)
 
     assert next_occurrence is not None
@@ -954,7 +954,7 @@ def test_check_end_conditions_logic_agnostic() -> None:
     due to the sanitization logic.
     """
 
-    # Regra Floating até dia 05/01 (Naive)
+    # Floating rule until 01/05 (naive)
     end_date = AxiomDate.floating(datetime(2026, 1, 5, 10, 0, 0), "UTC")
     rule = SimpleIntervalRule(
         frequency=RecurrenceInterval.DAILY,
@@ -962,25 +962,25 @@ def test_check_end_conditions_logic_agnostic() -> None:
         end_date=end_date,
     )
 
-    # Candidato Válido (Naive)
+    # Valid candidate (naive)
     valid_candidate = datetime(2026, 1, 4, 10, 0, 0)
     assert rule._check_end_conditions(valid_candidate) is True
 
-    # Candidato Inválido (Naive)
+    # Invalid candidate (naive)
     invalid_candidate = datetime(2026, 1, 6, 10, 0, 0)
     assert rule._check_end_conditions(invalid_candidate) is False
 
-    # TESTE CRÍTICO: Passar um candidato AWARE para uma regra NAIVE.
-    # O método _check_end_conditions deve lidar ou o chamador deve sanitizar.
-    # Baseado na nossa correção, quem chama sanitiza,
-    # mas vamos testar se o _get_closest_occurrence
-    # (que chama o check) resolve isso.
+    # CRITICAL TEST: pass an AWARE candidate to a NAIVE rule.
+    # _check_end_conditions must handle it, or the caller must sanitize.
+    # After our fix the caller sanitizes,
+    # but we check that _get_closest_occurrence
+    # (which calls the check) handles it.
 
     candidate_aware_valid = datetime(2026, 1, 4, 10, 0, 0, tzinfo=UTC)
 
-    # Chamamos via public method para exercitar o fluxo completo
-    # Se eu pedir a ocorrência DEPOIS do dia 4 (aware), ele deve achar o dia 5 (naive)
-    # Se o check_end_conditions falhasse com TypeError, esse teste quebraria.
+    # Go through the public method to exercise the full flow
+    # Asking for the occurrence AFTER day 4 (aware) must find day 5 (naive)
+    # If check_end_conditions failed with TypeError, this test would break.
     res = rule.get_next_occurrence(last_occurrence=candidate_aware_valid)
     assert res == datetime(2026, 1, 5, 10, 0, 0, tzinfo=UTC)
 
@@ -999,9 +999,9 @@ def test_rrule_string_until_format_floating() -> None:
 
     rrule_str = rule.rrule_string
 
-    # Verifica formato ISO sem separadores (padrão iCal) e SEM Z
+    # ISO format without separators (iCal standard) and NO Z
     assert "UNTIL=20261231T235959" in rrule_str
-    assert "Z" not in rrule_str.split("UNTIL=")[1]  # Garante que não tem Z no valor
+    assert "Z" not in rrule_str.split("UNTIL=")[1]  # no Z in the value
 
 
 def test_rrule_string_until_format_fixed() -> None:
@@ -1020,7 +1020,7 @@ def test_rrule_string_until_format_fixed() -> None:
 
     rrule_str = rule.rrule_string
 
-    # Verifica formato ISO com Z
+    # ISO format with Z
     assert "UNTIL=20261231T235959Z" in rrule_str
 
 

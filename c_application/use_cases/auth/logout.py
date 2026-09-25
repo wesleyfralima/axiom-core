@@ -6,7 +6,7 @@ from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
 
 # ==========================================
-# 1. DTOs de Entrada e Saída
+# 1. Input and Output DTOs
 # ==========================================
 
 

@@ -29,12 +29,12 @@ def adjust_date_semantics(
     tz: ZoneInfo | tzinfo = _get_local_tz_obj(user_tz_str)
 
     if is_floating:
-        # Garante que dt_utc seja aware antes de converter para local
+        # Make sure dt_utc is aware before converting to local
         temp_dt: datetime = dt_utc if dt_utc.tzinfo else dt_utc.replace(tzinfo=UTC)
         local_dt: datetime = temp_dt.astimezone(tz)
         return local_dt.replace(tzinfo=None)
 
-    # Para tarefas fixas, garante que o retorno seja sempre aware UTC
+    # Fixed tasks: the result is always aware UTC
     if dt_utc.tzinfo is None:
         return dt_utc.replace(tzinfo=UTC)
 
@@ -79,11 +79,11 @@ def normalize_datetime(
         dt = dt.replace(hour=23, minute=59, second=0, microsecond=0)
 
     # 3. Convert to UTC
-    # Se a string já veio com timezone, apenas converte para UTC
+    # The string already has a timezone: just convert to UTC
     if dt.tzinfo is not None:
         return dt.astimezone(UTC)
 
-    # Caso contrário, trata como local e converte
+    # Otherwise, treat it as local time and convert
     return local_to_utc(local_dt=dt, tz_local=tz_local)
 
 

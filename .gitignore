@@ -4,23 +4,23 @@ __pycache__/
 *$py.class
 .ipynb_checkpoints
 
-# --- Ambientes Virtuais (Poetry) ---
-# O Poetry geralmente cria o venv em uma pasta centralizada,
-# mas se você configurar 'virtualenvs.in-project = true', ele usará esta pasta:
+# --- Virtual environments (Poetry) ---
+# Poetry usually creates the venv in a central folder,
+# but with 'virtualenvs.in-project = true' it uses this one:
 .venv/
 bin/
 lib/
 include/
 share/
 
-# --- Build & Distribuição (Essencial para .whl) ---
-# Estas pastas contêm os arquivos temporários e o .whl gerado pelo 'poetry build'
+# --- Build & distribution (needed for .whl) ---
+# Temporary files and the .whl produced by 'poetry build'
 dist/
 build/
 *.egg-info/
 *.whl
 
-# --- Testes (Pytest) ---
+# --- Tests (pytest) ---
 .pytest_cache/
 .coverage
 htmlcov/
@@ -34,11 +34,11 @@ coverage.xml
 *.swp
 *.swo
 
-# --- Logs & Temporários ---
+# --- Logs & temporary files ---
 *.log
-.DS_Store (para macOS)
+.DS_Store
 
-# --- infra de teste e arquivos de DEV ---
+# --- Local test infra and dev notes ---
 d_fake_infra/
 todo.md
 diretrizes.md

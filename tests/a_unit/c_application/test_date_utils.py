@@ -59,10 +59,10 @@ def test_normalize_datetime_with_full_iso_string() -> None:
 def test_local_to_utc_respects_existing_timezone() -> None:
     """Ensure local_to_utc does not override timezone if string already has offset."""
 
-    # String já tem offset de +02:00
+    # The string already has a +02:00 offset
     dt_with_tz = datetime.fromisoformat("2026-01-20T10:00:00+02:00")
 
-    # O tz_local "America/Sao_Paulo" deve ser ignorado
+    # tz_local "America/Sao_Paulo" must be ignored
     result = local_to_utc(dt_with_tz, tz_local="America/Sao_Paulo")
 
     assert result.hour == 8
@@ -94,7 +94,7 @@ def test_normalize_datetime_without_end_of_day() -> None:
 
     assert result is not None
 
-    # Deve retornar 2026-01-20 00:00:00 UTC
+    # Must return 2026-01-20 00:00:00 UTC
     assert result.hour == 0
     assert result.minute == 0
     assert result.tzinfo == UTC

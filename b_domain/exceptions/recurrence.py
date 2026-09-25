@@ -38,7 +38,7 @@ class EndDateBeforeStartDate(RecurrenceRuleException):
     def __init__(self, start_date: datetime, end_date: datetime) -> None:
         self.start_date = start_date
         self.end_date = end_date
-        # Formata a data para uma leitura mais limpa (opcional)
+        # Format the date for cleaner reading (optional)
         start_str = start_date.strftime("%Y-%m-%d %H:%M")
         end_str = end_date.strftime("%Y-%m-%d %H:%M")
         super().__init__(

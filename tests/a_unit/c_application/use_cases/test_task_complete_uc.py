@@ -35,22 +35,22 @@ async def test_complete_task_successfully(
     # 2. Instanciar Use Case
     use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
 
-    # No DTO, o user_id costuma vir como string da API/CLI,
-    # o Use Case se encarrega de converter ou validar se necessário.
+    # In the DTO, user_id usually arrives as a string from the API/CLI;
+    # the use case converts or validates it as needed.
     request = TaskByUserRequest(
         task_id_prefix=str(task.id)[:8],
         user_id=str(user.id),
         completed_at=fake_clock.now(),
     )
 
-    # 3. Execução
+    # 3. Execution
     result = await use_case.execute(request)
 
-    # 4. Asserções
-    # Verificamos o status através do Enum/ValueObject
+    # 4. Assertions
+    # Check the status through the Enum/ValueObject
     assert result.completed_task.status == TaskStatus.DONE
 
-    # Verificamos se a tarefa no repositório foi realmente atualizada
+    # Check that the task in the repository was really updated
     updated_task: Task | None = await uow.tasks.get_by_id(task.id)
 
     assert updated_task is not None
@@ -62,7 +62,7 @@ async def test_complete_task_successfully(
 
 
 # -------------------------------------------------------------------------
-# 1. Erro: Prefixo muito curto
+# 1. Error: prefix too short
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
@@ -79,7 +79,7 @@ async def test_complete_task_fails_if_prefix_too_short(
 
 
 # -------------------------------------------------------------------------
-# 2. Erro: ID Ambíguo (Múltiplas tarefas com mesmo prefixo)
+# 2. Error: ambiguous ID (several tasks with the same prefix)
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
@@ -89,8 +89,8 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(
     user = User.create(username="wesley", email="wesley@test.com")
     now = fake_clock.now()
 
-    # Criamos duas tarefas que começam com o mesmo TaskId
-    # Forçamos o ID para o teste ser determinístico
+    # Two tasks starting with the same TaskId
+    # The ID is forced so the test is deterministic
     tid = TaskId()
 
     @dataclass(eq=True)
@@ -112,23 +112,23 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(
     t2 = replace(t2, id=same_id)  # type: ignore[arg-type]
 
     async with fake_uow_factory() as uow:
-        # Simulamos o cenário no fake repositório
+        # Simulate the scenario in the fake repository
         await uow.tasks.add(t1)
         await uow.tasks.add(t2)
 
         use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
         request = TaskByUserRequest(task_id_prefix=str(t1.id)[:4], user_id=str(user.id))
-        # Usamos um prefixo que (teoricamente)
-        # bateria em ambas se tivessem IDs similares
-        # No fake, o find_by_id_prefix deve ser populado para retornar ambas
+        # A prefix that would (in theory)
+        # match both if they had similar IDs
+        # In the fake, find_by_id_prefix must be set up to return both
 
-        # Se o repositório fake retornar mais de uma, o UC deve barrar
+        # If the fake repository returns more than one, the UC must refuse
         with pytest.raises(ValidationException, match="Ambiguous prefix"):
             await use_case.execute(request)
 
 
 # -------------------------------------------------------------------------
-# 3. Regra de Negócio: Bloqueio por Dependências
+# 3. Business rule: blocked by dependencies
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
@@ -150,7 +150,7 @@ async def test_complete_task_fails_if_task_is_blocked(
 
         use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
 
-        # Tentar completar B sem completar A antes
+        # Try to complete B without completing A first
         request = TaskByUserRequest(
             task_id_prefix=str(task_b.id)[:8], user_id=str(user.id)
         )
@@ -162,7 +162,7 @@ async def test_complete_task_fails_if_task_is_blocked(
 
 
 # -------------------------------------------------------------------------
-# 4. Fluxo Social: Parar Timers Ativos e Desbloquear Próxima
+# 4. Social flow: stop active timers and unblock the next one
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
@@ -171,21 +171,19 @@ async def test_complete_task_fails_if_belongs_to_another_user(
 ) -> None:
     now = fake_clock.now()
 
-    # Setup: Tarefa pertence ao 'outro'
+    # Setup: the task belongs to 'other'
     wesley = User.create(username="wesley", email="wesley@test.com")
-    outro = User.create(username="outro", email="wesley@test.com")
-    task_do_outro = Task.create(
-        title=Title("Tarefa Secreta"), user_id=outro.id, now=now
-    )
+    other = User.create(username="other", email="wesley@test.com")
+    other_task = Task.create(title=Title("Secret task"), user_id=other.id, now=now)
 
-    await fake_uow_factory().tasks.add(task_do_outro)
+    await fake_uow_factory().tasks.add(other_task)
     await fake_uow_factory().users.add(wesley)
 
     use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
 
-    # Wesley tenta completar usando o prefixo da tarefa do outro
+    # Wesley tries to complete it using the other user's task prefix
     request = TaskByUserRequest(
-        task_id_prefix=str(task_do_outro.id)[:8],
+        task_id_prefix=str(other_task.id)[:8],
         user_id=str(wesley.id),
     )
 
@@ -201,8 +199,8 @@ async def test_complete_task_fails_if_already_done(
     now = fake_clock.now()
 
     user = User.create(username="wesley", email="wesley@test.com")
-    task = Task.create(title=Title("Já fiz"), user_id=user.id, now=now)
-    task.mark_as_done(fake_clock.now())  # Forçamos o estado DONE
+    task = Task.create(title=Title("Already done"), user_id=user.id, now=now)
+    task.mark_as_done(fake_clock.now())  # force the DONE state
 
     async with fake_uow_factory() as uow:
         await uow.tasks.add(task)

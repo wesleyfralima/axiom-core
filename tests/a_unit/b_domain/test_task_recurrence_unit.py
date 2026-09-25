@@ -26,7 +26,7 @@ def create_task_with_recurrence(
     tz_name: str = "UTC",
     end_date: datetime | None = None,
 ) -> Task:
-    """Helper para criar uma tarefa com recorrência rapidamente."""
+    """Helper to quickly build a task with a recurrence."""
 
     # ------------------------------------------------------------------
     # 1. Construir AxiomDate corretamente
@@ -59,7 +59,7 @@ def create_task_with_recurrence(
             end_axiom = AxiomDate.fixed(end_date)
 
     # ------------------------------------------------------------------
-    # 3. Criar regra de recorrência
+    # 3. Build the recurrence rule
     # ------------------------------------------------------------------
 
     recurrence = SimpleIntervalRule(
@@ -67,7 +67,7 @@ def create_task_with_recurrence(
     )
 
     # ------------------------------------------------------------------
-    # 4. DueDate (mantém compatibilidade com seu domínio atual)
+    # 4. DueDate (compatible with the current domain)
     # ------------------------------------------------------------------
 
     if is_floating:
@@ -79,7 +79,7 @@ def create_task_with_recurrence(
         due = DueDate.fixed(due_date)
 
     # ------------------------------------------------------------------
-    # 5. Criar Task
+    # 5. Create the task
     # ------------------------------------------------------------------
 
     return Task.create(
@@ -100,13 +100,13 @@ def create_task_with_recurrence(
 
 def test_next_occurrence_simple_daily() -> None:
     """
-    Cenário: Tarefa vence hoje (01/Jan). Concluo hoje.
-    Expectativa: Próxima tarefa para amanhã (02/Jan).
+    Scenario: the task is due today (Jan 1). I complete it today.
+    Expected: next task for tomorrow (Jan 2).
     """
 
-    # 01/Jan às 09:00
+    # Jan 1 at 09:00
     due_dt = datetime(2026, 1, 1, 9, 0)
-    now = datetime(2026, 1, 1, 10, 0)  # 1 hora depois do vencimento
+    now = datetime(2026, 1, 1, 10, 0)  # 1 hour after the due time
 
     task = create_task_with_recurrence(due_dt)
 
@@ -120,16 +120,16 @@ def test_next_occurrence_simple_daily() -> None:
 
 def test_next_occurrence_catch_up_logic() -> None:
     """
-    Cenário: Tarefa venceu há 5 dias (05/Jan). Hoje é 10/Jan.
-    Expectativa: O sistema deve pular 06, 07, 08, 09, 10 e agendar para 11/Jan.
-    (Pois 10/Jan 09:00 já passou em relação ao 'now' 10/Jan 10:00).
+    Scenario: the task was due 5 days ago (Jan 5). Today is Jan 10.
+    Expected: skip the 6th, 7th, 8th, 9th and 10th and schedule for Jan 11.
+    (Jan 10 09:00 has already passed relative to 'now', Jan 10 10:00.)
     """
     due_dt = datetime(2026, 1, 5, 9, 0)
     now = datetime(2026, 1, 10, 10, 0)
 
     task = create_task_with_recurrence(due_dt)
 
-    # catch_up=True é o padrão
+    # catch_up=True is the default
     next_task = task.create_next_occurrence(now=now, catch_up=True)
 
     assert next_task is not None
@@ -139,9 +139,9 @@ def test_next_occurrence_catch_up_logic() -> None:
 
 def test_next_occurrence_strict_mode_financial() -> None:
     """
-    Cenário: Tarefa venceu há 5 dias (05/Jan). Hoje é 10/Jan.
+    Scenario: the task was due 5 days ago (Jan 5). Today is Jan 10.
     Expectativa: catch_up=False (Modo Financeiro).
-    O sistema deve criar a EXATA próxima ocorrência sequencial (06/Jan), mesmo atrasada.
+    The system must create the EXACT next sequential occurrence (Jan 6), even if late.
     """
     due_dt = datetime(2026, 1, 5, 9, 0)
     now = datetime(2026, 1, 10, 10, 0)
@@ -158,16 +158,16 @@ def test_next_occurrence_strict_mode_financial() -> None:
 
 def test_recurrence_ends_by_date() -> None:
     """
-    Cenário: A recorrência tem data fim (Until).
-    Expectativa: Retornar None quando passar da data.
+    Scenario: the recurrence has an end date (until).
+    Expected: return None once past that date.
     """
     due_dt = datetime(2026, 1, 1, 9, 0)
-    end_date = datetime(2026, 1, 1, 23, 59)  # Termina hoje
+    end_date = datetime(2026, 1, 1, 23, 59)  # ends today
     now = datetime(2026, 1, 1, 10, 0)
 
     task = create_task_with_recurrence(due_dt, end_date=end_date)
 
-    # A próxima seria 02/Jan, mas 02/Jan > EndDate
+    # The next one would be Jan 2, but Jan 2 > end date
     next_task = task.create_next_occurrence(now=now)
 
     assert next_task is None
@@ -175,8 +175,8 @@ def test_recurrence_ends_by_date() -> None:
 
 def test_timezone_consistency_fixed_task() -> None:
     """
-    Cenário: Tarefa Fixed (UTC).
-    Expectativa: A próxima tarefa deve nascer também como Fixed (UTC).
+    Scenario: fixed task (UTC).
+    Expected: the next task is also born fixed (UTC).
     """
 
     due_dt = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
@@ -189,23 +189,23 @@ def test_timezone_consistency_fixed_task() -> None:
     assert next_task is not None
     assert next_task.due_date is not None
     assert next_task.due_date.is_floating is False
-    assert next_task.due_date.value.tzinfo is not None  # Deve ser Aware
+    assert next_task.due_date.value.tzinfo is not None  # must be aware
     assert next_task.due_date.value == datetime(2026, 1, 2, 9, 0, tzinfo=UTC)
 
 
 def test_timezone_comparison_mixed_inputs() -> None:
     """
-    Cenário: Tarefa Floating (Naive) vs 'now' Aware (UTC).
-    Expectativa: O sistema deve normalizar internamente e não quebrar com TypeError.
+    Scenario: floating task (naive) vs aware 'now' (UTC).
+    Expected: the system normalizes internally and does not break with TypeError.
     """
 
-    # Tarefa Floating às 09:00
+    # Floating task at 09:00
     due_dt = datetime(2026, 1, 5, 9, 0)
 
-    # 'Agora' é 13:00 UTC (que seria '10:00' em SP '-3').
-    # Se a tarefa é Floating, ela vence às 09:00 locais.
-    # 10:00 (Agora) > 09:00 (Vencimento). Então a de hoje já passou.
-    # A próxima deve ser dia 11.
+    # 'Now' is 13:00 UTC (which would be '10:00' in SP, '-3').
+    # A floating task is due at 09:00 local time.
+    # 10:00 (now) > 09:00 (due). So today's has already passed.
+    # The next one must be the 11th.
     now_aware = datetime(2026, 1, 10, 13, 0, tzinfo=UTC)
 
     task = create_task_with_recurrence(due_dt, is_floating=True)
@@ -219,7 +219,7 @@ def test_timezone_comparison_mixed_inputs() -> None:
 
 
 def test_next_occurrence_keeps_what_the_user_set() -> None:
-    """A próxima ocorrência herda contexto, energia, complexidade e estimativa."""
+    """The next occurrence inherits context, energy, complexity and estimate."""
 
     task = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
     task.context_id = ContextId(uuid4())

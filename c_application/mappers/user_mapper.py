@@ -16,7 +16,7 @@ class UserMapper[D: UserOutputDTO]:
     ensuring a clean separation between layers.
     """
 
-    # 1. Quando nenhum dto_class é passado,
+    # 1. When no dto_class is given,
     # retorna estritamente UserOutputDTO
     @overload
     @staticmethod
@@ -25,8 +25,8 @@ class UserMapper[D: UserOutputDTO]:
     ) -> UserOutputDTO:
         pass
 
-    # 2. Quando um dto_class específico (subclasse)
-    # é passado, retorna o tipo dessa subclasse
+    # 2. When a specific dto_class (subclass)
+    # is given, returns that subclass type
     @overload
     @staticmethod
     def to_output(

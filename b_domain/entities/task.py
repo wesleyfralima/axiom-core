@@ -33,11 +33,11 @@ class Task(Entity):
 
     context_id: ContextId | None = None
 
-    # Grafo de dependências: IDs de outras tarefas que bloqueiam esta
+    # Dependency graph: IDs of other tasks that block this one
     depends_on: set[TaskId] = field(default_factory=set)
 
-    # Nível de energia necessário (GTD-style)
-    # Pode ser um Enum: LOW, MEDIUM, HIGH
+    # Required energy level (GTD-style)
+    # Could be an Enum: LOW, MEDIUM, HIGH
     required_energy_level: EnergyLevel = EnergyLevel.BALANCED
     complexity: TaskComplexity = TaskComplexity.MEDIUM
     estimated_duration_minutes: int = 30
@@ -173,9 +173,9 @@ class Task(Entity):
     def create_system_task(
         cls, title: str, duration: int, reason: str, user_id: UserId
     ) -> "Task":
-        """Factory para criar uma tarefa de pausa que não existe no DB."""
+        """Factory for a break task that does not exist in the DB."""
         return cls(
-            id=TaskId(),  # ID temporário, não será persistido
+            id=TaskId(),  # temporary ID, never persisted
             user_id=user_id,
             title=Title(title),
             description=Description(reason),
@@ -187,7 +187,7 @@ class Task(Entity):
         )
 
     def is_suitable_for(self, current_energy: EnergyLevel) -> bool:
-        """Verifica se a tarefa cabe no nível de energia atual do usuário."""
+        """Check whether the task fits the user's current energy level."""
         return self.required_energy_level <= current_energy
 
     def add_dependency(self, target_id: TaskId, now: datetime) -> None:
@@ -203,7 +203,7 @@ class Task(Entity):
 
     @property
     def is_blocked(self) -> bool:
-        """Uma tarefa está bloqueada se houver alguma dependência pendente."""
+        """A task is blocked if any of its dependencies is still pending."""
         return len(self.depends_on) > 0
 
     def create_next_occurrence(
@@ -282,16 +282,16 @@ class Task(Entity):
         """
 
         if self.due_date is None:
-            # Se não há data de vencimento original, não há que reconstruir ou replicar
+            # No original due date: nothing to rebuild or replicate
             raise ValueError(
                 "A task with no due date can't be recreated by _recreate_task_with_date"
             )
 
-        # 1. Extraímos a semântica diretamente da data original
+        # 1. Extract the semantics straight from the original date
         is_floating: bool = self.due_date.is_floating
         tz_name: str = self.due_date.timezone or "UTC"
 
-        # 2. Reconstruímos o DueDate VO
+        # 2. Rebuild the DueDate VO
         if is_floating:
             new_dd: DueDate = DueDate.floating(
                 new_date.replace(tzinfo=None),
@@ -300,7 +300,7 @@ class Task(Entity):
         else:
             new_dd = DueDate.fixed(new_date)
 
-        # 3. Atualizamos a recorrência de forma limpa
+        # 3. Update the recurrence cleanly
         new_rr: RecurrenceRule | None = None
         if self.recurrence is not None:
             new_rr = replace(
@@ -312,9 +312,9 @@ class Task(Entity):
                 ),
             )
 
-        # 4. Invocamos o Task.create usando os parâmetros extraídos dinamicamente.
-        # Tudo o que o usuário definiu para a série passa adiante; o que é
-        # próprio desta ocorrência (status, contadores, calendário) recomeça.
+        # 4. Call Task.create with the dynamically extracted parameters.
+        # Everything the user defined for the series carries over; whatever
+        # belongs to this occurrence (status, counters, calendar) starts over.
         return Task.create(
             now=now,
             user_id=self.user_id,
