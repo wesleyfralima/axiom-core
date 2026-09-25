@@ -3,7 +3,7 @@
 > Regras de negócio e casos de uso do Axiom Pro. **Repositório público**
 > (github.com/wesleyfralima/axiom-core) e vitrine técnica do autor. O mapa do
 > ecossistema (enterprise, CLI, web) está no `CLAUDE.md` da pasta-mãe
-> (`../CLAUDE.md`), que não é versionada. Se algo aqui divergir do código, o
+> (`../CLAUDE.md`), que mora num repositório privado de documentação. Se algo aqui divergir do código, o
 > código ganha — e a linha daqui se corrige na mesma tratativa.
 
 ## Regras inegociáveis

@@ -24,6 +24,17 @@ O que está no lugar hoje (24/09/2026):
 A visão (Flow, Hook Model, Fogg, momentum, microtasks, focus mode) está em
 `diretrizes.md`, local e fora do git. Este arquivo lista só o trabalho técnico.
 
+## Antes de começar: a decisão de produto
+
+**Decidido em 24/09/2026 pelo dono: o Flow fica desligado por enquanto.** O
+motor não foi ligado de propósito: para ele fazer sentido, o sistema precisa
+saber energia, tempo disponível, duração e complexidade das tarefas — e pedir
+isso o tempo todo é exatamente a fricção que o Axiom promete eliminar. Nenhuma
+parte deste backlog começa antes de haver uma resposta para "como o Flow
+funciona com o mínimo de coleta explícita". Pistas que o código já tem:
+inferência por linguagem natural (Parte 4), aprendizado por comportamento
+(Parte 5), cold start por heurística (Parte 6).
+
 ## Divisão
 
 | Parte | Recorte | Branch | Depende de |
