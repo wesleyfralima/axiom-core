@@ -1,5 +1,5 @@
 format:
-	poetry run black .
+	poetry run ruff format .
 
 lint:
 	poetry run ruff check .
@@ -17,7 +17,7 @@ coverage:
 	poetry run pytest --cov=a_core --cov=b_domain --cov=c_application --cov-report=term --cov-report=html
 
 check:
-	poetry run black --check .
+	poetry run ruff format --check .
 	poetry run ruff check .
 	poetry run mypy
 	poetry run pytest --cov=a_core --cov=b_domain --cov=c_application

@@ -19,7 +19,6 @@ async def test_create_task_successfully(
 ) -> None:
 
     async with fake_uow_factory() as uow:
-
         # 1. Setup
         user = User.create(username="wesley", email="wesley@test.com")
         await uow.users.add(user)

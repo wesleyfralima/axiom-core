@@ -45,7 +45,6 @@ class ExportTaskToCalendarHandler:
         """
 
         async with self.uow:
-
             # 1.1. Retrieve the task entity
             task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
             if not task:
@@ -79,7 +78,6 @@ class ExportTaskToCalendarHandler:
 
         # 5. Persist result: mark task as exported with external ID
         async with self.uow:
-
             synced: Task | None = await self.uow.tasks.get_by_id(event.task_id)
 
             # Double-check to avoid race condition (another handler may have

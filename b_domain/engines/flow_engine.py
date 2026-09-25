@@ -588,7 +588,6 @@ class FlowEngine:
         best_score: float = float("-inf")
 
         for task in tasks:
-
             score: float = self._calculate_flow_score(task, state, profile, now)
 
             # Exploration noise (controlled randomness)

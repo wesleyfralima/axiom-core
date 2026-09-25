@@ -53,7 +53,6 @@ class UpdateUserBehaviorHandler:
         new_profile: UserBehaviorProfile
 
         async with self.uow:
-
             # Load current state (metrics and profile)
             metrics = await self.uow.user_behavior_metrics.get_by_user_id(event.user_id)
             if metrics is None:

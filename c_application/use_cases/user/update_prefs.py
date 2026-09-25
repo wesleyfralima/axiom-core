@@ -92,7 +92,6 @@ class UpdateUserPreferencesUseCase(
         """
 
         async with self.uow as uow:
-
             # 1. Retrieve user aggregate
             user: User | None = await uow.users.get_by_username(request.username)
             if not user:
@@ -124,7 +123,6 @@ class UpdateUserPreferencesUseCase(
             computed_changes: list[PreferenceChangeDTO] = []
 
             for field in changes.keys():
-
                 if not hasattr(before, field):
                     raise ValidationException(
                         f"Invalid preference field '{field}' not present in output DTO"

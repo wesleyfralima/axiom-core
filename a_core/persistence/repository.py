@@ -9,9 +9,9 @@ P = ParamSpec("P")
 R = TypeVar("R", covariant=True)
 
 
-def tracks_entity[
-    **P, R
-](method: Callable[P, Awaitable[R]],) -> Callable[P, Awaitable[R]]:
+def tracks_entity[**P, R](
+    method: Callable[P, Awaitable[R]],
+) -> Callable[P, Awaitable[R]]:
     """Decorator to automatically register fetched or mutated entities into the UoW."""
 
     @wraps(method)

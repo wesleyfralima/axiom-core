@@ -45,7 +45,6 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         now: datetime = request.completed_at or self.clock.now()
 
         async with self.uow as uow:
-
             # 1. Resolve the task by prefix
             try:
                 task: Task = await self._resolve_task(uow, task_id_prefix, user_id)

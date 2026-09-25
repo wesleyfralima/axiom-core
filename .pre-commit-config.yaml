@@ -1,5 +1,5 @@
-# Hooks locais: usam as MESMAS versões do pyproject.toml (o .venv do repo), para o
-# pre-commit nunca discordar do `make check`.
+# Local hooks: they call the SAME tool versions as pyproject.toml (the repo's .venv),
+# so pre-commit never disagrees with `make check`.
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -11,15 +11,15 @@ repos:
 
   - repo: local
     hooks:
-      - id: black
-        name: black
-        entry: .venv/bin/black
-        language: system
-        types: [python]
-
       - id: ruff
         name: ruff
         entry: .venv/bin/ruff check --fix
+        language: system
+        types: [python]
+
+      - id: ruff-format
+        name: ruff format
+        entry: .venv/bin/ruff format
         language: system
         types: [python]
 
