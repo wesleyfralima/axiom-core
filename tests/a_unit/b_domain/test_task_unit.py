@@ -2,15 +2,14 @@ from datetime import datetime
 
 import pytest
 
-from a_core.exceptions import InvalidStateTransition
-from b_domain.entities import User
-from b_domain.entities.task import Task
-from b_domain.value_objects import TaskStatus, TaskId, Title, Description, Priority
-
+from a_core import InvalidStateTransition
+from b_domain.entities import Task, User
+from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
 
 # ============================================================
 # Fixtures
 # ============================================================
+
 
 @pytest.fixture
 def user() -> User:
@@ -37,6 +36,7 @@ def task(user: User) -> Task:
 # ============================================================
 # Group 1: Task Creation and Initialization
 # ============================================================
+
 
 @pytest.mark.unit
 def test_task_create_initializes_basic_fields(task: Task) -> None:
@@ -70,12 +70,16 @@ def test_task_create_sets_optional_fields_default(task: Task) -> None:
 # Group 2: Field Updates
 # ============================================================
 
+
 @pytest.mark.unit
 def test_task_rename_updates_title_and_timestamp(task: Task) -> None:
     """Ensure renaming a task updates its title and timestamp."""
 
     before: datetime = task.updated_at
-    task.rename(new_title="New Title", now=datetime.now(), )
+    task.rename(
+        new_title="New Title",
+        now=datetime.now(),
+    )
 
     assert task.title.value == "New Title"
     assert task.updated_at >= before
@@ -107,6 +111,7 @@ def test_task_update_priority(task: Task) -> None:
 # Group 3: Status Transitions
 # ============================================================
 
+
 @pytest.mark.unit
 def test_mark_task_as_done(task: Task) -> None:
     """Ensure marking a task as done sets status to DONE."""
@@ -117,7 +122,7 @@ def test_mark_task_as_done(task: Task) -> None:
 
 @pytest.mark.unit
 def test_mark_task_as_cancelled(task: Task) -> None:
-    """Ensure marking a task as cancelled sets status to CANCELLED."""
+    """Ensure marking a task as canceled sets status to CANCELLED."""
 
     task.mark_as_cancelled(datetime.now())
     assert task.status == TaskStatus.CANCELLED
@@ -156,6 +161,7 @@ def test_invalid_status_transition_raises(task: Task) -> None:
 # Group 4: Subtask Management
 # ============================================================
 
+
 @pytest.mark.unit
 def test_add_subtask_when_parent_matches(task: Task, user: User) -> None:
     """Ensure a subtask with matching parent_id can be added."""
@@ -175,7 +181,10 @@ def test_add_subtask_when_parent_matches(task: Task, user: User) -> None:
 
 @pytest.mark.unit
 def test_add_subtask_raises_if_parent_id_mismatch(task: Task, user: User) -> None:
-    """Ensure adding a subtask with mismatched parent_id raises InvalidStateTransition."""
+    """
+    Ensure adding a subtask with mismatched
+    parent_id raises InvalidStateTransition.
+    """
 
     other_task_id: TaskId = TaskId()
     subtask: Task = Task.create(
@@ -192,6 +201,7 @@ def test_add_subtask_raises_if_parent_id_mismatch(task: Task, user: User) -> Non
 # ============================================================
 # Group 5: Utility Methods
 # ============================================================
+
 
 @pytest.mark.unit
 def test_touch_updates_updated_at(task: Task) -> None:

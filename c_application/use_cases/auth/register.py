@@ -2,7 +2,10 @@ from dataclasses import dataclass, field
 
 from a_core import DTO
 from b_domain.entities.user import User
-from b_domain.exceptions.user import UsernameAlreadyExistsError, EmailAlreadyExistsError
+from b_domain.exceptions.user import (
+    EmailAlreadyExistsError,
+    UsernameAlreadyExistsError,
+)
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
@@ -22,6 +25,7 @@ class RegisterUserInputDTO(DTO):
         password (str): Raw password provided by the user.
             Marked as `repr=False` to avoid accidental logging.
     """
+
     username: str
     email: str
     password: str = field(repr=False)
@@ -47,15 +51,16 @@ class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
     """
 
     def __init__(
-            self,
-            uow_factory: UowFactoryType,
-            clock: ClockProvider,
-            hasher: PasswordHasher,
+        self,
+        uow_factory: UowFactoryType,
+        clock: ClockProvider,
+        hasher: PasswordHasher,
     ):
         """Initialize the RegisterUserUseCase.
 
         Args:
-            uow_factory (UowFactoryType): Unit of Work factory for managing repositories and transactions.
+            uow_factory (UowFactoryType): Unit of Work factory for managing
+                repositories and transactions.
             clock (ClockProvider): Provides current time for entity creation.
             hasher (PasswordHasher): Service for hashing user passwords securely.
         """
@@ -73,7 +78,8 @@ class RegisterUserUseCase(UseCase[RegisterUserInputDTO, RegisterUserOutputDTO]):
             5. Map the entity to an output DTO.
 
         Args:
-            dto (RegisterUserInputDTO): Input data containing username, email, and password.
+            dto (RegisterUserInputDTO): Input data containing username,
+                email, and password.
 
         Returns:
             RegisterUserOutputDTO: Output data representing the newly created user.

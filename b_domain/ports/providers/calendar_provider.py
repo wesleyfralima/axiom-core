@@ -1,13 +1,12 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
-from enum import Enum
-from typing import Optional
+from datetime import UTC, datetime, timedelta
+from enum import StrEnum
 
 from b_domain.entities import Task
 
 
-class CalendarEventVisibility(str, Enum):
+class CalendarEventVisibility(StrEnum):
     """Enumeration for event visibility values.
 
     Attributes:
@@ -15,22 +14,24 @@ class CalendarEventVisibility(str, Enum):
         PUBLIC (str): Event is visible to everyone.
         PRIVATE (str): Event is restricted to the owner.
     """
+
     DEFAULT = "default"
     PUBLIC = "public"
     PRIVATE = "private"
 
 
-class CalendarEventStatus(str, Enum):
+class CalendarEventStatus(StrEnum):
     """Enumeration for event status values.
 
     Attributes:
         CONFIRMED (str): Event is confirmed.
         TENTATIVE (str): Event is tentative.
-        CANCELLED (str): Event is cancelled.
+        CANCELED (str): Event is canceled.
     """
+
     CONFIRMED = "confirmed"
     TENTATIVE = "tentative"
-    CANCELLED = "cancelled"
+    CANCELED = "canceled"
 
 
 @dataclass
@@ -45,6 +46,7 @@ class CalendarEventAttendee:
         optional (bool): Indicates if the attendee is optional.
             Defaults to False.
     """
+
     email: str
     response_status: str = "needsAction"  # Default response status
     optional: bool = False  # Whether the attendee is optional
@@ -71,15 +73,15 @@ class CalendarEventInput:
         visibility (CalendarEventVisibility): Event visibility.
     """
 
-    summary: Optional[str] = None
-    start: Optional[datetime] = None
-    end: Optional[datetime] = None
-    description: Optional[str] = None
-    location: Optional[str] = None
+    summary: str | None = None
+    start: datetime | None = None
+    end: datetime | None = None
+    description: str | None = None
+    location: str | None = None
     attendees: list[CalendarEventAttendee] = field(default_factory=list)
     recurrence_rules: list[str] = field(default_factory=list)
     reminders_enabled: bool = True
-    color_id: Optional[str] = None
+    color_id: str | None = None
     visibility: CalendarEventVisibility = CalendarEventVisibility.DEFAULT
 
     @staticmethod
@@ -94,37 +96,39 @@ class CalendarEventInput:
             CalendarEventInput: Input object ready for provider integration.
         """
 
+        start: datetime
+        end: datetime
+
         # 1. Determine the base start date
         # If recurrence exists, use the first valid occurrence
         if task.recurrence:
             first_valid_occurrence = task.recurrence.get_next_occurrence()
-            start = first_valid_occurrence or task.recurrence.start_date
-        elif task.due_date.value:
+            start = first_valid_occurrence or task.recurrence.start_date.materialize()
+        elif task.due_date and task.due_date.value:
             start = task.due_date.value
         else:
             start = task.created_at
 
         # 2. Ensure UTC timezone
         if start.tzinfo is None:
-            from datetime import timezone
-            start = start.replace(tzinfo=timezone.utc)
+            start = start.replace(tzinfo=UTC)
 
         # 3. Define end time based on duration
         end = start + timedelta(minutes=duration_minutes)
 
-        # 4. Convert recurrence to RFC5545 format if supported
-        rrules: list[str] = []
+        # 4. RRULE (RFC5545)
+        rrule: str = ""
         if task.recurrence:
             # Only include RRULE if provider supports native sync
             if task.recurrence.supports_native_sync():
-                rrules.append(task.recurrence.rrule_string)
+                rrule = task.recurrence.rrule_string
 
         return CalendarEventInput(
             summary=task.title.value,
             description=task.description.value,
             start=start,
             end=end,
-            recurrence_rules=rrules,
+            recurrence_rules=[rrule],
         )
 
 
@@ -150,9 +154,9 @@ class CalendarEventOutput(CalendarEventInput):
     calendar_id: str = ""  # Reference to parent calendar
     html_link: str = ""  # Browser link to view event
     status: CalendarEventStatus = CalendarEventStatus.CONFIRMED
-    created_at: Optional[datetime] = None
-    updated_at: Optional[datetime] = None
-    creator_email: Optional[str] = None
+    created_at: datetime | None = None
+    updated_at: datetime | None = None
+    creator_email: str | None = None
 
     # Start and end are guaranteed non-null in output
     start: datetime = field(default_factory=datetime.now)
@@ -166,7 +170,11 @@ class CalendarProvider(ABC):
     """
 
     @abstractmethod
-    async def create_event(self, calendar_id: str, event_data: CalendarEventInput) -> CalendarEventOutput:
+    async def create_event(
+        self,
+        calendar_id: str,
+        event_data: CalendarEventInput,
+    ) -> CalendarEventOutput:
         """Insert a new event into a calendar.
 
         Args:
@@ -178,7 +186,11 @@ class CalendarProvider(ABC):
         """
 
     @abstractmethod
-    async def delete_event(self, calendar_id: str, event_id: str) -> bool:
+    async def delete_event(
+        self,
+        calendar_id: str,
+        event_id: str,
+    ) -> bool:
         """Delete (cancel) an event.
 
         Args:
@@ -190,7 +202,11 @@ class CalendarProvider(ABC):
         """
 
     @abstractmethod
-    async def get_event(self, calendar_id: str, event_id: str) -> Optional[CalendarEventOutput]:
+    async def get_event(
+        self,
+        calendar_id: str,
+        event_id: str,
+    ) -> CalendarEventOutput | None:
         """Retrieve a single event by its ID.
 
         Args:

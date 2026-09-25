@@ -8,7 +8,7 @@ from c_application.dtos.task_dtos import GetTaskRequest
 from c_application.mappers.task_mapper import TaskMapper
 
 
-class GetTaskUseCase(UseCase[None, TaskOutputDTO]):
+class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
     """Use case for retrieving the details of a specific task.
 
     Supports partial ID matching (prefix-based search) and centralizes
@@ -40,27 +40,31 @@ class GetTaskUseCase(UseCase[None, TaskOutputDTO]):
         # 1. UX validation (prefix matching)
         try:
             task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
-            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+            user_id: UserId = UserId.from_string(
+                request.user_id, error_msg="Invalid user ID."
+            )
         except ValidationException as e:
             raise ValidationException(e) from e
 
         n_occurrences: int = request.n_occurrences
 
         async with self.uow as uow:
-
             # 2. Search with prefix support, scoped by user_id
             tasks_found: list[Task] = await uow.tasks.find_by_id_prefix(
                 id_prefix=task_id_prefix,
-                user_id=user_id
+                user_id=user_id,
             )
 
             if not tasks_found:
-                raise ValidationException(f"No task found with ID prefix '{task_id_prefix}'.")
+                raise ValidationException(
+                    f"No task found with ID prefix '{task_id_prefix}'."
+                )
 
             if len(tasks_found) > 1:
                 conflicting_ids: str = ", ".join([str(t.id)[:8] for t in tasks_found])
                 raise ValidationException(
-                    f"Ambiguous ID. Found {len(tasks_found)} tasks: [{conflicting_ids}]. "
+                    f"Ambiguous ID. "
+                    f"Found {len(tasks_found)} tasks: [{conflicting_ids}]. "
                     "Please provide a more specific prefix."
                 )
 

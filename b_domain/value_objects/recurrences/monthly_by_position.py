@@ -1,7 +1,6 @@
 import calendar
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Optional
 
 from a_core.exceptions import ValidationException
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -26,7 +25,8 @@ class MonthlyPositionalRule(RecurrenceRule):
         """Validate the positional invariant.
 
         Raises:
-            ValidationException: If `set_pos` is 0 or outside the valid range (-31 to 31).
+            ValidationException: If `set_pos` is 0 or
+                outside the valid range (-31 to 31).
         """
 
         super().__post_init__()
@@ -43,7 +43,8 @@ class MonthlyPositionalRule(RecurrenceRule):
         """Generate BYMONTHDAY part for RFC 5545 RRULE string.
 
         Returns:
-            list[str]: A list containing the BYMONTHDAY clause with the positional index.
+            list[str]: A list containing the BYMONTHDAY
+                clause with the positional index.
         """
         return [f"BYMONTHDAY={self.set_pos}"]
 
@@ -81,16 +82,20 @@ class MonthlyPositionalRule(RecurrenceRule):
 
             # 2. If the calculated position for this month has already passed,
             # advance by the interval
-            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_since_start = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (total_months // 12)
+            scan_year += total_months // 12
             scan_month = (total_months % 12) + 1
 
         return base_dt
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence based on relative month positioning.
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
@@ -145,7 +150,9 @@ class MonthlyPositionalRule(RecurrenceRule):
                     return candidate
 
             # 3. Advance to the next valid month based on the interval
-            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_diff: int = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             remainder: int = months_diff % self.interval
             months_to_advance: int = self.interval - remainder
 

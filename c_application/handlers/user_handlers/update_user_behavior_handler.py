@@ -1,7 +1,9 @@
 from b_domain.events.task_events import TaskCompletedEvent
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.services.user_behavior_learner import UserBehaviorLearner
-from b_domain.services.user_behavior_metrics_aggregator import UserBehaviorMetricsAggregator
+from b_domain.services.user_behavior_metrics_aggregator import (
+    UserBehaviorMetricsAggregator,
+)
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
@@ -16,10 +18,10 @@ class UpdateUserBehaviorHandler:
     """
 
     def __init__(
-            self,
-            uow: UnitOfWork,
-            aggregator: UserBehaviorMetricsAggregator,
-            learner: UserBehaviorLearner,
+        self,
+        uow: UnitOfWork,
+        aggregator: UserBehaviorMetricsAggregator,
+        learner: UserBehaviorLearner,
     ):
         """Initialize the handler.
 
@@ -45,8 +47,8 @@ class UpdateUserBehaviorHandler:
             event (TaskCompletedEvent): The domain event signaling task completion.
         """
 
-        metrics: UserBehaviorMetrics | None
-        profile: UserBehaviorProfile | None
+        metrics: UserBehaviorMetrics
+        profile: UserBehaviorProfile
         new_metrics: UserBehaviorMetrics
         new_profile: UserBehaviorProfile
 
@@ -57,7 +59,9 @@ class UpdateUserBehaviorHandler:
             if metrics is None:
                 metrics = UserBehaviorMetrics(user_id=event.user_id)
 
-            profile = await self.uow.user_behavior_profiles.get_by_user_id(event.user_id)
+            profile = await self.uow.user_behavior_profiles.get_by_user_id(
+                event.user_id
+            )
             if profile is None:
                 profile = UserBehaviorProfile(user_id=event.user_id)
 

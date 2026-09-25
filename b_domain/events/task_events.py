@@ -1,18 +1,18 @@
 from dataclasses import dataclass
 from datetime import datetime
-from typing import Optional
 
 from a_core import DomainEvent
-from b_domain.value_objects import TaskId, UserId, ContextId
+from b_domain.value_objects import ContextId, TaskId, UserId
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 
 
 @dataclass(frozen=True, kw_only=True)
 class TaskCreatedEvent(DomainEvent):
     """Triggered when a new task is created."""
+
     title: str
     task_id: TaskId
-    due_date: Optional[datetime] = None
+    due_date: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -30,6 +30,7 @@ class TaskStartedEvent(DomainEvent):
         context_id (ContextId): Context in which the task was started.
         momentum_at_start (float): Momentum value at the start of the task.
     """
+
     task_id: TaskId
     user_id: UserId
     context_id: ContextId
@@ -48,6 +49,7 @@ class TaskCompletedEvent(DomainEvent):
         energy_level_used (EnergyLevel): Energy level applied during execution.
         task_complexity (TaskComplexity): Complexity level of the task.
     """
+
     task_id: TaskId
     user_id: UserId
     estimated_minutes: int
@@ -66,6 +68,7 @@ class TaskAbandonedEvent(DomainEvent):
         time_spent_minutes (int): Time spent before abandoning.
         reason (str): Reason inferred for abandonment (e.g., "timeout", "manual_skip").
     """
+
     task_id: TaskId
     user_id: UserId
     time_spent_minutes: int

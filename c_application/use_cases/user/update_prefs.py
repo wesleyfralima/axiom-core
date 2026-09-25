@@ -1,12 +1,16 @@
 from dataclasses import asdict, dataclass
-from typing import Any, Dict
+from typing import Any
 
 from a_core import DTO
 from a_core.exceptions import InvalidValueError, ValidationException
 from b_domain.entities.user import User
 from b_domain.exceptions.user import UserNotFoundError
 from b_domain.ports.use_case import UseCase
-from c_application.dtos.user_dtos import PreferenceChangeDTO, UserPrefsInputDTO, UserPrefsOutputDTO
+from c_application.dtos.user_dtos import (
+    PreferenceChangeDTO,
+    UserPrefsInputDTO,
+    UserPrefsOutputDTO,
+)
 from c_application.mappers.user_mapper import UserMapper
 
 
@@ -22,6 +26,7 @@ class UpdateUserPreferencesInputDTO(DTO):
         username (str): The username of the user whose preferences will be updated.
         preferences (UserPrefsInputDTO): DTO containing partial preference updates.
     """
+
     username: str
     preferences: UserPrefsInputDTO
 
@@ -41,13 +46,16 @@ class UpdateUserPreferencesOutputDTO(DTO):
         message (str): Status message confirming the update.
             Defaults to "preferences_updated".
     """
+
     username: str
     preferences: UserPrefsOutputDTO
     changes: list[PreferenceChangeDTO]
     message: str = "preferences_updated"
 
 
-class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, UpdateUserPreferencesOutputDTO]):
+class UpdateUserPreferencesUseCase(
+    UseCase[UpdateUserPreferencesInputDTO, UpdateUserPreferencesOutputDTO]
+):
     """Use case for updating user preferences.
 
     Handles partial updates to user settings, ensuring that only
@@ -56,7 +64,9 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
     and feedback purposes.
     """
 
-    async def execute(self, request: UpdateUserPreferencesInputDTO) -> UpdateUserPreferencesOutputDTO:
+    async def execute(
+        self, request: UpdateUserPreferencesInputDTO
+    ) -> UpdateUserPreferencesOutputDTO:
         """Execute the preference update workflow.
 
         Steps:
@@ -89,9 +99,8 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
                 raise UserNotFoundError(request.username)
 
             # 2. Prepare partial changes
-            changes: Dict[str, Any] = {
-                k: v for k, v in asdict(request.preferences).items()
-                if v is not None
+            changes: dict[str, Any] = {
+                k: v for k, v in asdict(request.preferences).items() if v is not None
             }
 
             if not changes:
@@ -102,12 +111,11 @@ class UpdateUserPreferencesUseCase(UseCase[UpdateUserPreferencesInputDTO, Update
 
             # 3. Domain logic delegated to entity
             try:
-                user.update_prefs(
-                    now=self.clock.now(),
-                    **changes
-                )
+                user.update_prefs(now=self.clock.now(), **changes)
             except ValueError as e:
-                raise InvalidValueError(concept="Preference Value", invalid_value=str(e))
+                raise InvalidValueError(
+                    concept="Preference Value", invalid_value=str(e)
+                )
 
             # Snapshot AFTER state
             after: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)

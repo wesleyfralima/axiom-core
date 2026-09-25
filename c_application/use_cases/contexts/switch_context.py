@@ -9,8 +9,10 @@ class SwitchContextUseCase(UseCase):
         async with self.uow as uow:
             user = await uow.users.get_by_id(request.user_id)
             if not user:
-                raise EntityNotFound(entity_name="User", identifier=str(request.user_id)[:8])
+                raise EntityNotFound(
+                    entity_name="User", identifier=str(request.user_id)[:8]
+                )
 
-            new_prefs = user.update_prefs(active_context_id=request.context_id)
+            # new_prefs = user.update_prefs(active_context_id=request.context_id)
 
             await uow.users.update(user)

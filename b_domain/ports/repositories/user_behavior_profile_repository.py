@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from b_domain.value_objects.identifiers import UserId
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
@@ -14,7 +13,7 @@ class UserBehaviorProfileRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, profile: UserBehaviorProfile) -> None:
+    async def save(self, profile: UserBehaviorProfile) -> UserBehaviorProfile:
         """Persist a behavioral profile for a user.
 
         Implementations must either create or update the stored profile.
@@ -24,7 +23,7 @@ class UserBehaviorProfileRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_user_id(self, user_id: UserId) -> Optional[UserBehaviorProfile]:
+    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorProfile:
         """Retrieve the behavioral profile for a user.
 
         Args:

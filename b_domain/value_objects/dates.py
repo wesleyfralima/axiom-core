@@ -1,10 +1,16 @@
+import re
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, tzinfo
+from datetime import timezone as dt_timezone
 from enum import StrEnum
-from typing import Optional
+from typing import Self
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from a_core.exceptions import ValidationException
+
+# TYPES
+type TimezoneLike = dt_timezone | ZoneInfo
+type TimezoneInput = dt_timezone | ZoneInfo | tzinfo | str
 
 
 class DateKind(StrEnum):
@@ -13,54 +19,59 @@ class DateKind(StrEnum):
 
     Attributes:
         FIXED: An absolute instant in time (e.g., "Global Meeting at 14:00 UTC").
-        FLOATING: A local clock time, independent of timezone (e.g., "Wake up at 07:00 AM").
+        FLOATING: A local clock time, independent of timezone
+            (e.g., "Wake up at 07:00 AM").
     """
-    FIXED = "fixed"         # An absolute instant (e.g., Global Meeting at 14:00 UTC)
-    FLOATING = "floating"   # A local clock time (e.g., Wake up at 07:00 AM)
+
+    FIXED = "fixed"  # An absolute instant (e.g., Global Meeting at 14:00 UTC)
+    FLOATING = "floating"  # A local clock time (e.g., Wake up at 07:00 AM)
 
 
 @dataclass(frozen=True, order=True)
 class AxiomDate:
     """
-    Universal temporal primitive for the Axiom application.
+    Universal temporal primitive for the Axiom ecosystem.
     Replaces raw `datetime` usage to ensure consistent timezone handling.
 
     Attributes:
-        value (datetime | None): The underlying datetime value.
+        value (datetime): The underlying datetime value.
             - If FIXED: must be timezone-aware (preferably UTC).
             - If FLOATING: must be naive.
         kind (DateKind): Defines whether the date is FIXED or FLOATING.
-        timezone (Optional[str]): The IANA timezone identifier (e.g., "America/Sao_Paulo").
+        timezone (Optional[str]): The IANA timezone identifier ("America/Sao_Paulo").
             - For FLOATING: required, used as the anchor to interpret the local time
               and handle Daylight Saving Time (DST).
             - For FIXED: optional, used as preferred display timezone.
     """
 
-    # Value is used for ordering (sorting). Must be consistent with kind.
-    value: datetime | None
+    # Value is used for ordering (sorting) and
+    # must be consistent with kind.
+    value: datetime
 
     kind: DateKind = field(compare=False)
 
     # Timezone anchor or preferred display zone
-    timezone: Optional[str] = field(default=None, compare=False)
+    timezone: str | None = field(default=None, compare=False)
     """
-    The IANA timezone identifier (e.g., "America/Sao_Paulo") 
-    used as the anchor to interpret floating dates and handle 
+    The IANA timezone identifier (e.g., "America/Sao_Paulo")
+    used as the anchor to interpret floating dates and handle
     Daylight Saving Time (DST) changes accurately.
     """
 
-    def __post_init__(self):
+    def __post_init__(self) -> None:
         """Ensure data integrity upon creation."""
 
         if self.value is None:
-            return
+            raise ValidationException("'value' can't be None")
 
         # Validation for Floating dates
         if self.kind == DateKind.FLOATING:
             if self.value.tzinfo is not None:
                 raise ValidationException("Floating dates must store a naive datetime.")
             if not self.timezone:
-                raise ValidationException("Floating dates require a valid timezone name.")
+                raise ValidationException(
+                    "Floating dates require a valid timezone name."
+                )
             try:
                 ZoneInfo(self.timezone)
             except ZoneInfoNotFoundError:
@@ -69,9 +80,11 @@ class AxiomDate:
         # Validation for Fixed dates
         elif self.kind == DateKind.FIXED:
             if self.value.tzinfo is None:
-                raise ValidationException("Fixed dates must store a timezone-aware datetime.")
+                raise ValidationException(
+                    "Fixed dates must store a timezone-aware datetime."
+                )
             # Normalize to UTC for consistency
-            object.__setattr__(self, "value", self.value.astimezone(timezone.utc))
+            object.__setattr__(self, "value", self.value.astimezone(UTC))
 
         self._extra_validation()
 
@@ -79,7 +92,7 @@ class AxiomDate:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _extra_validation(self):
+    def _extra_validation(self) -> None:
         """Hook for subclasses performing extra validation."""
 
     # ------------------------------------------------------------------
@@ -87,12 +100,7 @@ class AxiomDate:
     # ------------------------------------------------------------------
 
     @classmethod
-    def empty(cls, kind: DateKind | None = DateKind.FLOATING) -> "AxiomDate":
-        """Create an empty AxiomDate with no value."""
-        return cls(value=None, kind=kind, timezone=None)
-
-    @classmethod
-    def fixed(cls, dt: datetime) -> "AxiomDate":
+    def fixed(cls, dt: datetime) -> Self:
         """Create a fixed AxiomDate.
 
         Args:
@@ -111,7 +119,7 @@ class AxiomDate:
         )
 
     @classmethod
-    def floating(cls, dt: datetime, source_tz: str) -> "AxiomDate":
+    def floating(cls, dt: datetime, source_tz: str) -> Self:
         """Create a floating AxiomDate.
 
         Args:
@@ -122,7 +130,8 @@ class AxiomDate:
             AxiomDate: A floating date instance anchored to the given timezone.
 
         Raises:
-            ValidationException: If the datetime is timezone-aware or the timezone is invalid.
+            ValidationException: If the datetime is
+                timezone-aware or the timezone is invalid.
         """
         return cls(
             value=dt,
@@ -133,25 +142,23 @@ class AxiomDate:
     @classmethod
     def now(cls) -> "AxiomDate":
         """Convenient factory to create 'now' as a fixed date in UTC."""
-        return cls.fixed(datetime.now(timezone.utc))
+        return cls.fixed(datetime.now(UTC))
 
     @classmethod
     def from_params(
-            cls,
-            dt: datetime | None,
-            is_floating: bool,
-            tz_name: str,
-    ) -> "AxiomDate":
+        cls,
+        dt: datetime,
+        is_floating: bool,
+        tz_name: str,
+    ) -> Self:
         """Build an AxiomDate from params.
 
         Args:
-            dt (datetime | None): A datetime representing date.
-            is_floating (bool): Whether the date represented as a floating date. If false, it is fixed.
+            dt (datetime): A datetime representing date.
+            is_floating (bool): Whether the date represented
+                as a floating date. If false, it is fixed.
             tz_name (str): The timezone identifier.
         """
-
-        if dt is None:
-            return cls.empty()
 
         if is_floating:
             return cls.floating(dt.replace(tzinfo=None), tz_name)
@@ -159,7 +166,7 @@ class AxiomDate:
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=ZoneInfo(tz_name))
 
-        return cls.fixed(dt.astimezone(ZoneInfo("UTC")))
+        return cls.fixed(dt.astimezone(UTC))
 
     # ------------------------------------------------------------------
     # Useful checks
@@ -179,7 +186,10 @@ class AxiomDate:
     # Conversion and Display
     # ------------------------------------------------------------------
 
-    def materialize(self, target_tz: Optional[str] = None) -> Optional[datetime]:
+    def materialize(
+        self,
+        target_tz: TimezoneInput | None = None,
+    ) -> datetime:
         """Return a timezone-aware datetime suitable for comparison or display.
 
         Args:
@@ -190,25 +200,15 @@ class AxiomDate:
             Optional[datetime]: A timezone-aware datetime, or None if value is missing.
         """
 
-        if self.value is None:
-            return None
-
         # Determine which timezone to use
-        effective_tz_name: str = target_tz or self.timezone or "UTC"
-        try:
-            tz: ZoneInfo | timezone = ZoneInfo(effective_tz_name)
-        except ZoneInfoNotFoundError:
-            tz = ZoneInfo("UTC")
+        tz: TimezoneLike = parse_timezone(target_tz or self.timezone)
 
         if self.kind == DateKind.FLOATING:
             # Floating dates are naive, so we attach the chosen timezone
             return self.value.replace(tzinfo=tz)
 
-        if self.kind == DateKind.FIXED:
-            # Fixed dates are stored in UTC, so we convert to target timezone
-            return self.value.astimezone(tz)
-
-        return None
+        # Fixed dates are stored in UTC, so we convert to target timezone
+        return self.value.astimezone(tz)
 
     def format(self, fmt: str = "%Y-%m-%d %H:%M") -> str | None:
         """Format the date into a string considering its nature.
@@ -220,9 +220,6 @@ class AxiomDate:
             str | None: Formatted string representation, or None if value is missing.
         """
 
-        if self.value is None:
-            return None
-
         dt_aware: datetime = self.materialize(self.timezone)
 
         suffix: str = ""
@@ -233,7 +230,7 @@ class AxiomDate:
 
     def __str__(self) -> str:
         """Default string representation of AxiomDate."""
-        return self.format()
+        return str(self.format())
 
 
 @dataclass(frozen=True)
@@ -249,7 +246,7 @@ class DueDate(AxiomDate):
     # Business Logic
     # ------------------------------------------------------------------
 
-    def _extra_validation(self):
+    def _extra_validation(self) -> None:
         """Perform additional validation specific to due dates.
 
         Raises:
@@ -269,44 +266,43 @@ class DueDate(AxiomDate):
             bool: True if the due date has passed, False otherwise.
 
         Raises:
-            ValidationException: If `now_reference` is naive or uses an unsupported timezone.
+            ValidationException: If `now_reference` is
+                naive or uses an unsupported timezone.
         """
-
-        if self.value is None:
-            return False
 
         if now_reference.tzinfo is None:
             raise ValidationException("Reference 'now' must be timezone-aware")
 
         is_iana: bool = isinstance(now_reference.tzinfo, ZoneInfo)
-        is_utc: bool = now_reference.tzinfo == timezone.utc
+        is_utc: bool = now_reference.tzinfo == UTC
+
         if not (is_iana or is_utc):
-            raise ValidationException("Reference 'now' must use an IANA timezone or UTC")
+            raise ValidationException(
+                "Reference 'now' must use an IANA timezone or UTC"
+            )
 
         try:
-            # Materialize the due date into a timezone-aware datetime
-            my_limit = self.materialize()
+            # self.materialize() never is None when self.value is not None
+            my_limit: datetime = self.materialize(target_tz=now_reference.tzinfo)
             # Compare consistently (same timezone context)
             return now_reference > my_limit
+
         except (ValueError, TypeError):
             # Safe fallback
             return False
 
-    def remaining_time(self, now_reference: datetime) -> Optional[timedelta]:
+    def remaining_time(self, now_reference: datetime) -> timedelta:
         """Return the remaining time until the due date.
 
         Args:
             now_reference (datetime): The "current time" to compare against.
 
         Returns:
-            Optional[timedelta]: Time remaining until the due date.
-                Negative if overdue, None if value is missing.
+            timedelta: Time remaining until the due date.
+                Negative if overdue, 0 if value is missing.
         """
 
-        if self.value is None:
-            return None
-
-        target_date = self.materialize()
+        target_date: datetime = self.materialize()
         return target_date - now_reference
 
     # ------------------------------------------------------------------
@@ -327,24 +323,81 @@ class DueDate(AxiomDate):
         return cls(
             value=axiom_date.value,
             kind=axiom_date.kind,
-            timezone=axiom_date.timezone
+            timezone=axiom_date.timezone,
         )
 
 
+def parse_timezone(
+    tz_input: TimezoneInput | None,
+) -> TimezoneLike:
+    """
+    Parse and normalize diverse timezone formats into a valid Python tzinfo object.
+
+    Supported formats:
+        - None / Empty -> Defaults to UTC
+        - ZoneInfo or timezone instances (returns as-is)
+        - IANA Strings (e.g., "America/Sao_Paulo", "UTC")
+        - Offset Strings (e.g., "UTC-03:00", "-03:00", "+0530", "Z")
+    """
+
+    if not tz_input:
+        return UTC
+
+    # 1. If it's already a valid tzinfo object, return it directly
+    if isinstance(tz_input, (ZoneInfo, dt_timezone)):
+        return tz_input
+
+    # 2. If it's the abstract class tzinfo, safely extract tzname
+    if isinstance(tz_input, tzinfo):
+        tz_str = tz_input.tzname(None) or "UTC"
+    # 3. Last, tz_input is a str
+    else:
+        tz_str = tz_input.strip()
+
+    # 4. Handle literal "Z" or "UTC"
+    if tz_str.upper() in ("Z", "UTC"):
+        return UTC
+
+    # 5. Handle Offset Strings (e.g., "UTC-03:00", "-03:00", "+05:30", "+0530")
+    # Regex captures:
+    # -- optional 'UTC',
+    # -- sign (+/-),
+    # -- hours (2 digits),
+    # -- optional separator (:),
+    # -- minutes (2 digits)
+    offset_pattern: re.Pattern[str] = re.compile(
+        r"^(?:UTC)?([+-])(\d{2}):?(\d{2})?$",
+        re.IGNORECASE,
+    )
+
+    if match := offset_pattern.match(tz_str):
+        sign, hours, minutes = match.groups()
+        total_minutes: int = int(hours) * 60 + int(minutes or 0)
+        if sign == "-":
+            total_minutes = -total_minutes
+        return dt_timezone(timedelta(minutes=total_minutes))
+
+    # 6. Handle IANA Timezone Strings (e.g., "America/Sao_Paulo")
+    try:
+        return ZoneInfo(tz_str)
+    except ZoneInfoNotFoundError:
+        # Fallback
+        return UTC
+
+
 def build_axiom_date(
-        dt: Optional[datetime],
-        *,
-        is_floating: bool,
-        tz: Optional[str],
-        fallback_now: datetime
+    dt: datetime,
+    *,
+    is_floating: bool,
+    tz: TimezoneInput | None = None,
 ) -> AxiomDate:
     """Factory function to build an AxiomDate instance.
 
     Args:
         dt (Optional[datetime]): The base datetime. If None, `fallback_now` is used.
-        is_floating (bool): Whether the date should be treated as floating (local clock time).
-        tz (Optional[str]): IANA timezone identifier. Required for floating dates.
-        fallback_now (datetime): Fallback datetime if `dt` is None.
+        is_floating (bool): Whether the date should
+            be treated as floating (local clock time).
+        tz (TimezoneInput): IANA timezone identifier. Required for floating dates.
 
     Returns:
         AxiomDate: A properly constructed AxiomDate (fixed or floating).
@@ -353,7 +406,8 @@ def build_axiom_date(
         ValidationException: If floating dates are provided without a timezone.
     """
 
-    base = dt or fallback_now
+    base: datetime = dt
+    resolved_tz: TimezoneLike = parse_timezone(tz)
 
     if is_floating:
         # Floating dates must be naive (no tzinfo)
@@ -363,14 +417,15 @@ def build_axiom_date(
         if not tz:
             raise ValidationException("Floating dates require a timezone.")
 
-        return AxiomDate.floating(base, tz)
+        if isinstance(resolved_tz, ZoneInfo):
+            tz_name: str = resolved_tz.key
+        else:
+            tz_name = resolved_tz.tzname(None) or "UTC"
+
+        return AxiomDate.floating(base, tz_name)
 
     # FIXED case
     if base.tzinfo is None:
-        # Policy decision: attach UTC or provided ZoneInfo
-        if tz:
-            base = base.replace(tzinfo=ZoneInfo(tz))
-        else:
-            base = base.replace(tzinfo=timezone.utc)
+        base = base.replace(tzinfo=resolved_tz)
 
     return AxiomDate.fixed(base)

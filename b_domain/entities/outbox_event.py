@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
-from typing import Optional, Any, List
+from datetime import UTC, datetime
+from typing import Any
 
 from a_core import DomainEvent, Entity, UniqueId
 
@@ -21,8 +21,8 @@ class OutboxEvent(Entity):
     # Envelope metadata
     event_name: str
     event_version: int
-    aggregate_type: Optional[str] = None
-    correlation_id: Optional[UniqueId] = None
+    aggregate_type: str | None = None
+    correlation_id: UniqueId | None = None
 
     # Structured payload of the domain event
     payload: dict[str, Any]
@@ -31,12 +31,12 @@ class OutboxEvent(Entity):
     occurred_at: datetime
 
     # Processing metadata
-    processed_at: Optional[datetime] = None
+    processed_at: datetime | None = None
 
     # Retry metadata
     retry_count: int = 0
-    last_error: Optional[str] = None
-    scheduled_for: datetime = field(default_factory=lambda: datetime.now(timezone.utc))
+    last_error: str | None = None
+    scheduled_for: datetime = field(default_factory=lambda: datetime.now(UTC))
 
     @property
     def is_processed(self) -> bool:
@@ -60,7 +60,7 @@ class OutboxEvent(Entity):
         """
         raise ValueError("OutboxEvent entities do not support adding events")
 
-    def pull_events(self) -> List[DomainEvent]:
+    def pull_events(self) -> list[DomainEvent]:
         """Returns an empty list of domain events.
 
         Overridden to ensure that the Unit of Work and Repository tracking

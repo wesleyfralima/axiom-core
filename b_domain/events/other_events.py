@@ -1,5 +1,4 @@
 from dataclasses import dataclass
-from typing import Optional
 
 from a_core import DomainEvent
 from b_domain.value_objects.identifiers import ContextId, UserId
@@ -13,6 +12,7 @@ class FlowMomentumBrokenEvent(DomainEvent):
         user_id (UserId): Identifier of the user.
         last_streak_count (int): Number of consecutive tasks completed before the break.
     """
+
     user_id: UserId
     last_streak_count: int
 
@@ -23,9 +23,11 @@ class RewardEarnedEvent(DomainEvent):
 
     Attributes:
         user_id (UserId): Identifier of the user.
-        reward_type (str): Type of reward (e.g., "streak_milestone", "performance_bonus").
+        reward_type (str): Type of reward (e.g.,
+            "streak_milestone", "performance_bonus").
         value (int): Value or points associated with the reward.
     """
+
     user_id: UserId
     reward_type: str
     value: int
@@ -44,7 +46,8 @@ class ContextSwitchedEvent(DomainEvent):
         trigger_type (str): How the switch was triggered ("manual" or "automatic",
             e.g., by geofencing or schedule). Defaults to "manual".
     """
+
     user_id: UserId
-    old_context_id: Optional[ContextId]
+    old_context_id: ContextId | None
     new_context_id: ContextId
     trigger_type: str = "manual"

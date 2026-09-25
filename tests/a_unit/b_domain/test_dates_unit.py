@@ -1,10 +1,11 @@
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 
 import pytest
 
 from a_core.exceptions import ValidationException
 from b_domain.value_objects import DueDate
+from b_domain.value_objects.dates import DateKind
 
 UTC_TZ_OBJ: ZoneInfo = ZoneInfo("UTC")
 SP_TZ_NAME: str = "America/Sao_Paulo"
@@ -15,14 +16,17 @@ NY_TZ_NAME: str = "America/New_York"
 # Group 1: Initialization and Validation
 # ============================================================
 
-def test_due_date_accepts_none() -> None:
+
+def test_due_date_cant_accept_none() -> None:
     """Ensure DueDate accepts None and is not considered overdue."""
 
-    due_date: DueDate = DueDate.empty()
-    now: datetime = datetime.now(tz=UTC_TZ_OBJ)
-
-    assert due_date.value is None
-    assert due_date.is_overdue(now) is False
+    with pytest.raises(ValidationException):
+        _: DueDate = DueDate(
+            # (value can't be None, but that's what we are testing)
+            value=None,  # type: ignore
+            timezone="America/Sao_Paulo",
+            kind=DateKind.FIXED,
+        )
 
 
 def test_due_date_accepts_valid_floating_datetime() -> None:
@@ -82,7 +86,7 @@ def test_fixed_due_date_accepts_native_utc() -> None:
     Ensure we can pass datetime.timezone.utc directly.
     """
 
-    instant = datetime.now(tz=timezone.utc)
+    instant = datetime.now(tz=UTC)
 
     # Isso deve passar agora sem erro
     due = DueDate.fixed(instant)
@@ -95,12 +99,6 @@ def test_fixed_due_date_accepts_native_utc() -> None:
 # Group 2: Materialization Logic
 # ============================================================
 
-def test_materialize_none_returns_none() -> None:
-    """Ensure materialize returns None when DueDate has no value."""
-
-    due_date: DueDate = DueDate.empty()
-    assert due_date.materialize() is None
-
 
 def test_materialize_floating_uses_target_timezone() -> None:
     """Ensure floating due date materializes using target timezone."""
@@ -112,10 +110,13 @@ def test_materialize_floating_uses_target_timezone() -> None:
         source_tz=SP_TZ_NAME,
     )
 
-    materialized: datetime = due_date.materialize("UTC")
-
-    assert materialized.tzinfo.key == "UTC"  # noqa
+    materialized: datetime | None = due_date.materialize("UTC")
+    assert materialized is not None
     assert materialized.hour == 9
+
+    tz_info: tzinfo | None = materialized.tzinfo
+    assert tz_info is not None
+    assert tz_info.tzname(None) == "UTC"
 
 
 def test_materialize_floating_uses_own_timezone_when_no_target() -> None:
@@ -128,9 +129,11 @@ def test_materialize_floating_uses_own_timezone_when_no_target() -> None:
         source_tz=SP_TZ_NAME,
     )
 
-    materialized: datetime = due_date.materialize()
+    materialized: datetime | None = due_date.materialize()
 
-    assert materialized.tzinfo.key == SP_TZ_NAME  # noqa
+    assert materialized is not None
+    assert materialized.tzinfo is not None
+    assert materialized.tzinfo.key == SP_TZ_NAME  # type: ignore[attr-defined]
 
 
 def test_materialize_fixed_keeps_original_timezone() -> None:
@@ -140,7 +143,7 @@ def test_materialize_fixed_keeps_original_timezone() -> None:
 
     due_date: DueDate = DueDate.fixed(instant)
 
-    materialized: datetime = due_date.materialize()
+    materialized: datetime | None = due_date.materialize()
 
     assert materialized == instant
 
@@ -152,15 +155,18 @@ def test_materialize_fixed_converts_timezone() -> None:
 
     due_date: DueDate = DueDate.fixed(instant)
 
-    materialized: datetime = due_date.materialize(SP_TZ_NAME)
+    materialized: datetime | None = due_date.materialize(SP_TZ_NAME)
 
-    assert materialized.tzinfo.key == SP_TZ_NAME  # noqa
+    assert materialized is not None
+    assert materialized.tzinfo is not None
+    assert materialized.tzinfo.key == SP_TZ_NAME  # type: ignore[attr-defined]
     assert materialized.hour == 9  # UTC-3
 
 
 # ============================================================
 # Group 3: Overdue Logic
 # ============================================================
+
 
 def test_floating_due_date_is_overdue_when_in_the_past() -> None:
     """Ensure floating due date is overdue when in the past."""
@@ -280,6 +286,7 @@ def test_is_overdue_rejects_custom_fixed_offsets() -> None:
 # Group 4: DST Semantics
 # ============================================================
 
+
 def test_floating_due_date_respects_dst_change() -> None:
     """Ensure floating due date preserves local time across DST changes."""
 
@@ -290,20 +297,24 @@ def test_floating_due_date_respects_dst_change() -> None:
         source_tz=NY_TZ_NAME,
     )
 
-    materialized: datetime = due_date.materialize(NY_TZ_NAME)
+    materialized: datetime | None = due_date.materialize(NY_TZ_NAME)
 
+    assert materialized is not None
     assert materialized.hour == 9
-    assert materialized.tzinfo.key == NY_TZ_NAME  # noqa
+    assert materialized.tzinfo is not None
+    assert materialized.tzinfo.key == NY_TZ_NAME  # type: ignore[attr-defined]
 
 
 # ============================================================
 # Group 5: Immutability
 # ============================================================
 
+
 def test_due_date_is_immutable() -> None:
     """Ensure DueDate is immutable."""
 
-    due_date: DueDate = DueDate.empty()
+    now_aware = datetime.now(tz=UTC)
+    due_date: DueDate = DueDate.fixed(now_aware)
 
     with pytest.raises(Exception):
-        due_date.value = datetime.now()  # noqa
+        due_date.value = datetime.now()  # type: ignore[misc] # noqa

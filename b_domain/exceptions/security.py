@@ -9,7 +9,10 @@ class SecurityException(DomainException):
 
 
 class NotAuthenticatedError(SecurityException):
-    """Exception raised when an operation requires authentication but no active session exists."""
+    """
+    Exception raised when an operation requires
+    authentication but no active session exists.
+    """
 
     def __init__(self, message: str = "User is not authenticated."):
         super().__init__(message)
@@ -39,14 +42,19 @@ class InvalidCredentialsError(SecurityException):
 class SessionRevocationError(SecurityException):
     """Exception raised when session revocation fails."""
 
-    def __init__(self, message: str = "Could not revoke session. It might be already inactive."):
+    def __init__(
+        self, message: str = "Could not revoke session. It might be already inactive."
+    ):
         super().__init__(message)
 
 
 class AccountLockedError(SecurityException):
     """Exception raised when an account is temporarily locked."""
 
-    def __init__(self, message: str = "Account is temporarily locked due to multiple failed attempts."):
+    def __init__(
+        self,
+        message: str = "Account is temporarily locked due to multiple failed attempts.",
+    ):
         super().__init__(message)
 
 

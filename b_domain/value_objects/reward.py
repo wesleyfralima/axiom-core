@@ -12,11 +12,11 @@ class RewardModel:
 
     @staticmethod
     def task_reward(
-            completed: bool,
-            skipped: bool,
-            abandoned: bool,
-            duration: float,
-            complexity: float
+        completed: bool,
+        skipped: bool,
+        abandoned: bool,
+        duration: float,
+        complexity: float,
     ) -> float:
         """Calculate the reward for a task outcome.
 

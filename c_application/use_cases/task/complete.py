@@ -1,10 +1,9 @@
 from datetime import datetime
-from typing import Optional
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task, TimeEntry
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
 from c_application.dtos.task_dtos import CompleteTaskOutputDTO, TaskByUserRequest
@@ -37,7 +36,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         # Fail fast: UX safeguard
         try:
             task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
-            user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+            user_id: UserId = UserId.from_string(
+                request.user_id, error_msg="Invalid user ID."
+            )
         except ValidationException as e:
             raise ValidationException(e) from e
 
@@ -52,7 +53,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
                 raise ValidationException(e) from e
 
             # 2. Close active timers and compute actual duration
-            actual_duration: int = await self._close_active_timers(uow, task, now, request)
+            actual_duration: int = await self._close_active_timers(
+                uow, task, now, request
+            )
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
             task.mark_as_done(now, actual_minutes=actual_duration)
@@ -60,7 +63,8 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             # 4. Persist changes
             await uow.tasks.update(task)
 
-            # Next occurrence will be generated asynchronously by CreateRecurringTaskHandler
+            # Next occurrence will be generated asynchronously
+            # by CreateRecurringTaskHandler
             return self._build_response(task, None, now)
 
     @staticmethod
@@ -84,7 +88,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         if not len(ids_found) == 1:
             raise ValidationException("Ambiguous IDs found")
 
-        task_found: Task = await uow.tasks.get_by_id(
+        task_found: Task | None = await uow.tasks.get_by_id(
             task_id=ids_found[0],
             user_id=user_id,
         )
@@ -95,7 +99,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         return task_found
 
     @staticmethod
-    async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest) -> int:
+    async def _close_active_timers(
+        uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest
+    ) -> int:
         """Close active timers for a task and compute actual duration.
 
         Args:
@@ -107,7 +113,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             int: Total elapsed minutes from timers.
         """
 
-        active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(task.id)
+        active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(
+            task.id
+        )
         if not active_timers:
             return 0
 
@@ -122,7 +130,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         return actual_duration
 
     @staticmethod
-    def _build_response(task: Task, next_task: Optional[Task], now: datetime) -> CompleteTaskOutputDTO:
+    def _build_response(
+        task: Task, next_task: Task | None, now: datetime
+    ) -> CompleteTaskOutputDTO:
         """Build output DTO for completed task."""
         return CompleteTaskOutputDTO(
             completed_task=TaskMapper.to_output(task, now),

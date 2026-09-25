@@ -1,7 +1,6 @@
 import calendar
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import Optional, Set
 
 from b_domain.exceptions.recurrence import InvalidWeekDayValue
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -18,7 +17,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
         days_of_week (Set[int]): Weekdays to repeat on (0=Monday, 6=Sunday).
     """
 
-    days_of_week: Set[int]
+    days_of_week: set[int]
 
     def __post_init__(self) -> None:
         """Validate the specific invariants for weekdays.
@@ -36,7 +35,9 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
 
         # Ensure all weekdays are within 0–6 (Monday–Sunday)
         if any(d < 0 or d > 6 for d in self.days_of_week):
-            raise InvalidWeekDayValue(f"Invalid weekdays: {self.days_of_week}. Must be 0-6.")
+            raise InvalidWeekDayValue(
+                f"Invalid weekdays: {self.days_of_week}. Must be 0-6."
+            )
 
     def _rrule_extra_parts(self) -> list[str]:
         """Generate BYDAY part for RFC 5545 RRULE string.
@@ -53,10 +54,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
         day_map: list[str] = ["MO", "TU", "WE", "TH", "FR", "SA", "SU"]
 
         # Build the BYDAY string with all selected weekdays
-        days_str: str = ",".join(
-            day_map[d]
-            for d in sorted(self.days_of_week)
-        )
+        days_str: str = ",".join(day_map[d] for d in sorted(self.days_of_week))
 
         return [f"BYDAY={days_str}"]
 
@@ -90,7 +88,9 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
 
             # If no valid day exists in the current month (or all have passed),
             # advance according to the interval (Anchor Date logic)
-            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_since_start = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
@@ -99,7 +99,9 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
 
         return base_dt  # Safety fallback
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence by iterating through the month's days.
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
@@ -115,28 +117,30 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
             otherwise None.
         """
 
-        base_dt: datetime = self.start_date.materialize() if self.end_date else None
+        base_dt: datetime | None = (
+            self.start_date.materialize() if self.end_date else None
+        )
 
         if last_occurrence is None:
             first = self.get_first_valid_occurrence()
             return first if not self._is_exhausted(first) else None
 
-        last = self.normalize_comparison_date(last_occurrence)
+        last: datetime = self.normalize_comparison_date(last_occurrence)
 
-        scan_year = last.year
-        scan_month = last.month
+        scan_year: int = last.year
+        scan_month: int = last.month
 
         # Safety limit (120 months) to prevent infinite loops
         for _ in range(120):
-            last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
+            last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
 
             # 1. Iterate through all valid days of the current scanning month
             for day_num in range(1, last_day_of_month + 1):
-                d = date(scan_year, scan_month, day_num)
+                d: date = date(scan_year, scan_month, day_num)
 
                 # Check if the day matches one of the required weekdays
                 if d.weekday() in self.days_of_week:
-                    candidate = self._combine_with_start_time(d)
+                    candidate: datetime = self._combine_with_start_time(d)
 
                     # Ensure candidate is strictly in the future
                     if candidate > last:
@@ -150,7 +154,7 @@ class MonthlyAllWeekdaysRule(RecurrenceRule):
             months_to_advance = self.interval - remainder
 
             new_month = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (new_month // 12)
+            scan_year += new_month // 12
             scan_month = (new_month % 12) + 1
 
         return None

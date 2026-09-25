@@ -1,7 +1,6 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import List, Optional
 
 from a_core import ValidationException, ValueObject
 from b_domain.exceptions.recurrence import (
@@ -30,8 +29,8 @@ class RecurrenceRule(ValueObject, ABC):
 
     start_date: AxiomDate
     interval: int = 1
-    end_date: Optional[AxiomDate] = None
-    count: Optional[int] = None
+    end_date: AxiomDate | None = None
+    count: int | None = None
 
     _freq: str = field(init=False, repr=False)
 
@@ -44,6 +43,7 @@ class RecurrenceRule(ValueObject, ABC):
             ValidationException: If start_date and end_date have different kinds.
             EndDateBeforeStartDate: If end_date is before or equal to start_date.
         """
+
         if self.interval < 1:
             raise InvalidIntervalValue("Interval must be at least 1.")
 
@@ -54,7 +54,8 @@ class RecurrenceRule(ValueObject, ABC):
 
             if self.start_date.kind != self.end_date.kind:
                 raise ValidationException(
-                    "start_date and end_date must share the same DateKind (floating/fixed)."
+                    "start_date and end_date must share "
+                    "the same DateKind (floating/fixed)."
                 )
 
             # start and end dates must be logically coherent
@@ -81,7 +82,9 @@ class RecurrenceRule(ValueObject, ABC):
     # --------------------------------------------------------------------------
 
     @abstractmethod
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculates the exact next occurrence based on the specific rule strategy.
 
         Args:
@@ -132,16 +135,18 @@ class RecurrenceRule(ValueObject, ABC):
     # SHARED ENGINE LOGIC
     # --------------------------------------------------------------------------
 
-    def get_next_n_occurrences(self, n: int = 5, start_from: Optional[datetime] = None) -> List[datetime]:
+    def get_next_n_occurrences(
+        self, n: int = 5, start_from: datetime | None = None
+    ) -> list[datetime]:
         """Return the next `n` occurrences of the recurrence rule.
 
         This acts as a generic engine that relies on the subclass's
         `get_next_occurrence` implementation.
         """
 
-        occurrences: List[datetime] = []
-        first_valid: Optional[datetime] = None
-        last: Optional[datetime]
+        occurrences: list[datetime] = []
+        first_valid: datetime | None = None
+        last: datetime | None
 
         if start_from is not None:
             first_valid = self._get_closest_occurrence(start_from, before=False)
@@ -166,14 +171,16 @@ class RecurrenceRule(ValueObject, ABC):
 
         return occurrences
 
-    def _get_closest_occurrence(self, reference: datetime, before: bool = False) -> Optional[datetime]:
+    def _get_closest_occurrence(
+        self, reference: datetime, before: bool = False
+    ) -> datetime | None:
         """Find the closest occurrence relative to a reference datetime."""
 
         if reference:
             reference = self.normalize_comparison_date(reference)
 
-        candidate: Optional[datetime]
-        last_candidate: Optional[datetime] = None
+        candidate: datetime | None
+        last_candidate: datetime | None = None
 
         for _ in range(10_000):  # Safety limit
             candidate = self.get_next_occurrence(last_candidate)
@@ -202,6 +209,7 @@ class RecurrenceRule(ValueObject, ABC):
             Optional[str]: A formatted `UNTIL` string if `end_date` is set,
             otherwise None.
         """
+
         if not self.end_date:
             return None
 

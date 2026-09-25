@@ -1,5 +1,4 @@
 from abc import ABC, abstractmethod
-from typing import Optional
 
 from b_domain.value_objects.identifiers import UserId
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
@@ -14,7 +13,7 @@ class UserBehaviorMetricsRepository(ABC):
     """
 
     @abstractmethod
-    async def save(self, metrics: UserBehaviorMetrics) -> None:
+    async def save(self, metrics: UserBehaviorMetrics) -> UserBehaviorMetrics:
         """Persist metrics for a given user.
 
         Implementations must either create or update the stored metrics.
@@ -24,7 +23,7 @@ class UserBehaviorMetricsRepository(ABC):
         """
 
     @abstractmethod
-    async def get_by_user_id(self, user_id: UserId) -> Optional[UserBehaviorMetrics]:
+    async def get_by_user_id(self, user_id: UserId) -> UserBehaviorMetrics:
         """Retrieve metrics associated with a user.
 
         Args:

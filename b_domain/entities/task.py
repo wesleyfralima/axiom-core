@@ -1,14 +1,14 @@
 from dataclasses import dataclass, field, replace
-from datetime import datetime, timezone
-from typing import Optional, List, Set
+from datetime import UTC, datetime
+from typing import Optional
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.events.task_events import TaskCompletedEvent, TaskCreatedEvent
-from b_domain.value_objects import TaskId, Title, Description, TaskStatus, Priority
-from b_domain.value_objects.dates import DueDate
+from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
+from b_domain.value_objects.dates import DueDate, build_axiom_date
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
-from b_domain.value_objects.identifiers import UserId, ContextId
+from b_domain.value_objects.identifiers import ContextId, UserId
 from b_domain.value_objects.recurrences import RecurrenceRule
 
 
@@ -27,14 +27,14 @@ class Task(Entity):
     title: Title
 
     # Optional relationships
-    due_date: DueDate = field(default_factory=DueDate.empty)
-    parent_id: Optional[TaskId] = None
-    recurrence: Optional[RecurrenceRule] = None
+    due_date: DueDate | None = None
+    parent_id: TaskId | None = None
+    recurrence: RecurrenceRule | None = None
 
-    context_id: Optional[ContextId] = None
+    context_id: ContextId | None = None
 
     # Grafo de dependências: IDs de outras tarefas que bloqueiam esta
-    depends_on: Set[TaskId] = field(default_factory=set)
+    depends_on: set[TaskId] = field(default_factory=set)
 
     # Nível de energia necessário (GTD-style)
     # Pode ser um Enum: LOW, MEDIUM, HIGH
@@ -46,42 +46,42 @@ class Task(Entity):
     success_count: int = 0
     attempt_count: int = 0
     average_duration_minutes: int = 0
-    last_skipped_at: Optional[datetime] = None
+    last_skipped_at: datetime | None = None
 
     is_system_generated: bool = False
 
     # External calendar integration
-    calendar_event_id: Optional[str] = None
-    calendar_id: Optional[str] = None
-    calendar_link: Optional[str] = None
-    last_synced_at: Optional[datetime] = None
+    calendar_event_id: str | None = None
+    calendar_id: str | None = None
+    calendar_link: str | None = None
+    last_synced_at: datetime | None = None
 
     # Subtasks list is not persisted directly as a column,
     # but is useful for hydrating the object in memory
-    _subtasks: List['Task'] = field(default_factory=list, repr=False)
+    _subtasks: list["Task"] = field(default_factory=list, repr=False)
 
     @classmethod
     def create(
-            cls,
-            now: datetime,
-            user_id: UserId,
-            title: Title,
-            description: Description = Description(""),
-            priority: Priority = Priority.MEDIUM,
-            required_energy_level: EnergyLevel = EnergyLevel.BALANCED,
-            context_id: Optional[ContextId] = None,
-            parent_id: Optional[TaskId] = None,
-            depends_on: Optional[Set[TaskId]] = None,
-            recurrence: Optional[RecurrenceRule] = None,
-            due_date: Optional[datetime] = None,
-            is_floating: bool = True,
-            tz_name: str = "UTC",
-            complexity: TaskComplexity = TaskComplexity.MEDIUM,
-            estimated_duration_minutes: int = 30,
-            success_count: int = 0,
-            attempt_count: int = 0,
-            average_duration_minutes: int = 0,
-    ) -> 'Task':
+        cls,
+        now: datetime,
+        user_id: UserId,
+        title: Title,
+        description: Description = Description(""),
+        priority: Priority = Priority.MEDIUM,
+        required_energy_level: EnergyLevel = EnergyLevel.BALANCED,
+        context_id: ContextId | None = None,
+        parent_id: TaskId | None = None,
+        depends_on: set[TaskId] | None = None,
+        recurrence: RecurrenceRule | None = None,
+        due_date: datetime | None = None,
+        is_floating: bool = True,
+        tz_name: str | None = None,
+        complexity: TaskComplexity = TaskComplexity.MEDIUM,
+        estimated_duration_minutes: int = 30,
+        success_count: int = 0,
+        attempt_count: int = 0,
+        average_duration_minutes: int = 0,
+    ) -> "Task":
         """Factory method to create a new clean Task.
 
         Args:
@@ -93,24 +93,35 @@ class Task(Entity):
             required_energy_level (int): Energy required (1=Low, 2=Medium, 3=High).
             context_id (Optional[ContextId]): The focus context (e.g., 'Work', 'Home').
             parent_id (Optional[TaskId], optional): Parent task ID. Defaults to None.
-            depends_on (Optional[Set[TaskId]], optional): List of IDs of tasks that this depends on.
-            recurrence (Optional[RecurrenceRule], optional): Recurrence rule. Defaults to None.
+            depends_on (Optional[Set[TaskId]], optional): List of IDs of
+                tasks that this depends on.
+            recurrence (Optional[RecurrenceRule], optional): Recurrence rule.
+                Defaults to None.
             due_date (Optional[datetime], optional): Due date. Defaults to None.
             is_floating (bool): Task floating. Defaults to True.
             tz_name (str): Time zone. Defaults to "UTC".
             complexity (TaskComplexity): Task complexity. Defaults to "medium".
-            estimated_duration_minutes (int): Task estimated duration minutes. Defaults to 30.
+            estimated_duration_minutes (int): Task estimated duration minutes.
+                Defaults to 30.
             success_count (int): Task success count. Defaults to 0.
             attempt_count (int): Task attempt count. Defaults to 0.
-            average_duration_minutes (int): Task average (real) duration minutes. Defaults to 0.
+            average_duration_minutes (int): Task average (real) duration minutes.
+                Defaults to 0.
 
         Returns:
             Task: A new Task instance.
         """
 
-        due: DueDate = DueDate.from_params(due_date, is_floating, tz_name)
+        if due_date:
+            due: DueDate | None = DueDate.from_params(
+                due_date,
+                is_floating,
+                tz_name or "UTC",
+            )
+        else:
+            due = None
 
-        if recurrence and due.value:
+        if recurrence and due is not None:
             # Ensure recurrence aligns with the task's due date type.
             # If they differ, enforce consistency between floating/fixed rules.
             if due.is_floating and not recurrence.start_date.is_floating:
@@ -125,7 +136,7 @@ class Task(Entity):
         if depends_on is None:
             depends_on = set()
 
-        created: "Task" = cls(
+        created: Task = cls(
             id=TaskId(),
             user_id=user_id,
             title=title,
@@ -147,16 +158,20 @@ class Task(Entity):
             average_duration_minutes=average_duration_minutes,
         )
 
-        created.add_event(TaskCreatedEvent(
-            title=created.title.value,
-            task_id=created.id,
-            due_date=created.due_date.value,
-        ))
+        created.add_event(
+            TaskCreatedEvent(
+                title=str(created.title),
+                task_id=created.id,
+                due_date=created.due_date.materialize() if created.due_date else None,
+            )
+        )
 
         return created
 
     @classmethod
-    def create_system_task(cls, title: str, duration: int, reason: str, user_id: UserId) -> "Task":
+    def create_system_task(
+        cls, title: str, duration: int, reason: str, user_id: UserId
+    ) -> "Task":
         """Factory para criar uma tarefa de pausa que não existe no DB."""
         return cls(
             id=TaskId(),  # ID temporário, não será persistido
@@ -174,13 +189,13 @@ class Task(Entity):
         """Verifica se a tarefa cabe no nível de energia atual do usuário."""
         return self.required_energy_level <= current_energy
 
-    def add_dependency(self, target_id: TaskId, now: datetime):
+    def add_dependency(self, target_id: TaskId, now: datetime) -> None:
         if target_id == self.id:
             raise ValidationException("A task cannot depend on itself.")
         self.depends_on.add(target_id)
         self.change_status(now=now, new_status=TaskStatus.BLOCKED)
 
-    def remove_dependency(self, target_id: TaskId, now: datetime):
+    def remove_dependency(self, target_id: TaskId, now: datetime) -> None:
         self.depends_on.discard(target_id)
         if not self.depends_on:
             self.change_status(now, TaskStatus.PENDING)
@@ -190,7 +205,9 @@ class Task(Entity):
         """Uma tarefa está bloqueada se houver alguma dependência pendente."""
         return len(self.depends_on) > 0
 
-    def create_next_occurrence(self, now: datetime, catch_up: bool = True) -> Optional['Task']:
+    def create_next_occurrence(
+        self, now: datetime, catch_up: bool = True
+    ) -> Optional["Task"]:
         """Generate the next occurrence of this task.
 
         Depending on the mode, either generates the strict sequential next
@@ -210,7 +227,7 @@ class Task(Entity):
             or None if recurrence has ended (e.g., reached count or until).
         """
 
-        if not self.recurrence or not self.due_date.value:
+        if not self.recurrence or not self.due_date:
             return None
 
         # 1. Initial reference
@@ -221,7 +238,9 @@ class Task(Entity):
         # Strategy 1: Strict mode (Financial)
         # -------------------------------------------------------
         if not catch_up:
-            next_dt = self.recurrence.get_next_occurrence(last_occurrence=last_reference)
+            next_dt = self.recurrence.get_next_occurrence(
+                last_occurrence=last_reference
+            )
             if next_dt:
                 return self._recreate_task_with_date(now, next_dt)
             else:
@@ -231,8 +250,9 @@ class Task(Entity):
         # Strategy 2: Catch-up mode (Habit)
         # -------------------------------------------------------
         while True:
-
-            next_dt = self.recurrence.get_next_occurrence(last_occurrence=last_reference)
+            next_dt = self.recurrence.get_next_occurrence(
+                last_occurrence=last_reference
+            )
 
             # End of recurrence (Count/Until reached)
             if not next_dt:
@@ -246,7 +266,7 @@ class Task(Entity):
             # Otherwise, continue iterating
             last_reference = next_dt
 
-    def _recreate_task_with_date(self, now: datetime, new_date: datetime) -> 'Task':
+    def _recreate_task_with_date(self, now: datetime, new_date: datetime) -> "Task":
         """Private helper to clone the task with a new due date.
 
         Preserves floating vs fixed semantics when reconstructing the DueDate
@@ -260,28 +280,52 @@ class Task(Entity):
             Task: A new Task entity with updated due date.
         """
 
-        # Rebuild DueDate VO preserving floating/fixed semantics
-        if self.due_date.is_floating:
-            new_due_vo = DueDate.floating(new_date.replace(tzinfo=None), source_tz=self.due_date.timezone)
+        if self.due_date is None:
+            # Se não há data de vencimento original, não há que reconstruir ou replicar
+            raise ValueError(
+                "A task with no due date can't be recreated by _recreate_task_with_date"
+            )
+
+        # 1. Extraímos a semântica diretamente da data original
+        is_floating: bool = self.due_date.is_floating
+        tz_name: str = self.due_date.timezone or "UTC"
+
+        # 2. Reconstruímos o DueDate VO
+        if is_floating:
+            new_dd: DueDate = DueDate.floating(
+                new_date.replace(tzinfo=None),
+                source_tz=tz_name,
+            )
         else:
-            new_due_vo = DueDate.fixed(new_date)
+            new_dd = DueDate.fixed(new_date)
 
-        new_recurrence: RecurrenceRule = replace(self.recurrence, start_date=new_due_vo)
+        # 3. Atualizamos a recorrência de forma limpa
+        new_rr: RecurrenceRule | None = None
+        if self.recurrence is not None:
+            new_rr = replace(
+                self.recurrence,
+                start_date=build_axiom_date(
+                    dt=new_dd.value,
+                    is_floating=is_floating,
+                    tz=tz_name,
+                ),
+            )
 
+        # 4. Invocamos o Task.create usando os parâmetros extraídos dinamicamente
         return Task.create(
             now=now,
             user_id=self.user_id,
             title=self.title,
             description=self.description,
             priority=self.priority,
-            due_date=new_due_vo.value,
-            is_floating=new_due_vo.is_floating,
-            tz_name=new_due_vo.timezone,
+            due_date=new_dd.value,
+            is_floating=is_floating,
+            tz_name=tz_name,
             parent_id=self.parent_id,
-            recurrence=new_recurrence,
+            recurrence=new_rr,
         )
 
-    def next_occurrence_due_date(self) -> Optional['DueDate']:
+    def next_occurrence_due_date(self) -> Optional["DueDate"]:
         """Return the next due date based on recurrence rules.
 
         Determines the next occurrence from the current due date and
@@ -293,7 +337,7 @@ class Task(Entity):
             otherwise None.
         """
 
-        if not self.recurrence or not self.due_date.value:
+        if not self.recurrence or self.due_date is None:
             return None
 
         # RecurrenceRule returns a datetime (naive or aware depending on input)
@@ -305,7 +349,7 @@ class Task(Entity):
             return None
 
         # Reconstruction: preserve metadata from the original DueDate
-        if self.due_date.is_floating:
+        if self.due_date.is_floating and self.due_date.timezone:
             # next_dt will already be naive from RecurrenceRule
             return DueDate.floating(next_dt, source_tz=self.due_date.timezone)
         else:
@@ -327,7 +371,9 @@ class Task(Entity):
         self.description = Description(new_description)
         self._touch(now)
 
-    def change_status(self, now: datetime, new_status: "TaskStatus", allow_same: bool = True) -> None:
+    def change_status(
+        self, now: datetime, new_status: "TaskStatus", allow_same: bool = True
+    ) -> None:
         if not self.status.can_transition_to(new_status, allow_same):
             raise InvalidStateTransition(
                 f"Cannot change task status from {self.status} to {new_status}"
@@ -346,11 +392,11 @@ class Task(Entity):
         self._touch(now)
 
     def update_due_date(
-            self,
-            now: datetime,
-            new_dt: Optional[datetime],
-            is_floating: bool = True,
-            tz_name: Optional[str] = None
+        self,
+        now: datetime,
+        new_dt: datetime | None,
+        is_floating: bool = True,
+        tz_name: str | None = None,
     ) -> None:
         """
         Atualiza o prazo da tarefa utilizando as factories do DueDate.
@@ -363,48 +409,49 @@ class Task(Entity):
         """
 
         if new_dt is None:
-            self.due_date = DueDate.empty()
+            self.due_date = None
             self._touch(now)
             return
 
-        try:
-            if is_floating:
-                # O DueDate.floating espera um naive datetime e uma string de TZ
-                # Se o DTO enviou aware, normalizamos para naive conforme a regra do DueDate
-                naive_dt = new_dt if new_dt.tzinfo is None else new_dt.replace(tzinfo=None)
+        if is_floating:
+            # O DueDate.floating espera um naive datetime e uma string de TZ
+            # Se o DTO enviou aware, normalizamos para
+            # naive conforme a regra do DueDate
+            naive_dt: datetime = new_dt.replace(tzinfo=None)
 
-                # Usamos o tz_name fornecido ou o da própria tarefa como fallback
-                effective_tz = tz_name or self.due_date.timezone or "UTC"
-                self.due_date = DueDate.floating(naive_dt, effective_tz)
-            else:
-                # Para Fixed, o DueDate.fixed exige que seja aware
-                aware_dt = new_dt
-                if aware_dt.tzinfo is None:
-                    # Se vier naive, assumimos UTC ou o TZ da tarefa para tornar aware
-                    aware_dt = aware_dt.replace(tzinfo=timezone.utc)
+            # Usamos o tz_name fornecido ou o da própria tarefa como fallback
+            effective_tz: str = (
+                tz_name or self.due_date.timezone or "UTC"  # type: ignore[union-attr]
+            )
+            self.due_date = DueDate.floating(naive_dt, effective_tz)
 
-                self.due_date = DueDate.fixed(aware_dt)
+        else:
+            # Para Fixed, o DueDate.fixed exige que seja aware
+            aware_dt: datetime = new_dt
+            if aware_dt.tzinfo is None:
+                # Se vier naive, assumimos UTC ou o TZ da tarefa para tornar aware
+                aware_dt = aware_dt.replace(tzinfo=UTC)
 
-            self._touch(now)
+            self.due_date = DueDate.fixed(aware_dt)
 
-        except ValidationException as e:
-            # Relançamos para que o UseCase capture e trate como erro de negócio
-            raise e
+        self._touch(now)
 
     def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:
         """Mark the task as completed."""
         self.change_status(now, TaskStatus.DONE, allow_same=False)
-        self.add_event(TaskCompletedEvent(
-            task_id=self.id,
-            user_id=self.user_id,
-            estimated_minutes=self.estimated_duration_minutes,
-            actual_minutes=actual_minutes,
-            energy_level_used=self.required_energy_level,
-            task_complexity=self.complexity,
-        ))
+        self.add_event(
+            TaskCompletedEvent(
+                task_id=self.id,
+                user_id=self.user_id,
+                estimated_minutes=self.estimated_duration_minutes,
+                actual_minutes=actual_minutes,
+                energy_level_used=self.required_energy_level,
+                task_complexity=self.complexity,
+            )
+        )
 
     def mark_as_cancelled(self, now: datetime) -> None:
-        """Mark the task as cancelled."""
+        """Mark the task as canceled."""
         self.change_status(now, TaskStatus.CANCELLED)
 
     def reopen(self, now: datetime) -> None:
@@ -415,7 +462,7 @@ class Task(Entity):
         """Archive the task."""
         self.change_status(now, TaskStatus.ARCHIVED)
 
-    def add_subtask(self, subtask: 'Task') -> None:
+    def add_subtask(self, subtask: "Task") -> None:
         """Add a subtask in memory.
 
         Args:
@@ -445,7 +492,13 @@ class Task(Entity):
             return True
         return self.updated_at > self.last_synced_at
 
-    def mark_as_synced(self, now: datetime, external_id: str, calendar_id: str, link: str = None) -> None:
+    def mark_as_synced(
+        self,
+        now: datetime,
+        external_id: str,
+        calendar_id: str,
+        link: str | None = None,
+    ) -> None:
         """Mark this task as synced with an external calendar.
 
         This method should be called by the Service after a successful
@@ -455,7 +508,8 @@ class Task(Entity):
             now (datetime): The current time.
             external_id (str): The identifier of the event in the external calendar.
             calendar_id (str): The identifier of the calendar in the external calendar.
-            link (str, optional): The link to the external calendar event. Defaults to None.
+            link (str, optional): The link to the external calendar event.
+                Defaults to None.
         """
         self.calendar_event_id = external_id
         self.calendar_id = calendar_id

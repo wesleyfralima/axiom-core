@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
-from typing import Optional
 
 from a_core.exceptions import ValidationException
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -35,7 +34,9 @@ class HourlyWindowRule(RecurrenceRule):
         object.__setattr__(self, "_freq", "HOURLY")
 
         if self.window_start >= self.window_end:
-            raise ValidationException("window_start must be strictly before window_end.")
+            raise ValidationException(
+                "window_start must be strictly before window_end."
+            )
 
         if self.window_start.minute != 0 or self.window_end.minute != 0:
             raise ValidationException("window must align to full hours")
@@ -103,7 +104,9 @@ class HourlyWindowRule(RecurrenceRule):
         candidate = datetime.combine(next_day, self.window_start)
         return self._apply_start_tz(candidate)
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence, respecting the defined daily window.
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
@@ -129,9 +132,8 @@ class HourlyWindowRule(RecurrenceRule):
         candidate = last + timedelta(hours=self.interval)
 
         # 3. Wrap-around logic
-        if (
-                candidate.time() > self.window_end or
-                (candidate.time() < self.window_start and candidate.date() > last.date())
+        if candidate.time() > self.window_end or (
+            candidate.time() < self.window_start and candidate.date() > last.date()
         ):
             next_day = last.date() + timedelta(days=1)
             candidate = datetime.combine(next_day, self.window_start)

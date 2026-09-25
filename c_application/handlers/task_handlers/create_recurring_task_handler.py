@@ -1,6 +1,6 @@
 from b_domain.entities import Task
 from b_domain.events.task_events import TaskCompletedEvent
-from b_domain.ports.unity_of_work import UnitOfWork
+from b_domain.ports.unit_of_work import UnitOfWork
 
 
 class CreateRecurringTaskHandler:

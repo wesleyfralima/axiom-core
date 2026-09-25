@@ -1,14 +1,18 @@
 from dataclasses import replace
-from datetime import datetime, timezone, timedelta
-from logging import getLogger, Logger
-from typing import Type, Dict
+from datetime import UTC, datetime, timedelta
+from logging import Logger, getLogger
+from typing import TypeVar
 
 from a_core import DomainEvent
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.event_bus import EventBus
-from b_domain.ports.repositories.outbox_event_repository import OutboxEventRepository
+from b_domain.ports.repositories.outbox_event_repository import (
+    OutboxEventRepository,
+)
 
 logger: Logger = getLogger(__name__)
+
+E = TypeVar("E", bound=DomainEvent)
 
 
 class OutboxRelayService:
@@ -20,17 +24,17 @@ class OutboxRelayService:
     """
 
     def __init__(
-            self,
-            outbox_repo: OutboxEventRepository,
-            event_bus: EventBus,
-            event_registry: Dict[str, Type[DomainEvent]],
+        self,
+        outbox_repo: OutboxEventRepository,
+        event_bus: EventBus,
+        event_registry: dict[str, type[E]],
     ):
         """Initialize the relay service.
 
         Args:
             outbox_repo (OutboxEventRepository): Repository for managing Outbox entries.
             event_bus (EventBus): Outbound port for publishing domain events.
-            event_registry (Dict[str, Type[DomainEvent]]): Registry mapping event names
+            event_registry (Dict[str, Type[E]]): Registry mapping event names
                 to DomainEvent classes (used for rehydration).
         """
         self.outbox_repo = outbox_repo
@@ -54,7 +58,9 @@ class OutboxRelayService:
             int: Total number of successfully processed events.
         """
 
-        pending_entries: list[OutboxEvent] = await self.outbox_repo.get_unprocessed(limit=limit)
+        pending_entries: list[OutboxEvent] = await self.outbox_repo.get_unprocessed(
+            limit=limit
+        )
         processed_count: int = 0
 
         for entry in pending_entries:
@@ -66,14 +72,15 @@ class OutboxRelayService:
                 await self.event_bus.publish(domain_event)
 
                 # Mark success
-                entry.processed_at = datetime.now(timezone.utc)
+                entry.processed_at = datetime.now(UTC)
                 processed_count += 1
 
             except Exception as e:
                 # Apply retry logic with exponential backoff
                 self._handle_failure(entry, str(e))
                 logger.error(
-                    f"Failed to dispatch event {entry.event_name} with ID {entry.event_id}: {e}",
+                    f"Failed to dispatch event {entry.event_name} "
+                    f"with ID {entry.event_id}: {e}",
                     exc_info=True,
                 )
 
@@ -96,7 +103,9 @@ class OutboxRelayService:
             ValueError: If the event class cannot be found in the registry.
         """
 
-        event_class: type[DomainEvent] = self.event_registry.get(entry.event_name)
+        event_class: type[DomainEvent] | None = self.event_registry.get(
+            entry.event_name, None
+        )
         if not event_class:
             raise ValueError(f"Event class not found in registry: {entry.event_name}")
 
@@ -123,5 +132,5 @@ class OutboxRelayService:
 
         # Exponential backoff strategy:
         # 1st retry = 1min, 2nd = 2min, 3rd = 4min, etc.
-        wait_minutes: int = entry.retry_count ** 2
-        entry.scheduled_for = datetime.now(timezone.utc) + timedelta(minutes=wait_minutes)
+        wait_minutes: int = entry.retry_count**2
+        entry.scheduled_for = datetime.now(UTC) + timedelta(minutes=wait_minutes)

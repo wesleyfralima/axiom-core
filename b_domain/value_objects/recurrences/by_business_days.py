@@ -1,7 +1,7 @@
 import calendar
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
-from typing import Callable, Optional
 
 from a_core import ValidationException
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -37,9 +37,11 @@ class BusinessDayRule(RecurrenceRule):
             raise ValidationException("Business day index (nth_day) cannot be 0.")
 
         if self.nth_day < -31 or self.nth_day > 31:
-            raise ValidationException("Business day index must be realistically between -31 and 31.")
+            raise ValidationException(
+                "Business day index must be realistically between -31 and 31."
+            )
 
-        if not self.is_business_day:
+        if self.is_business_day is None:
             raise ValidationException("Callback is_business_day missing.")
 
     def supports_native_sync(self) -> bool:
@@ -69,8 +71,9 @@ class BusinessDayRule(RecurrenceRule):
 
         return ""
 
-    def get_first_valid_occurrence(self) -> datetime | None:
-        """Locate the first valid N-th business day occurrence starting from `start_date`.
+    def get_first_valid_occurrence(self) -> datetime | None:  # type: ignore[override]
+        """
+        Locate the first valid N-th business day occurrence starting from `start_date`.
 
         This method scans month by month (up to 12 months ahead) to find the
         first valid occurrence that matches the requested business day index
@@ -93,15 +96,16 @@ class BusinessDayRule(RecurrenceRule):
         scan_year = start_norm.year
         scan_month = start_norm.month
 
-        # Search horizon: 12 months (cannot advance more than a year since logic is monthly)
+        # Search horizon: 12 months (cannot advance
+        # more than a year since logic is monthly)
         for _ in range(12):
             last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
 
             # 1. Collect business days for the current month
             business_days = [
-                date(scan_year, scan_month, d)
-                for d in range(1, last_day_of_month + 1)
-                if self.is_business_day(date(scan_year, scan_month, d))
+                date(scan_year, scan_month, day)
+                for day in range(1, last_day_of_month + 1)
+                if self.is_business_day(date(scan_year, scan_month, day))
             ]
 
             if business_days:
@@ -119,17 +123,21 @@ class BusinessDayRule(RecurrenceRule):
                     pass
 
             # 4. Advance month respecting interval (Anchor Date logic)
-            months_since_start = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_since_start = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             months_to_advance = self.interval - (months_since_start % self.interval)
 
             total_months = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (total_months // 12)
+            scan_year += total_months // 12
             scan_month = (total_months % 12) + 1
 
         # Safety fallback (though the above logic is exhaustive)
         return None
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next valid business day occurrence.
 
         This method scans month by month to find the next valid occurrence
@@ -147,22 +155,25 @@ class BusinessDayRule(RecurrenceRule):
         """
 
         if last_occurrence is None:
-            first = self.get_first_valid_occurrence()
-            return first if not self._is_exhausted(first) else None
+            first: datetime | None = self.get_first_valid_occurrence()
+            if first is not None and not self._is_exhausted(first):
+                return first
+            else:
+                return None
 
-        last = self.normalize_comparison_date(last_occurrence)
+        last: datetime = self.normalize_comparison_date(last_occurrence)
 
-        scan_year = last.year
-        scan_month = last.month
+        scan_year: int = last.year
+        scan_month: int = last.month
 
         # Safety limit: scan up to 12 months
         for _ in range(12):
-            last_day_of_month = calendar.monthrange(scan_year, scan_month)[1]
+            last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
             business_days_in_month: list[date] = []
 
             # 1. Collect all business days of this month
             for day_num in range(1, last_day_of_month + 1):
-                d = date(scan_year, scan_month, day_num)
+                d: date = date(scan_year, scan_month, day_num)
                 if self.is_business_day(d):
                     business_days_in_month.append(d)
 
@@ -189,7 +200,7 @@ class BusinessDayRule(RecurrenceRule):
             months_to_advance = self.interval - remainder
 
             new_month = scan_month - 1 + months_to_advance
-            scan_year = scan_year + (new_month // 12)
+            scan_year += new_month // 12
             scan_month = (new_month % 12) + 1
 
         return None

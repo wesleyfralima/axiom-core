@@ -1,13 +1,13 @@
-from typing import Protocol, Dict, Any
+from typing import Any, Protocol
 
 
 class TokenProvider(Protocol):
     """Contract for generating and reading access tokens."""
 
-    def create_access_token(self, data: Dict[str, Any]) -> str:
+    def create_access_token(self, data: dict[str, Any]) -> str:
         """Creates a signed token containing the payload."""
 
-    def decode_access_token(self, token: str) -> Dict[str, Any]:
+    def decode_access_token(self, token: str) -> dict[str, Any]:
         """Decodes and validates the token.
 
         Returns:

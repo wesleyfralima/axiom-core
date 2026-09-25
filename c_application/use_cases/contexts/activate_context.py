@@ -1,3 +1,5 @@
+from uuid import UUID
+
 from b_domain.ports.use_case import UseCase
 
 

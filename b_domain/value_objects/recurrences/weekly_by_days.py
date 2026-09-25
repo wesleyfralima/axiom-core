@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from datetime import datetime, timedelta
-from typing import Optional, Set
 
 from b_domain.exceptions import InvalidWeekDayValue
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -17,7 +16,7 @@ class WeeklyByDaysRule(RecurrenceRule):
         days_of_week (Set[int]): Weekdays to repeat on (0=Monday, 6=Sunday).
     """
 
-    days_of_week: Set[int]
+    days_of_week: set[int]
 
     def __post_init__(self) -> None:
         """Validate the specific invariants for weekly rules.
@@ -71,7 +70,9 @@ class WeeklyByDaysRule(RecurrenceRule):
         candidate_date = (next_week_start + timedelta(days=valid_days[0])).date()
         return self._combine_with_start_time(candidate_date)
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence considering the specified weekdays."""
 
         base_dt: datetime = self.start_date.materialize()

@@ -1,7 +1,6 @@
 import calendar
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import List, Optional, Set
 
 from a_core.exceptions import ValidationException
 from b_domain.exceptions.recurrence import InvalidWeekDayValue
@@ -21,7 +20,7 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
             Cannot be 0. Normally between -5 and 5.
     """
 
-    days_of_week: Set[int]
+    days_of_week: set[int]
     set_pos: int
 
     def __post_init__(self) -> None:
@@ -40,14 +39,18 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
 
         # Ensure all weekdays are within 0–6 (Monday–Sunday)
         if any(d < 0 or d > 6 for d in self.days_of_week):
-            raise InvalidWeekDayValue(f"Invalid weekdays: {self.days_of_week}. Must be 0-6.")
+            raise InvalidWeekDayValue(
+                f"Invalid weekdays: {self.days_of_week}. Must be 0-6."
+            )
 
         if self.set_pos == 0:
             raise ValidationException("Positional index (set_pos) cannot be 0.")
 
         # A month can have at most 5 occurrences of a specific weekday
         if self.set_pos < -5 or self.set_pos > 5:
-            raise ValidationException("Positional weekday index must be between -5 and 5.")
+            raise ValidationException(
+                "Positional weekday index must be between -5 and 5."
+            )
 
     def _rrule_extra_parts(self) -> list[str]:
         """Generate BYDAY part for RFC 5545 RRULE string.
@@ -65,8 +68,7 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
 
         # Build the BYDAY string with positional index applied to each weekday
         days_str: str = ",".join(
-            f"{self.set_pos}{day_map[d]}"
-            for d in sorted(self.days_of_week)
+            f"{self.set_pos}{day_map[d]}" for d in sorted(self.days_of_week)
         )
 
         return [f"BYDAY={days_str}"]
@@ -87,12 +89,13 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
         for _ in range(120):
 
             last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
-            candidates: List[datetime] = []
+            candidates: list[datetime] = []
 
             for wd in self.days_of_week:
                 # All days in the month that fall on the weekday 'wd'
                 days_matching: list[int] = [
-                    day for day in range(1, last_day_of_month + 1)
+                    day
+                    for day in range(1, last_day_of_month + 1)
                     if date(scan_year, scan_month, day).weekday() == wd
                 ]
 
@@ -112,13 +115,18 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
                     continue
 
             if candidates:
-                # Return the closest occurrence (e.g., between 2nd Monday and 2nd Friday)
+                # Return the closest occurrence (e.g.,
+                # between 2nd Monday and 2nd Friday)
                 return min(candidates)
 
             # If no valid date exists in this month, advance according to the interval
             # (Month skipping logic to ensure alignment with start_date)
-            months_since_start: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
-            months_to_advance: int = self.interval - (months_since_start % self.interval)
+            months_since_start: int = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
+            months_to_advance: int = self.interval - (
+                months_since_start % self.interval
+            )
 
             total_months: int = scan_month - 1 + months_to_advance
             scan_year += total_months // 12
@@ -126,12 +134,14 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
 
         return base_dt  # Safety fallback
 
-    def get_next_occurrence(self, last_occurrence: Optional[datetime] = None) -> Optional[datetime]:
+    def get_next_occurrence(
+        self, last_occurrence: datetime | None = None
+    ) -> datetime | None:
         """Calculate the next occurrence by finding the N-th target weekdays.
 
         If no `last_occurrence` is provided, the first valid occurrence is returned.
-        Otherwise, the method scans month by month (up to 120 months ahead) to
-        find the next valid weekday occurrence based on the positional index (`set_pos`).
+        Otherwise, the method scans month by month (up to 120 months ahead) to find
+        the next valid weekday occurrence based on the positional index (`set_pos`).
 
         Args:
             last_occurrence (Optional[datetime], optional): The last occurrence
@@ -157,13 +167,14 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
         for _ in range(120):
 
             last_day_of_month: int = calendar.monthrange(scan_year, scan_month)[1]
-            month_candidates: List[datetime] = []
+            month_candidates: list[datetime] = []
 
             # 1. Find the N-th occurrence for EACH requested weekday in this month
             for wd in self.days_of_week:
                 # Gather all dates in the month that fall on this specific weekday
                 days_matching: list[int] = [
-                    day_num for day_num in range(1, last_day_of_month + 1)
+                    day_num
+                    for day_num in range(1, last_day_of_month + 1)
                     if date(scan_year, scan_month, day_num).weekday() == wd
                 ]
 
@@ -187,8 +198,9 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
                     continue
 
             if month_candidates:
-                # 2. If valid candidates were found in this month (e.g., 2nd Monday and 2nd Friday),
-                # return the EARLIEST one to maintain chronological order.
+                # 2. If valid candidates were found in this month
+                # (e.g., 2nd Monday and 2nd Friday), return the EARLIEST
+                # one to maintain chronological order.
                 best_candidate: datetime = min(month_candidates)
 
                 if self._is_exhausted(best_candidate):
@@ -197,7 +209,9 @@ class MonthlyWeekdayPositionalRule(RecurrenceRule):
                 return best_candidate
 
             # 3. Advance to the next valid month based on interval
-            months_diff: int = (scan_year - base_dt.year) * 12 + (scan_month - base_dt.month)
+            months_diff: int = (scan_year - base_dt.year) * 12 + (
+                scan_month - base_dt.month
+            )
             remainder: int = months_diff % self.interval
             months_to_advance: int = self.interval - remainder
 

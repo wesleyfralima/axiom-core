@@ -1,11 +1,11 @@
 """User entity and preferences definitions for the domain."""
 
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
-from typing import Literal, Optional
+from typing import Any, ClassVar, Literal
 
 from a_core import Entity, ValueObject
-from a_core.exceptions import DomainException
+from a_core.exceptions import DomainException, ValidationException
 from b_domain.value_objects import UserId
 from b_domain.value_objects.identifiers import ContextId
 
@@ -19,6 +19,8 @@ class UserPrefs(ValueObject):
     should be created.
     """
 
+    _ALLOWED_KEYS: ClassVar[set[str]] = set()
+
     # ------------------------------------------------------------------
     # Calendar & time
     # ------------------------------------------------------------------
@@ -28,7 +30,7 @@ class UserPrefs(ValueObject):
     working_hours_end: int = 18  # 18:00
     skip_weekends: bool = True
     external_calendar_name: str = "Axiom Pro"
-    external_calendar_id: Optional[str] = None
+    external_calendar_id: str | None = None
     external_calendar_autosync: bool = True
 
     # ------------------------------------------------------------------
@@ -63,9 +65,13 @@ class UserPrefs(ValueObject):
     # ------------------------------------------------------------------
     # Contexts
     # ------------------------------------------------------------------
-    active_context_id: Optional[ContextId] = None
+    active_context_id: ContextId | None = None
 
-    def update(self, **changes) -> "UserPrefs":
+    def __post_init__(self) -> None:
+        if not UserPrefs._ALLOWED_KEYS:
+            UserPrefs._ALLOWED_KEYS = {f.name for f in fields(self)}
+
+    def update(self, **changes: Any) -> "UserPrefs":
         """Creates a new UserPrefs instance with the updated values.
 
         Args:
@@ -75,6 +81,14 @@ class UserPrefs(ValueObject):
         Returns:
             UserPrefs: A new instance with the merged preferences.
         """
+
+        invalid_keys: set[str] = {k for k in changes if k not in self._ALLOWED_KEYS}
+
+        if invalid_keys:
+            raise ValidationException(
+                f"Invalid fields for UserPrefs: {', '.join(invalid_keys)}"
+            )
+
         return replace(self, **changes)
 
 
@@ -89,20 +103,20 @@ class User(Entity):
 
     username: str
     email: str
-    password_hash: Optional[str] = None
+    password_hash: str | None = None
     is_active: bool = True
 
     preferences: UserPrefs = field(default_factory=UserPrefs)
 
     @classmethod
     def create(
-            cls,
-            username: str,
-            email: str,
-            password_hash: Optional[str] = None,
-            is_active: bool = True,
-            preferences: Optional[UserPrefs] = None,
-            now: Optional[datetime] = None,
+        cls,
+        username: str,
+        email: str,
+        password_hash: str | None = None,
+        is_active: bool = True,
+        preferences: UserPrefs | None = None,
+        now: datetime | None = None,
     ) -> "User":
         """Factory method to create a new User.
 
@@ -110,7 +124,7 @@ class User(Entity):
             username (str): The unique username of the user.
             email (str): The unique email of the user.
             password_hash (Optional[str], optional): Hashed password. Defaults to None.
-            is_active (bool, optional): Whether the user is active or not. Defaults to True.
+            is_active (bool, optional): Whether the user is active. Default: True.
             preferences (Optional[UserPrefs], optional): Initial preferences.
                 Defaults to an empty UserPrefs instance.
             now (Optional[datetime], optional): Current timestamp. If not provided,
@@ -120,22 +134,30 @@ class User(Entity):
             User: A new User instance.
         """
 
-        kwargs: dict[str, str | datetime | UserPrefs | None] = {
-            "username": username,
-            "email": email,
-            "password_hash": password_hash,
-            "is_active": is_active,
-            "preferences": preferences or UserPrefs(),
-        }
+        clean_username: str = username.strip()
+        if not clean_username:
+            raise ValidationException("Username cannot be empty or whitespace.")
+
+        clean_email: str = email.strip().lower()
+        if not clean_email:
+            raise ValidationException("Email cannot be empty or whitespace.")
+
+        user: User = cls(
+            username=clean_username,
+            email=clean_email,
+            password_hash=password_hash,
+            is_active=is_active,
+            preferences=preferences or UserPrefs(),
+        )
 
         # If a specific timestamp is provided (e.g., for testing), inject it
         if now:
-            kwargs["created_at"] = now
-            kwargs["updated_at"] = now
+            object.__setattr__(user, "created_at", now)
+            object.__setattr__(user, "updated_at", now)
 
-        return cls(**kwargs)
+        return user
 
-    def update_prefs(self, now: datetime, **changes) -> None:
+    def update_prefs(self, now: datetime, **changes: Any) -> None:
         """Updates the user's preferences and refreshes the updated_at timestamp.
 
         Args:

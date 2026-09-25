@@ -1,18 +1,23 @@
-from dataclasses import replace, dataclass
+from dataclasses import dataclass, replace
 from uuid import uuid4
 
 import pytest
 
-from a_core import ValidationException, DomainException
+from a_core import DomainException, ValidationException
 from b_domain.entities import Task, User
-from b_domain.value_objects import TaskStatus, TaskId, Title
+from b_domain.ports.unit_of_work import UowFactoryType
+from b_domain.value_objects import TaskId, TaskStatus, Title
 from c_application.dtos.task_dtos import TaskByUserRequest
 from c_application.use_cases import CompleteTaskUseCase
+from tests.conftest import FakeClock
 
 
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_successfully(fake_clock, fake_uow_factory):
+async def test_complete_task_successfully(
+    fake_clock: FakeClock,
+    fake_uow_factory: UowFactoryType,
+) -> None:
 
     user = User.create(username="wesley", email="wesley@test.com")
 
@@ -31,7 +36,7 @@ async def test_complete_task_successfully(fake_clock, fake_uow_factory):
     # 2. Instanciar Use Case
     use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
 
-    # No DTO, o user_id costuma vir como string da API/CLI, 
+    # No DTO, o user_id costuma vir como string da API/CLI,
     # o Use Case se encarrega de converter ou validar se necessário.
     request = TaskByUserRequest(
         task_id_prefix=str(task.id)[:8],
@@ -47,7 +52,9 @@ async def test_complete_task_successfully(fake_clock, fake_uow_factory):
     assert result.completed_task.status == TaskStatus.DONE
 
     # Verificamos se a tarefa no repositório foi realmente atualizada
-    updated_task = await uow.tasks.get_by_id(task.id)
+    updated_task: Task | None = await uow.tasks.get_by_id(task.id)
+
+    assert updated_task is not None
     assert updated_task.status == TaskStatus.DONE
 
     # Verificamos a atomicidade
@@ -64,7 +71,9 @@ async def test_complete_task_fails_if_prefix_too_short(create_use_case_context):
     use_case = CompleteTaskUseCase(**create_use_case_context)
     request = TaskByUserRequest(task_id_prefix="abc", user_id=str(uuid4()))
 
-    with pytest.raises(ValidationException, match="IdPrefix must have at least 4 characters"):
+    with pytest.raises(
+        ValidationException, match="IdPrefix must have at least 4 characters"
+    ):
         await use_case.execute(request)
 
 
@@ -99,14 +108,14 @@ async def test_complete_task_fails_if_prefix_is_ambiguous(fake_clock, fake_uow_f
     t2 = replace(t2, id=same_id)  # noqa
 
     async with fake_uow_factory() as uow:
-
         # Simulamos o cenário no fake repositório
         await uow.tasks.add(t1)
         await uow.tasks.add(t2)
 
         use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
         request = TaskByUserRequest(task_id_prefix=str(t1.id)[:4], user_id=str(user.id))
-        # Usamos um prefixo que (teoricamente) bateria em ambas se tivessem IDs similares
+        # Usamos um prefixo que (teoricamente)
+        # bateria em ambas se tivessem IDs similares
         # No fake, o find_by_id_prefix deve ser populado para retornar ambas
 
         # Se o repositório fake retornar mais de uma, o UC deve barrar
@@ -136,9 +145,13 @@ async def test_complete_task_fails_if_task_is_blocked(fake_clock, fake_uow_facto
         use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
 
         # Tentar completar B sem completar A antes
-        request = TaskByUserRequest(task_id_prefix=str(task_b.id)[:8], user_id=str(user.id))
+        request = TaskByUserRequest(
+            task_id_prefix=str(task_b.id)[:8], user_id=str(user.id)
+        )
 
-        with pytest.raises(DomainException, match="Cannot change task status from blocked to done"):
+        with pytest.raises(
+            DomainException, match="Cannot change task status from blocked to done"
+        ):
             await use_case.execute(request)
 
 
@@ -147,13 +160,17 @@ async def test_complete_task_fails_if_task_is_blocked(fake_clock, fake_uow_facto
 # -------------------------------------------------------------------------
 @pytest.mark.asyncio
 @pytest.mark.uc
-async def test_complete_task_fails_if_belongs_to_another_user(fake_clock, fake_uow_factory):
+async def test_complete_task_fails_if_belongs_to_another_user(
+    fake_clock, fake_uow_factory
+):
     now = fake_clock.now()
 
     # Setup: Tarefa pertence ao 'outro'
     wesley = User.create(username="wesley", email="wesley@test.com")
     outro = User.create(username="outro", email="wesley@test.com")
-    task_do_outro = Task.create(title=Title("Tarefa Secreta"), user_id=outro.id, now=now)
+    task_do_outro = Task.create(
+        title=Title("Tarefa Secreta"), user_id=outro.id, now=now
+    )
 
     await fake_uow_factory().tasks.add(task_do_outro)
     await fake_uow_factory().users.add(wesley)
@@ -184,7 +201,11 @@ async def test_complete_task_fails_if_already_done(fake_clock, fake_uow_factory)
         await uow.users.add(user)
 
         use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
-        request = TaskByUserRequest(task_id_prefix=str(task.id)[:8], user_id=str(user.id))
+        request = TaskByUserRequest(
+            task_id_prefix=str(task.id)[:8], user_id=str(user.id)
+        )
 
-        with pytest.raises(DomainException, match="Cannot change task status from done to done"):
+        with pytest.raises(
+            DomainException, match="Cannot change task status from done to done"
+        ):
             await use_case.execute(request)

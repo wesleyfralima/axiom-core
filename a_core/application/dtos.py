@@ -1,9 +1,5 @@
 from abc import ABC
 from dataclasses import dataclass
-from typing import TypeVar, Generic
-
-# Generic type for Output (Response)
-TResponse: TypeVar = TypeVar("TResponse")
 
 
 class DTO(ABC):
@@ -14,9 +10,18 @@ class DTO(ABC):
     """
 
 
+class InputDTO(DTO):
+    """Base class for Input Objects (DTO)."""
+
+
+class OutputDTO(DTO):
+    """Base class for Output Objects (DTO)."""
+
+
 @dataclass(kw_only=True)
-class PaginatedResponse(DTO, Generic[TResponse]):
-    items: list[TResponse]
-    total: int
-    page: int
-    size: int
+class PaginatedResponse[D: OutputDTO](DTO):
+    items: list[D]
+    total_items: int
+    per_page: int
+    total_pages: int
+    current_page: int

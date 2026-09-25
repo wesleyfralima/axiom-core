@@ -10,28 +10,28 @@ class TaskStatus(StrEnum):
     """
 
     # --- Planning and Intention (Axiom Pro) ---
-    SOMEDAY = "someday"         # In backlog, but outside Flow Engine scope (incubation)
-    PENDING = "pending"         # Active for Flow Engine, waiting for execution
-    BLOCKED = "blocked"         # Waiting for external dependency
+    SOMEDAY = "someday"  # In backlog, but outside Flow Engine scope (incubation)
+    PENDING = "pending"  # Active for Flow Engine, waiting for execution
+    BLOCKED = "blocked"  # Waiting for external dependency
 
     # --- Flow (Axiom Flow) ---
-    SUGGESTED = "suggested"     # Suggested by Flow Engine
+    SUGGESTED = "suggested"  # Suggested by Flow Engine
 
     # --- Execution ---
     IN_PROGRESS = "in_progress"
-    PAUSED = "paused"           # Temporary interruption (momentum preserved)
+    PAUSED = "paused"  # Temporary interruption (momentum preserved)
 
     # --- Completion ---
     DONE = "done"
 
     # --- Flow Feedback (could be invisible in Pro) ---
-    SKIPPED = "skipped"         # User declined Flow suggestion
-    DEFERRED = "deferred"       # User started but returned task to list
-    ABANDONED = "abandoned"     # User abandoned or system inferred stop
+    SKIPPED = "skipped"  # User declined Flow suggestion
+    DEFERRED = "deferred"  # User started but returned task to list
+    ABANDONED = "abandoned"  # User abandoned or system inferred stop
 
     CANCELLED = "cancelled"
-    REOPENED = "reopened"       # Reactivated after completion or cancellation
-    ARCHIVED = "archived"       # Terminal state, no return
+    REOPENED = "reopened"  # Reactivated after completion or cancellation
+    ARCHIVED = "archived"  # Terminal state, no return
 
     @classmethod
     @cache
@@ -44,68 +44,87 @@ class TaskStatus(StrEnum):
 
         return {
             cls.SOMEDAY: {
-                cls.PENDING, cls.CANCELLED, cls.ARCHIVED,
+                cls.PENDING,
+                cls.CANCELLED,
+                cls.ARCHIVED,
             },
-
             cls.PENDING: {
-                cls.SUGGESTED, cls.IN_PROGRESS, cls.DONE,
-                cls.CANCELLED, cls.ARCHIVED, cls.BLOCKED,
-                cls.SOMEDAY, cls.SKIPPED, cls.ABANDONED,
-            },
-
-            cls.BLOCKED: {
-                cls.PENDING, cls.CANCELLED,
-            },
-
-            cls.SUGGESTED: {
-                cls.IN_PROGRESS, cls.DONE, cls.SKIPPED,
-                cls.PENDING, cls.CANCELLED,
-            },
-
-            cls.IN_PROGRESS: {
-                cls.DONE, cls.PAUSED, cls.DEFERRED,
-                cls.ABANDONED, cls.CANCELLED, cls.PENDING,
-            },
-
-            cls.PAUSED: {
-                cls.IN_PROGRESS, cls.DONE, cls.DEFERRED,
+                cls.SUGGESTED,
+                cls.IN_PROGRESS,
+                cls.DONE,
+                cls.CANCELLED,
+                cls.ARCHIVED,
+                cls.BLOCKED,
+                cls.SOMEDAY,
+                cls.SKIPPED,
                 cls.ABANDONED,
             },
-
-            cls.SKIPPED: {
-                cls.PENDING, cls.DONE, cls.ARCHIVED,
+            cls.BLOCKED: {
+                cls.PENDING,
+                cls.CANCELLED,
             },
-
+            cls.SUGGESTED: {
+                cls.IN_PROGRESS,
+                cls.DONE,
+                cls.SKIPPED,
+                cls.PENDING,
+                cls.CANCELLED,
+            },
+            cls.IN_PROGRESS: {
+                cls.DONE,
+                cls.PAUSED,
+                cls.DEFERRED,
+                cls.ABANDONED,
+                cls.CANCELLED,
+                cls.PENDING,
+            },
+            cls.PAUSED: {
+                cls.IN_PROGRESS,
+                cls.DONE,
+                cls.DEFERRED,
+                cls.ABANDONED,
+            },
+            cls.SKIPPED: {
+                cls.PENDING,
+                cls.DONE,
+                cls.ARCHIVED,
+            },
             cls.DEFERRED: {
                 cls.PENDING,
             },
-
             cls.ABANDONED: {
-                cls.PENDING, cls.ARCHIVED, cls.CANCELLED,
+                cls.PENDING,
+                cls.ARCHIVED,
+                cls.CANCELLED,
             },
-
             cls.DONE: {
-                cls.REOPENED, cls.ARCHIVED,
+                cls.REOPENED,
+                cls.ARCHIVED,
             },
-
             cls.CANCELLED: {
-                cls.REOPENED, cls.ARCHIVED,
+                cls.REOPENED,
+                cls.ARCHIVED,
             },
-
             cls.REOPENED: {
-                cls.PENDING, cls.SUGGESTED, cls.IN_PROGRESS,
+                cls.PENDING,
+                cls.SUGGESTED,
+                cls.IN_PROGRESS,
                 cls.DONE,
             },
-
             cls.ARCHIVED: set(),  # Estado Terminal
         }
 
-    def can_transition_to(self, new_status: "TaskStatus", allow_same: bool = True) -> bool:
+    def can_transition_to(
+        self,
+        new_status: "TaskStatus",
+        allow_same: bool = True,
+    ) -> bool:
         """Check if a task can transition from the current status to a new status.
 
         Args:
             new_status (TaskStatus): Target status.
-            allow_same (bool, optional): Whether the ``new_status`` can be ``self``or not.
+            allow_same (bool, optional): Whether the
+                ``new_status`` can be ``self``or not.
 
         Returns:
             bool: True if transition is valid, False otherwise.
@@ -133,9 +152,19 @@ class Priority(IntEnum):
     def __str__(self) -> str:
         return self.name.capitalize()
 
+    @staticmethod
+    def from_string(priority: str) -> "Priority":
+        return {
+            "low": Priority.LOW,
+            "medium": Priority.MEDIUM,
+            "high": Priority.HIGH,
+            "critical": Priority.CRITICAL,
+        }.get(priority, Priority.MEDIUM)
+
 
 class RecurrenceInterval(StrEnum):
     """Enumeration of possible recurrence intervals for tasks."""
+
     HOURLY = "HO"
     DAILY = "DA"
     WEEKLY = "WE"
@@ -149,11 +178,11 @@ class EnergyLevel(IntEnum):
     Inspired by GTD (Getting Things Done) methodology.
     """
 
-    DRAINED = 1         # "Zombie mode": only microtasks < 2 min
-    LOW = 2             # Light administrative tasks
-    BALANCED = 3        # Standard work, meetings
-    HIGH = 4            # Serious focus, active production
-    PEAK = 5            # "God Mode": complex problem-solving / Deep Work
+    DRAINED = 1  # "Zombie mode": only microtasks < 2 min
+    LOW = 2  # Light administrative tasks
+    BALANCED = 3  # Standard work, meetings
+    HIGH = 4  # Serious focus, active production
+    PEAK = 5  # "God Mode": complex problem-solving / Deep Work
 
     def __str__(self) -> str:
         return self.name.capitalize()
@@ -175,7 +204,7 @@ class TaskComplexity(IntEnum):
 class MomentumTrend(StrEnum):
     """Represents the trend of user momentum in task execution."""
 
-    RISING = "rising"           # User is "on fire", can handle higher complexity
-    STABLE = "stable"           # Flow maintained
-    FALLING = "falling"         # Fatigue warning, suggest easier tasks
-    STAGNANT = "stagnant"       # Total inertia, needs a "Quick Win" (microtask)
+    RISING = "rising"  # User is "on fire", can handle higher complexity
+    STABLE = "stable"  # Flow maintained
+    FALLING = "falling"  # Fatigue warning, suggest easier tasks
+    STAGNANT = "stagnant"  # Total inertia, needs a "Quick Win" (microtask)

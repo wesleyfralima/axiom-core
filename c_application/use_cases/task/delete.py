@@ -15,6 +15,7 @@ class DeleteTaskInputDTO(DTO):
         task_id_prefix (str): The ID or prefix of the task to be deleted.
         user_id (str): The unique identifier of the user requesting deletion.
     """
+
     task_id_prefix: str
     user_id: str
 
@@ -27,6 +28,7 @@ class DeleteTaskOutputDTO(DTO):
         success (bool): Indicates whether the deletion was successful.
         task_id (str): The unique identifier of the deleted task.
     """
+
     success: bool
     task_id: str
 
@@ -49,16 +51,20 @@ class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
             5. Delete the identified task.
 
         Args:
-            request (DeleteTaskInputDTO): Request object containing task_id_prefix and user_id.
+            request (DeleteTaskInputDTO): Request object containing
+                task_id_prefix and user_id.
 
         Raises:
             ValidationException: If the prefix is too short, the user ID is invalid,
             no tasks are found, or multiple ambiguous matches exist.
         """
 
-        # 1. Fail fast: UX safeguard (IdPrefix and UserId will raise ValidationException)
+        # 1. Fail fast: UX safeguard (IdPrefix and
+        # UserId will raise ValidationException)
         task_id_prefix: IdPrefix = IdPrefix(request.task_id_prefix)
-        user_id: UserId = UserId.from_string(request.user_id, error_msg="Invalid user ID.")
+        user_id: UserId = UserId.from_string(
+            request.user_id, error_msg="Invalid user ID."
+        )
 
         async with self.uow as uow:
 

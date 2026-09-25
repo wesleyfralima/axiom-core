@@ -1,46 +1,61 @@
 import pytest
 
 from b_domain.value_objects import (
-    TaskStatus,
     Priority,
     RecurrenceInterval,
+    TaskStatus,
 )
-
 
 # ============================================================
 # Group 1: TaskStatus Transitions
 # ============================================================
 
-@pytest.mark.parametrize("current,allowed", [
-    (
-        TaskStatus.PENDING,
-        {
+
+@pytest.mark.parametrize(
+    "current,allowed",
+    [
+        (
             TaskStatus.PENDING,
-            TaskStatus.SUGGESTED, TaskStatus.IN_PROGRESS, TaskStatus.DONE,
-            TaskStatus.CANCELLED, TaskStatus.ARCHIVED, TaskStatus.BLOCKED,
-            TaskStatus.SOMEDAY, TaskStatus.SKIPPED, TaskStatus.ABANDONED,
-        },
-    ),
-    (
-        TaskStatus.IN_PROGRESS,
-        {
+            {
+                TaskStatus.PENDING,
+                TaskStatus.SUGGESTED,
+                TaskStatus.IN_PROGRESS,
+                TaskStatus.DONE,
+                TaskStatus.CANCELLED,
+                TaskStatus.ARCHIVED,
+                TaskStatus.BLOCKED,
+                TaskStatus.SOMEDAY,
+                TaskStatus.SKIPPED,
+                TaskStatus.ABANDONED,
+            },
+        ),
+        (
             TaskStatus.IN_PROGRESS,
-            TaskStatus.DONE, TaskStatus.PAUSED, TaskStatus.DEFERRED,
-            TaskStatus.ABANDONED, TaskStatus.CANCELLED, TaskStatus.PENDING,
-        },
-    ),
-    (
-        TaskStatus.REOPENED,
-        {
+            {
+                TaskStatus.IN_PROGRESS,
+                TaskStatus.DONE,
+                TaskStatus.PAUSED,
+                TaskStatus.DEFERRED,
+                TaskStatus.ABANDONED,
+                TaskStatus.CANCELLED,
+                TaskStatus.PENDING,
+            },
+        ),
+        (
             TaskStatus.REOPENED,
-            TaskStatus.PENDING,
-            TaskStatus.SUGGESTED,
-            TaskStatus.IN_PROGRESS,
-            TaskStatus.DONE,
-        },
-    ),
-])
-def test_task_status_allows_expected_transitions(current: TaskStatus, allowed: set[TaskStatus]) -> None:
+            {
+                TaskStatus.REOPENED,
+                TaskStatus.PENDING,
+                TaskStatus.SUGGESTED,
+                TaskStatus.IN_PROGRESS,
+                TaskStatus.DONE,
+            },
+        ),
+    ],
+)
+def test_task_status_allows_expected_transitions(
+    current: TaskStatus, allowed: set[TaskStatus]
+) -> None:
     """Ensure TaskStatus allows only expected transitions."""
 
     for status in TaskStatus:
@@ -52,8 +67,8 @@ def test_task_status_archived_is_terminal() -> None:
 
     for status in TaskStatus:
         assert (
-            TaskStatus.ARCHIVED.can_transition_to(status)
-            is False if status != TaskStatus.ARCHIVED
+            TaskStatus.ARCHIVED.can_transition_to(status) is False
+            if status != TaskStatus.ARCHIVED
             else True
         )
 
@@ -61,6 +76,7 @@ def test_task_status_archived_is_terminal() -> None:
 # ============================================================
 # Group 2: Priority Weights
 # ============================================================
+
 
 def test_priority_weights_are_correct() -> None:
     """Ensure Priority weights are correctly defined for sorting."""
@@ -94,6 +110,7 @@ def test_priority_weight_allows_sorting() -> None:
 # ============================================================
 # Group 4: RecurrenceInterval Values
 # ============================================================
+
 
 def test_recurrence_interval_values() -> None:
     """Ensure RecurrenceInterval enum values are correctly defined."""

@@ -1,23 +1,23 @@
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import uuid4
 
 from b_domain.entities import Task
-from b_domain.value_objects import RecurrenceInterval, DueDate, UserId, Title
-from b_domain.value_objects.dates import AxiomDate
-from b_domain.value_objects.recurrences.simple import SimpleIntervalRule
-
+from b_domain.value_objects import RecurrenceInterval, Title, UserId
+from b_domain.value_objects.dates import AxiomDate, DueDate
+from b_domain.value_objects.recurrences import SimpleIntervalRule
 
 # ============================================================
 # Helpers
 # ============================================================
 
+
 def create_task_with_recurrence(
-        due_date: datetime,
-        interval: int = 1,
-        freq=RecurrenceInterval.DAILY,
-        is_floating: bool = True,
-        tz_name: str = "UTC",
-        end_date: datetime = None
+    due_date: datetime,
+    interval: int = 1,
+    freq: RecurrenceInterval = RecurrenceInterval.DAILY,
+    is_floating: bool = True,
+    tz_name: str = "UTC",
+    end_date: datetime | None = None,
 ) -> Task:
     """Helper para criar uma tarefa com recorrência rapidamente."""
 
@@ -32,7 +32,7 @@ def create_task_with_recurrence(
         )
     else:
         if due_date.tzinfo is None:
-            due_date = due_date.replace(tzinfo=timezone.utc)
+            due_date = due_date.replace(tzinfo=UTC)
         start_axiom = AxiomDate.fixed(due_date)
 
     # ------------------------------------------------------------------
@@ -48,7 +48,7 @@ def create_task_with_recurrence(
             )
         else:
             if end_date.tzinfo is None:
-                end_date = end_date.replace(tzinfo=timezone.utc)
+                end_date = end_date.replace(tzinfo=UTC)
             end_axiom = AxiomDate.fixed(end_date)
 
     # ------------------------------------------------------------------
@@ -56,10 +56,7 @@ def create_task_with_recurrence(
     # ------------------------------------------------------------------
 
     recurrence = SimpleIntervalRule(
-        frequency=freq,
-        interval=interval,
-        start_date=start_axiom,
-        end_date=end_axiom
+        frequency=freq, interval=interval, start_date=start_axiom, end_date=end_axiom
     )
 
     # ------------------------------------------------------------------
@@ -85,7 +82,7 @@ def create_task_with_recurrence(
         due_date=due.value,
         is_floating=is_floating,
         tz_name=tz_name,
-        recurrence=recurrence
+        recurrence=recurrence,
     )
 
 
@@ -93,7 +90,8 @@ def create_task_with_recurrence(
 # Testes: create_next_occurrence
 # ============================================================
 
-def test_next_occurrence_simple_daily():
+
+def test_next_occurrence_simple_daily() -> None:
     """
     Cenário: Tarefa vence hoje (01/Jan). Concluo hoje.
     Expectativa: Próxima tarefa para amanhã (02/Jan).
@@ -108,11 +106,12 @@ def test_next_occurrence_simple_daily():
     next_task = task.create_next_occurrence(now=now)
 
     assert next_task is not None
+    assert next_task.due_date is not None
     assert next_task.due_date.value == datetime(2026, 1, 2, 9, 0)
     assert next_task.due_date.is_floating is True
 
 
-def test_next_occurrence_catch_up_logic():
+def test_next_occurrence_catch_up_logic() -> None:
     """
     Cenário: Tarefa venceu há 5 dias (05/Jan). Hoje é 10/Jan.
     Expectativa: O sistema deve pular 06, 07, 08, 09, 10 e agendar para 11/Jan.
@@ -127,10 +126,11 @@ def test_next_occurrence_catch_up_logic():
     next_task = task.create_next_occurrence(now=now, catch_up=True)
 
     assert next_task is not None
+    assert next_task.due_date is not None
     assert next_task.due_date.value == datetime(2026, 1, 11, 9, 0)
 
 
-def test_next_occurrence_strict_mode_financial():
+def test_next_occurrence_strict_mode_financial() -> None:
     """
     Cenário: Tarefa venceu há 5 dias (05/Jan). Hoje é 10/Jan.
     Expectativa: catch_up=False (Modo Financeiro).
@@ -145,10 +145,11 @@ def test_next_occurrence_strict_mode_financial():
     next_task = task.create_next_occurrence(now=now, catch_up=False)
 
     assert next_task is not None
+    assert next_task.due_date is not None
     assert next_task.due_date.value == datetime(2026, 1, 6, 9, 0)  # Atrasada
 
 
-def test_recurrence_ends_by_date():
+def test_recurrence_ends_by_date() -> None:
     """
     Cenário: A recorrência tem data fim (Until).
     Expectativa: Retornar None quando passar da data.
@@ -165,25 +166,27 @@ def test_recurrence_ends_by_date():
     assert next_task is None
 
 
-def test_timezone_consistency_fixed_task():
+def test_timezone_consistency_fixed_task() -> None:
     """
     Cenário: Tarefa Fixed (UTC).
     Expectativa: A próxima tarefa deve nascer também como Fixed (UTC).
     """
-    due_dt = datetime(2026, 1, 1, 9, 0, tzinfo=timezone.utc)
-    now = datetime(2026, 1, 1, 10, 0, tzinfo=timezone.utc)
+
+    due_dt = datetime(2026, 1, 1, 9, 0, tzinfo=UTC)
+    now = datetime(2026, 1, 1, 10, 0, tzinfo=UTC)
 
     task = create_task_with_recurrence(due_dt, is_floating=False)
 
     next_task = task.create_next_occurrence(now=now)
 
     assert next_task is not None
+    assert next_task.due_date is not None
     assert next_task.due_date.is_floating is False
     assert next_task.due_date.value.tzinfo is not None  # Deve ser Aware
-    assert next_task.due_date.value == datetime(2026, 1, 2, 9, 0, tzinfo=timezone.utc)
+    assert next_task.due_date.value == datetime(2026, 1, 2, 9, 0, tzinfo=UTC)
 
 
-def test_timezone_comparison_mixed_inputs():
+def test_timezone_comparison_mixed_inputs() -> None:
     """
     Cenário: Tarefa Floating (Naive) vs 'now' Aware (UTC).
     Expectativa: O sistema deve normalizar internamente e não quebrar com TypeError.
@@ -196,12 +199,13 @@ def test_timezone_comparison_mixed_inputs():
     # Se a tarefa é Floating, ela vence às 09:00 locais.
     # 10:00 (Agora) > 09:00 (Vencimento). Então a de hoje já passou.
     # A próxima deve ser dia 11.
-    now_aware = datetime(2026, 1, 10, 13, 0, tzinfo=timezone.utc)
+    now_aware = datetime(2026, 1, 10, 13, 0, tzinfo=UTC)
 
     task = create_task_with_recurrence(due_dt, is_floating=True)
 
     next_task = task.create_next_occurrence(now=now_aware, catch_up=True)
 
     assert next_task is not None
+    assert next_task.due_date is not None
     assert next_task.due_date.is_floating is True
     assert next_task.due_date.value == datetime(2026, 1, 11, 9, 0)  # Naive

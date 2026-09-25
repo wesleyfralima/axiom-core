@@ -4,10 +4,10 @@ from a_core import DTO
 from b_domain.ports.providers import ClockProvider, TokenProvider
 from b_domain.ports.use_case import UowFactoryType, UseCase
 
-
 # ==========================================
 # 1. DTOs de Entrada e Saída
 # ==========================================
+
 
 @dataclass(frozen=True)
 class LogoutInputDTO(DTO):
@@ -20,6 +20,7 @@ class LogoutInputDTO(DTO):
     Attributes:
         access_token (str): The active access token to be invalidated.
     """
+
     access_token: str = field(repr=False)
 
 
@@ -34,6 +35,7 @@ class LogoutOutputDTO(DTO):
         success (bool): Indicates whether the logout was successful.
         message (str): A status message describing the result.
     """
+
     success: bool = True
     message: str = "logout_success"
 
@@ -41,6 +43,7 @@ class LogoutOutputDTO(DTO):
 # ==========================================
 # 2. O Use Case
 # ==========================================
+
 
 class LogoutUseCase(UseCase[LogoutInputDTO, LogoutOutputDTO]):
     """Use case for logging out a user.
@@ -55,10 +58,10 @@ class LogoutUseCase(UseCase[LogoutInputDTO, LogoutOutputDTO]):
     """
 
     def __init__(
-            self,
-            uow_factory: UowFactoryType,
-            clock: ClockProvider,
-            token_provider: TokenProvider,
+        self,
+        uow_factory: UowFactoryType,
+        clock: ClockProvider,
+        token_provider: TokenProvider,
     ):
         """Initialize the LogoutUseCase.
 

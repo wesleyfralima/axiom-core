@@ -2,15 +2,13 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from b_domain.value_objects import TaskId
-from b_domain.value_objects.identifiers import (
-    UniqueId,  # noqa
-)
-
+from a_core.ddd.identities import UniqueId
+from b_domain.value_objects.identifiers import TaskId
 
 # ============================================================
 # Group 1: UniqueId Behavior
 # ============================================================
+
 
 def test_unique_id_generates_uuid_by_default() -> None:
     """Ensure UniqueId generates a UUID by default."""
@@ -42,12 +40,13 @@ def test_unique_id_is_immutable() -> None:
     uid: UniqueId = UniqueId()
 
     with pytest.raises(Exception):
-        uid.value = uuid4()  # noqa
+        uid.value = uuid4()  # type: ignore[misc] # noqa
 
 
 # ============================================================
 # Group 2: TaskId Behavior
 # ============================================================
+
 
 def test_task_id_is_unique_id() -> None:
     """Ensure TaskId is a UniqueId and holds a UUID value."""

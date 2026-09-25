@@ -1,9 +1,8 @@
 from dataclasses import dataclass, replace
 from datetime import datetime, timedelta
-from typing import Optional
 
 from a_core import ValueObject
-from b_domain.value_objects import UserId, ContextId
+from b_domain.value_objects import ContextId, UserId
 from b_domain.value_objects.enums import EnergyLevel, MomentumTrend, TaskComplexity
 from b_domain.value_objects.user_behavior_profile import UserBehaviorProfile
 
@@ -18,7 +17,7 @@ class UserFlowState(ValueObject):
     """
 
     user_id: UserId
-    active_context_id: Optional[ContextId] = None
+    active_context_id: ContextId | None = None
 
     # --- Real-time anchors ---
     session_ends_at: datetime  # When the user plans to stop
@@ -30,13 +29,13 @@ class UserFlowState(ValueObject):
     # --- Momentum dynamics ---
     momentum_streak: int = 0
     momentum_score: float = 0.0  # Range: 0.0 to 1.0
-    last_completion_at: Optional[datetime] = None
+    last_completion_at: datetime | None = None
 
     # --- Session settings ---
-    session_target_minutes: Optional[int] = None
+    session_target_minutes: int | None = None
     consecutive_skips: int = 0
 
-    last_task_complexity: Optional[TaskComplexity] = None
+    last_task_complexity: TaskComplexity | None = None
 
     # ------------------------------------------------------------------
     # Real-time properties
@@ -78,11 +77,11 @@ class UserFlowState(ValueObject):
     # ------------------------------------------------------------------
 
     def record_completion(
-            self,
-            now: datetime,
-            energy: EnergyLevel,
-            complexity: TaskComplexity,
-            profile: UserBehaviorProfile,
+        self,
+        now: datetime,
+        energy: EnergyLevel,
+        complexity: TaskComplexity,
+        profile: UserBehaviorProfile,
     ) -> "UserFlowState":
         """Record a task completion.
 
@@ -113,8 +112,8 @@ class UserFlowState(ValueObject):
 
         # Total effort load
         effort_load = (
-                energy.value * profile.energy_fatigue_weight +
-                complexity.value * profile.complexity_fatigue_weight
+            energy.value * profile.energy_fatigue_weight
+            + complexity.value * profile.complexity_fatigue_weight
         )
 
         # If effort is significant (e.g., ≥ 4), reduce one energy level
@@ -150,7 +149,7 @@ class UserFlowState(ValueObject):
             self,
             momentum_streak=0,
             momentum_score=0.0,
-            consecutive_skips=self.consecutive_skips + 1
+            consecutive_skips=self.consecutive_skips + 1,
         )
 
     def reset_momentum(self) -> "UserFlowState":
@@ -159,20 +158,14 @@ class UserFlowState(ValueObject):
 
     def update_context(self, now: datetime, context_id: ContextId) -> "UserFlowState":
         """Change context and restart focus timer (cognitive refresh)."""
-        return replace(
-            self,
-            active_context_id=context_id,
-            focus_started_at=now
-        )
+        return replace(self, active_context_id=context_id, focus_started_at=now)
 
     def renew_focus(self, now: datetime) -> "UserFlowState":
         """Reset focus timer (time). Useful for cognitive interventions."""
         return replace(self, focus_started_at=now)
 
     def record_rest(
-            self,
-            minutes_rested: int,
-            profile: UserBehaviorProfile
+        self, minutes_rested: int, profile: UserBehaviorProfile
     ) -> "UserFlowState":
         """Record a rest period and recover energy proportionally.
 

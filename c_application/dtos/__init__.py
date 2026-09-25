@@ -4,3 +4,10 @@ from .task_dtos import (
     TaskOutputDTO,
     UpdateTaskInputDTO,
 )
+
+__all__ = [
+    "CompleteTaskOutputDTO",
+    "CreateTaskInputDTO",
+    "TaskOutputDTO",
+    "UpdateTaskInputDTO",
+]
