@@ -6,6 +6,13 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.3] — 24/09/2026
+
+### Corrigido
+- `BusinessDayRule` não definia `_freq`: comparar duas regras de dia útil (o
+  que o enterprise faz ao atualizar uma tarefa) levantava `AttributeError`.
+  Achado no teste de ida e volta das recorrências pelo banco.
+
 ## [0.3.2] — 24/09/2026
 
 Antes do `axpro config set` (CLI, Backlog 01, Parte 4).
