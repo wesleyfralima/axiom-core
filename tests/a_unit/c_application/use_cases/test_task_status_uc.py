@@ -42,8 +42,8 @@ async def test_reopen_brings_a_done_task_back(
 
     out = await ReopenTaskUseCase(**use_case_context).execute(_by_user(user, task))
 
-    assert out.id == str(task.id)
-    assert out.status == TaskStatus.REOPENED
+    assert out.task.id == str(task.id)
+    assert out.task.status == TaskStatus.REOPENED
     assert task.status == TaskStatus.REOPENED
 
 
@@ -56,7 +56,7 @@ async def test_archive_puts_a_cancelled_task_away(
 
     out = await ArchiveTaskUseCase(**use_case_context).execute(_by_user(user, task))
 
-    assert out.status == TaskStatus.ARCHIVED
+    assert out.task.status == TaskStatus.ARCHIVED
 
 
 async def test_archive_refuses_an_open_task(
@@ -82,7 +82,7 @@ async def test_cancel_closes_an_open_task(
         CancelTaskInputDTO(task_id_prefix=str(task.id)[:8], user_id=str(user.id))
     )
 
-    assert out.status == TaskStatus.CANCELLED
+    assert out.task.status == TaskStatus.CANCELLED
 
 
 async def test_cancel_refuses_to_end_the_series_of_a_one_off_task(
