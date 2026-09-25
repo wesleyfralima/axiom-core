@@ -58,5 +58,6 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
                 else None
             )
             return TaskStatusChangedOutputDTO(
-                task=TaskMapper.to_output(task, now, context=context)
+                task=TaskMapper.to_output(task, now, context=context),
+                series_ended=request.end_series,
             )

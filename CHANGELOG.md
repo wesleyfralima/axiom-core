@@ -16,7 +16,8 @@ Enterprise and the CLI pick it up in 0.5.0 and 0.9.0.
 ### Added
 - Use cases `ReopenTaskUseCase`, `ArchiveTaskUseCase` (both take
   `TaskByUserRequest`) and `CancelTaskUseCase` (`CancelTaskInputDTO`, with
-  `end_series`); they return a `TaskStatusChangedOutputDTO(task)`, so an
+  `end_series`); they return a `TaskStatusChangedOutputDTO(task,
+  series_ended)`, so an
   interface can present the change apart from the task's detail. Cancelling
   stops the task's running timers.
 - `TaskCancelledEvent(task_id, user_id, end_series)`, raised by
