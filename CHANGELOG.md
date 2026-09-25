@@ -6,6 +6,45 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.6.0] — 2026-09-25
+
+Reopen, archive and cancel a task (Backlog 02, Part 1, last item). For a
+recurring task, cancelling skips one occurrence and the series goes on,
+unless the cancel ends the series (owner's decision, 2026-09-25).
+Enterprise and the CLI pick it up in 0.5.0 and 0.9.0.
+
+### Added
+- Use cases `ReopenTaskUseCase`, `ArchiveTaskUseCase` (both take
+  `TaskByUserRequest`) and `CancelTaskUseCase` (`CancelTaskInputDTO`, with
+  `end_series`); they return the task's `TaskOutputDTO`. Cancelling stops
+  the task's running timers.
+- `TaskCancelledEvent(task_id, user_id, end_series)`, raised by
+  `Task.mark_as_cancelled`. `CreateRecurringTaskHandler` reacts to it (the
+  next occurrence, unless `end_series`) and so does
+  `UnlockTaskDependenciesHandler` (a cancelled blocker will never be done,
+  so it no longer holds its dependents back). Interfaces that rehydrate
+  events from the outbox must add it to their registry.
+- `NotRecurringTaskError`: `end_series` on a task that does not repeat.
+- `c_application/utils/task_utils.find_task(uow, ref, user_id)`: one of the
+  user's tasks by ID prefix (`EntityNotFound`, `AmbiguousIdentifierError`).
+
+### Changed
+- **Archiving is only for a closed task** (done or cancelled); open ones
+  are done or cancelled first. `ARCHIVED` is no longer reachable from
+  `SOMEDAY`, `PENDING`, `SKIPPED` or `ABANDONED`.
+- **The full list hides archived tasks**: `include_closed=True` brings back
+  done and cancelled ones; archived tasks only show when asked for with
+  `status="archived"`.
+- `Task.reopen` only accepts a done or cancelled task and turns a recurring
+  occurrence into a one-off task (its series already moved on when it
+  closed), so completing it again does not start a second copy of the
+  series. `Task.archive` and `Task.mark_as_cancelled` explain what is wrong
+  when the task is in the wrong state.
+- `REOPENED` and `PAUSED` can go to `CANCELLED`.
+- The fake `TaskRepository.find_by_id_prefix` in the tests is scoped by
+  user, like the real one.
+- Coverage floor 73% → 73.8% (367 tests).
+
 ## [0.5.0] — 2026-09-25
 
 The active context can limit the task list (owner's decision: with a

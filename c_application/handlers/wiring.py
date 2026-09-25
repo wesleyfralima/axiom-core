@@ -3,7 +3,7 @@ from collections.abc import Callable
 from typing import Any
 
 from a_core import DomainEvent
-from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unit_of_work import UnitOfWork, UowFactoryType
@@ -47,25 +47,30 @@ def register_essential_handlers(
     # When a task is completed, dependent tasks must be unlocked so that
     # users can continue progressing. Without this, blocked tasks would
     # remain inaccessible, breaking the GTD workflow and halting productivity.
-    _subscribe(
-        bus,
-        uow_factory,
-        TaskCompletedEvent,
-        UnlockTaskDependenciesHandler,
-        clock=clock,
-    )
+    # A cancelled blocker will never be done, so it unlocks them too.
+    for closed_event in (TaskCompletedEvent, TaskCancelledEvent):
+        _subscribe(
+            bus,
+            uow_factory,
+            closed_event,
+            UnlockTaskDependenciesHandler,
+            clock=clock,
+        )
 
     # Recurrence is a core business rule:
     # Completing a recurring task should automatically generate the next
     # occurrence. This ensures that recurring commitments (e.g., weekly
     # reports, daily routines) are preserved without manual intervention.
     # Without this handler, recurring tasks would stop after the first completion.
-    _subscribe(
-        bus,
-        uow_factory,
-        TaskCompletedEvent,
-        CreateRecurringTaskHandler,
-    )
+    # Cancelling one occurrence skips it: the series goes on (unless the
+    # cancel ends the series, which the handler checks).
+    for closed_event in (TaskCompletedEvent, TaskCancelledEvent):
+        _subscribe(
+            bus,
+            uow_factory,
+            closed_event,
+            CreateRecurringTaskHandler,
+        )
 
 
 def register_optional_handlers(

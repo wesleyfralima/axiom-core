@@ -1,13 +1,15 @@
 from b_domain.entities import Task
-from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.ports.unit_of_work import UnitOfWork
 
 
 class CreateRecurringTaskHandler:
     """Domain event handler that generates the next occurrence of a recurring task.
 
-    When a task with recurrence rules is completed, this handler creates
-    the next scheduled occurrence, ensuring continuity of recurring tasks.
+    When a task with recurrence rules is completed or cancelled, this handler
+    creates the next scheduled occurrence, ensuring continuity of recurring
+    tasks. Cancelling skips one occurrence; only a cancel that ends the series
+    stops it.
     """
 
     def __init__(self, uow: UnitOfWork):
@@ -18,8 +20,8 @@ class CreateRecurringTaskHandler:
         """
         self.uow = uow
 
-    async def handle(self, event: TaskCompletedEvent) -> None:
-        """Handle a TaskCompletedEvent.
+    async def handle(self, event: TaskCompletedEvent | TaskCancelledEvent) -> None:
+        """Handle a TaskCompletedEvent or a TaskCancelledEvent.
 
         Steps:
             1. Load the full task entity to access recurrence rules.
@@ -30,8 +32,12 @@ class CreateRecurringTaskHandler:
             5. Persist the new task.
 
         Args:
-            event (TaskCompletedEvent): The domain event signaling task completion.
+            event (TaskCompletedEvent | TaskCancelledEvent): The domain event
+                signaling that an occurrence closed.
         """
+
+        if isinstance(event, TaskCancelledEvent) and event.end_series:
+            return
 
         async with self.uow:
             # Retrieve the completed task to access recurrence rules

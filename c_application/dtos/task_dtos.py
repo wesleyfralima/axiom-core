@@ -137,6 +137,22 @@ class TaskByUserRequest(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CancelTaskInputDTO(DTO):
+    """Request DTO for cancelling one of the user's tasks.
+
+    Attributes:
+        task_id_prefix (str): The task's ID or ID prefix.
+        user_id (str): The user who owns the task.
+        end_series (bool): For a recurring task, end the whole series instead
+            of skipping only this occurrence.
+    """
+
+    task_id_prefix: str
+    user_id: str
+    end_series: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
 class CompleteTaskOutputDTO(DTO):
     """Composite DTO for the result of completing a task.
 
@@ -184,7 +200,8 @@ class ListTasksRequest(DTO):
 
     # Status & Priority
     status: str | None = None
-    include_closed: bool = True  # False hides done/cancelled/archived
+    # False hides done/cancelled; archived ones only show when asked by status
+    include_closed: bool = True
     priority: str | None = None
 
     # GTD & Organization (context: its name or ID prefix)

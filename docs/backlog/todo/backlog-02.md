@@ -58,7 +58,16 @@ language inference (Part 4), behavior learning (Part 5), heuristic cold start
 - [ ] Use cases `StartTask` (opens a `TimeEntry`), `PauseTask`, `SkipTask`,
   `AbandonTask` (close the `TimeEntry`). `CompleteTaskUseCase` already closes
   timers — today nobody opens them.
-- [ ] `ReopenTask`, `ArchiveTask`, `CancelTask` (the entity methods exist).
+- [x] `ReopenTask`, `ArchiveTask`, `CancelTask` (the entity methods exist).
+  *Resolved on 2026-09-25 (0.6.0),* ahead of the rest of the part because
+  it does not depend on Flow. Decided by the owner the same day: cancelling
+  a recurring task skips that occurrence and the series goes on
+  (`TaskCancelledEvent` → next occurrence); `end_series` ends it. Also
+  decided: archive only closed tasks and hide them from the full list;
+  reopening a recurring occurrence makes it a one-off (no second series);
+  a cancelled blocker unblocks its dependents. **Open:** reopening a task
+  does not block again the tasks that depended on it (their dependency was
+  removed when it closed).
 
 ## Part 2 — Flow session and persisted state
 

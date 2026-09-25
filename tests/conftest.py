@@ -83,11 +83,13 @@ class FakeTaskRepository(TaskRepository):
         id_prefix: IdPrefix,
         user_id: UserId | None = None,
     ) -> list[Task]:
-        found_tasks: list[Task] = []
-        for key, value in self.tasks.items():
-            if key.startswith(str(id_prefix)):
-                found_tasks.append(value)
-        return found_tasks
+        # Scoped by user, as the real repository is
+        return [
+            task
+            for key, task in self.tasks.items()
+            if key.startswith(str(id_prefix))
+            and (user_id is None or task.user_id == user_id)
+        ]
 
     def _apply_filters(self, filters: TaskFilter) -> list[Task]:
         """Internal helper to reuse the filter logic."""

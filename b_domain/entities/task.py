@@ -4,7 +4,12 @@ from typing import Optional
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
-from b_domain.events.task_events import TaskCompletedEvent, TaskCreatedEvent
+from b_domain.events.task_events import (
+    TaskCancelledEvent,
+    TaskCompletedEvent,
+    TaskCreatedEvent,
+)
+from b_domain.exceptions.recurrence import NotRecurringTaskError
 from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
 from b_domain.value_objects.dates import DueDate, build_axiom_date
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
@@ -445,17 +450,68 @@ class Task(Entity):
             )
         )
 
-    def mark_as_cancelled(self, now: datetime) -> None:
-        """Mark the task as canceled."""
-        self.change_status(now, TaskStatus.CANCELLED)
+    def mark_as_cancelled(self, now: datetime, end_series: bool = False) -> None:
+        """Cancel the task: the user decided not to do it.
+
+        For a recurring task, cancelling skips only this occurrence — the
+        ``TaskCancelledEvent`` makes the next one — unless ``end_series`` says
+        the whole series ends here.
+
+        Args:
+            now (datetime): Current time.
+            end_series (bool): End the series instead of skipping one
+                occurrence. Only for a recurring task.
+
+        Raises:
+            NotRecurringTaskError: If ``end_series`` is asked of a task that
+                does not repeat.
+            InvalidStateTransition: If the task is already closed.
+        """
+        if end_series and self.recurrence is None:
+            raise NotRecurringTaskError()
+        if self.status.is_closed:
+            raise InvalidStateTransition(f"The task is already {self.status}.")
+        self.change_status(now, TaskStatus.CANCELLED, allow_same=False)
+        self.add_event(
+            TaskCancelledEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                end_series=end_series,
+            )
+        )
 
     def reopen(self, now: datetime) -> None:
-        """Reopen the task (set status back to pending)."""
-        self.change_status(now, TaskStatus.REOPENED)
+        """Bring a done or cancelled task back to the open ones.
+
+        A recurring occurrence already handed its series on when it closed
+        (the next occurrence exists, or the series ended there), so the
+        reopened one becomes a one-off task: closing it again must not start
+        a second copy of the series.
+
+        Raises:
+            InvalidStateTransition: If the task is not done or cancelled.
+        """
+        if self.status not in {TaskStatus.DONE, TaskStatus.CANCELLED}:
+            raise InvalidStateTransition(
+                f"Only a done or cancelled task can be reopened; this one is "
+                f"{self.status}."
+            )
+        self.change_status(now, TaskStatus.REOPENED, allow_same=False)
+        self.recurrence = None
 
     def archive(self, now: datetime) -> None:
-        """Archive the task."""
-        self.change_status(now, TaskStatus.ARCHIVED)
+        """Put a closed task away for good (no way back).
+
+        Raises:
+            InvalidStateTransition: If the task is not done or cancelled.
+        """
+        if self.status not in {TaskStatus.DONE, TaskStatus.CANCELLED}:
+            raise InvalidStateTransition(
+                f"Only a done or cancelled task can be archived; this one is "
+                f"{self.status}."
+            )
+        self.change_status(now, TaskStatus.ARCHIVED, allow_same=False)
 
     def add_subtask(self, subtask: "Task") -> None:
         """Add a subtask in memory.
