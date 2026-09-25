@@ -1,5 +1,7 @@
 """Prioridade/complexidade digitadas pelo usuário chegam como texto."""
 
+from datetime import UTC, datetime
+
 import pytest
 
 from a_core.exceptions import InvalidValueError
@@ -167,3 +169,66 @@ async def test_explicit_status_wins_over_hiding_closed(
     )
 
     assert [t.id for t in result.tasks] == [str(done.id)]
+
+
+async def _user_in_sao_paulo(uow_factory: UowFactoryType) -> User:
+    user = User.create(
+        username="sp",
+        email="sp@test.com",
+        preferences=UserPrefs(timezone="America/Sao_Paulo"),
+    )
+    async with uow_factory() as uow:
+        await uow.users.add(user)
+    return user
+
+
+async def _add(uow_factory: UowFactoryType, task: Task) -> None:
+    async with uow_factory() as uow:
+        await uow.tasks.add(task)
+
+
+async def test_update_gives_due_date_to_task_without_one(
+    fake_uow_factory: UowFactoryType, fake_clock: FakeClock
+) -> None:
+    user = await _user_in_sao_paulo(fake_uow_factory)
+    task = Task.create(now=fake_clock.now(), user_id=user.id, title=Title("Sem prazo"))
+    await _add(fake_uow_factory, task)
+
+    await UpdateTaskUseCase(fake_uow_factory, fake_clock).execute(
+        UpdateTaskInputDTO(
+            task_id_prefix=str(task.id)[:8],
+            user_id=str(user.id),
+            due_date=datetime(2026, 10, 1, 9, 0),
+        )
+    )
+
+    assert task.due_date is not None
+    assert task.due_date.is_floating
+    assert task.due_date.timezone == "America/Sao_Paulo"
+    assert task.due_date.value == datetime(2026, 10, 1, 9, 0)
+
+
+async def test_update_keeps_a_fixed_due_date_fixed(
+    fake_uow_factory: UowFactoryType, fake_clock: FakeClock
+) -> None:
+    user = await _user_in_sao_paulo(fake_uow_factory)
+    task = Task.create(
+        now=fake_clock.now(),
+        user_id=user.id,
+        title=Title("Reunião"),
+        due_date=datetime(2026, 10, 1, 12, 0, tzinfo=UTC),
+        is_floating=False,
+    )
+    await _add(fake_uow_factory, task)
+
+    await UpdateTaskUseCase(fake_uow_factory, fake_clock).execute(
+        UpdateTaskInputDTO(
+            task_id_prefix=str(task.id)[:8],
+            user_id=str(user.id),
+            due_date=datetime(2026, 10, 2, 9, 0),  # 09:00 in São Paulo
+        )
+    )
+
+    assert task.due_date is not None
+    assert task.due_date.is_fixed
+    assert task.due_date.value == datetime(2026, 10, 2, 12, 0, tzinfo=UTC)

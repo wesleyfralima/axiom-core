@@ -209,3 +209,19 @@ async def test_complete_task_fails_if_already_done(fake_clock, fake_uow_factory)
             DomainException, match="Cannot change task status from done to done"
         ):
             await use_case.execute(request)
+
+
+@pytest.mark.asyncio
+@pytest.mark.uc
+async def test_complete_task_unknown_prefix_says_not_found(
+    fake_clock, fake_uow_factory
+):
+    user = User.create(username="wesley", email="wesley@test.com")
+    async with fake_uow_factory() as uow:
+        await uow.users.add(user)
+
+    use_case = CompleteTaskUseCase(clock=fake_clock, uow_factory=fake_uow_factory)
+    request = TaskByUserRequest(task_id_prefix="abcd1234", user_id=str(user.id))
+
+    with pytest.raises(ValidationException, match="No task found"):
+        await use_case.execute(request)

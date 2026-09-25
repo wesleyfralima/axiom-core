@@ -171,7 +171,10 @@ class FakeTaskRepository(TaskRepository):
             pref_vo: IdPrefix = IdPrefix(value=prefix)
             found_tasks: list[Task] = await self.find_by_id_prefix(id_prefix=pref_vo)
 
-            if not len(found_tasks) == 1:
+            # Same messages as the real repository (axiom-enterprise)
+            if not found_tasks:
+                raise ValueError(f"No task found with ID prefix '{prefix}'.")
+            if len(found_tasks) > 1:
                 raise ValueError(f"Ambiguous prefix: {prefix}.")
 
             result.append(found_tasks[0].id)

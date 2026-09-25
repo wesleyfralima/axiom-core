@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import datetime
 from typing import Optional
 
 from a_core import Entity
@@ -406,14 +406,16 @@ class Task(Entity):
         is_floating: bool = True,
         tz_name: str | None = None,
     ) -> None:
-        """
-        Atualiza o prazo da tarefa utilizando as factories do DueDate.
+        """Replace the due date, built the same way ``create`` builds it.
 
         Args:
-            now: Timestamp para o updated_at.
-            new_dt: O novo datetime bruto vindo do DTO.
-            is_floating: Define se a nova data deve ser tratada como Floating ou Fixed.
-            tz_name: Nome IANA do timezone (obrigatório se for floating).
+            now: Timestamp for ``updated_at``.
+            new_dt: The new raw datetime, or None to remove the due date.
+            is_floating: Whether the new date is floating (wall-clock time) or
+                fixed (an instant).
+            tz_name: IANA time zone of ``new_dt``. Defaults to the current due
+                date's time zone, then to UTC. A naive ``new_dt`` for a fixed
+                date is read in this zone.
         """
 
         if new_dt is None:
@@ -421,27 +423,10 @@ class Task(Entity):
             self._touch(now)
             return
 
-        if is_floating:
-            # O DueDate.floating espera um naive datetime e uma string de TZ
-            # Se o DTO enviou aware, normalizamos para
-            # naive conforme a regra do DueDate
-            naive_dt: datetime = new_dt.replace(tzinfo=None)
+        current_tz: str | None = self.due_date.timezone if self.due_date else None
+        effective_tz: str = tz_name or current_tz or "UTC"
 
-            # Usamos o tz_name fornecido ou o da própria tarefa como fallback
-            effective_tz: str = (
-                tz_name or self.due_date.timezone or "UTC"  # type: ignore[union-attr]
-            )
-            self.due_date = DueDate.floating(naive_dt, effective_tz)
-
-        else:
-            # Para Fixed, o DueDate.fixed exige que seja aware
-            aware_dt: datetime = new_dt
-            if aware_dt.tzinfo is None:
-                # Se vier naive, assumimos UTC ou o TZ da tarefa para tornar aware
-                aware_dt = aware_dt.replace(tzinfo=UTC)
-
-            self.due_date = DueDate.fixed(aware_dt)
-
+        self.due_date = DueDate.from_params(new_dt, is_floating, effective_tz)
         self._touch(now)
 
     def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:

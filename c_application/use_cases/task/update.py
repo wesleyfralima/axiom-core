@@ -2,7 +2,7 @@ from datetime import datetime
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task
+from b_domain.entities import Task, User
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import Priority, UserId
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
@@ -89,8 +89,30 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 task.update_priority(now, priority)
 
             if request.due_date is not None:
-                # Timezone handling could be added here if needed
-                task.update_due_date(now, request.due_date)
+                # Keep the task's own kind (floating/fixed) unless the request
+                # says otherwise. A floating date keeps its zone; anything else
+                # (a fixed date typed as wall-clock time, a task with no due
+                # date yet) is read in the user's time zone.
+                is_floating: bool = (
+                    request.is_floating
+                    if request.is_floating is not None
+                    else (task.due_date.is_floating if task.due_date else True)
+                )
+                tz_name: str | None = request.timezone
+                if (
+                    tz_name is None
+                    and is_floating
+                    and task.due_date is not None
+                    and task.due_date.is_floating
+                ):
+                    tz_name = task.due_date.timezone
+                if tz_name is None:
+                    user: User | None = await uow.users.get_by_id(user_id)
+                    tz_name = user.preferences.timezone if user else None
+
+                task.update_due_date(
+                    now, request.due_date, is_floating=is_floating, tz_name=tz_name
+                )
 
             # 4. Persistence
             await uow.tasks.update(task)

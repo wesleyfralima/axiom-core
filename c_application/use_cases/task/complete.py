@@ -85,8 +85,12 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         id_iterable: list[IdPrefix] = [prefix]
         ids_found: list[TaskId] = await uow.tasks.task_ids_from_id_prefixes(id_iterable)
 
-        if not len(ids_found) == 1:
-            raise ValidationException("Ambiguous IDs found")
+        if not ids_found:
+            raise ValidationException(f"No task found with ID prefix '{prefix}'.")
+        if len(ids_found) > 1:
+            raise ValidationException(
+                f"Ambiguous ID prefix '{prefix}': it matches {len(ids_found)} tasks."
+            )
 
         task_found: Task | None = await uow.tasks.get_by_id(
             task_id=ids_found[0],
