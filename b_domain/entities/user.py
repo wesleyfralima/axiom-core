@@ -3,9 +3,14 @@
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime
 from typing import Any, ClassVar, Literal
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from a_core import Entity, ValueObject
-from a_core.exceptions import DomainException, ValidationException
+from a_core.exceptions import (
+    DomainException,
+    InvalidValueError,
+    ValidationException,
+)
 from b_domain.value_objects import UserId
 from b_domain.value_objects.enums import Priority
 from b_domain.value_objects.identifiers import ContextId
@@ -90,12 +95,55 @@ class UserPrefs(ValueObject):
                 f"Invalid fields for UserPrefs: {', '.join(invalid_keys)}"
             )
 
-        if "default_task_priority" in changes:
-            changes["default_task_priority"] = Priority.parse(
-                changes["default_task_priority"]
+        return replace(self, **self._normalized(changes))
+
+    @staticmethod
+    def _normalized(changes: dict[str, Any]) -> dict[str, Any]:
+        """Validate the preferences that only accept some values.
+
+        Raises:
+            InvalidValueError: If a value is not one the preference accepts.
+        """
+
+        result: dict[str, Any] = dict(changes)
+
+        if "default_task_priority" in result:
+            result["default_task_priority"] = Priority.parse(
+                result["default_task_priority"]
             ).name.lower()
 
-        return replace(self, **changes)
+        if "timezone" in result:
+            try:
+                ZoneInfo(str(result["timezone"]))
+            except (ZoneInfoNotFoundError, ValueError) as e:
+                raise InvalidValueError(
+                    concept="time zone", invalid_value=str(result["timezone"])
+                ) from e
+
+        for key, options in _CHOICES.items():
+            if key in result:
+                value: str = str(result[key]).strip().lower()
+                if value not in options:
+                    raise InvalidValueError(
+                        concept=key.replace("_", " "),
+                        invalid_value=str(result[key]),
+                        valid_options=list(options),
+                    )
+                result[key] = value
+
+        for key in ("working_hours_start", "working_hours_end"):
+            if key in result and not 0 <= int(result[key]) <= 23:
+                raise InvalidValueError(
+                    concept=key.replace("_", " "), invalid_value=str(result[key])
+                )
+
+        return result
+
+
+_CHOICES: dict[str, tuple[str, ...]] = {
+    "week_start": ("monday", "sunday"),
+    "theme": ("light", "dark", "system"),
+}
 
 
 @dataclass(kw_only=True, eq=False)

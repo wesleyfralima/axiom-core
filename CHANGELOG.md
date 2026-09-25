@@ -6,6 +6,17 @@ campo `version` do `pyproject.toml`.
 
 ## [Não lançado]
 
+## [0.3.2] — 24/09/2026
+
+Antes do `axpro config set` (CLI, Backlog 01, Parte 4).
+
+### Corrigido
+- `UserPrefs.update` valida as preferências de valor fechado: `timezone`
+  (fuso IANA que exista), `week_start` (`monday`/`sunday`), `theme`
+  (`light`/`dark`/`system`) e `working_hours_start/end` (0–23), com
+  `InvalidValueError`. Antes aceitava qualquer coisa — e um fuso inválido
+  gravado quebrava a criação de tarefas depois.
+
 ## [0.3.1] — 24/09/2026
 
 Achados ao escrever `task edit` e `task done` no CLI (Backlog 01, Parte 4 de
