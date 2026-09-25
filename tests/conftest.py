@@ -6,9 +6,10 @@ from typing import Any, Protocol
 import pytest
 
 from a_core import Entity, IdPrefix, tracks_entity
-from b_domain.entities import Task, TimeEntry, User
+from b_domain.entities import Context, Task, TimeEntry, User
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.repositories import (
+    ContextRepository,
     TaskRepository,
     UserBehaviorMetricsRepository,
     UserBehaviorProfileRepository,
@@ -294,17 +295,41 @@ class FakeTimeEntryRepository(TimeEntryRepository):
         return []
 
 
-class FakeContextRepository:
-    def __init__(self, contexts: dict[str, Any] | None = None) -> None:
+class FakeContextRepository(ContextRepository):
+    def __init__(
+        self,
+        contexts: dict[str, Context] | None = None,
+        tasks: dict[str, Task] | None = None,
+    ) -> None:
         self.contexts = contexts if contexts is not None else {}
+        # The shared task store, so delete() can detach tasks like the port says
+        self._tasks = tasks if tasks is not None else {}
+        super().__init__(seen_entities=set())
 
-    async def get_by_id(self, context_id: ContextId) -> Any:
-        return self.contexts.get(str(context_id))
+    @tracks_entity
+    async def add(self, context: Context) -> None:
+        self.contexts[str(context.id)] = context
 
-    async def get_active_for_user(self, user_id: UserId) -> Any:
-        # In Axiom the active context now comes from UserPrefs,
-        # but the repository stays for metadata lookups.
-        return next((c for c in self.contexts.values() if c.user_id == user_id), None)
+    async def update(self, context: Context) -> None:
+        self.contexts[str(context.id)] = context
+
+    async def delete(self, context_id: ContextId) -> None:
+        self.contexts.pop(str(context_id), None)
+        for task in self._tasks.values():
+            if task.context_id == context_id:
+                task.context_id = None
+
+    @tracks_entity
+    async def get_by_id(self, context_id: ContextId, user_id: UserId) -> Context | None:
+        context = self.contexts.get(str(context_id))
+        return context if context and context.user_id == user_id else None
+
+    @tracks_entity
+    async def list_by_user(self, user_id: UserId) -> list[Context]:
+        return sorted(
+            (c for c in self.contexts.values() if c.user_id == user_id),
+            key=lambda c: c.name.casefold(),
+        )
 
 
 class FakeUserBehaviorMetricsRepository(UserBehaviorMetricsRepository):
@@ -348,14 +373,14 @@ class FakeUnitOfWork(UnitOfWork):
         self,
         users_dict: dict[str, User] | None = None,
         tasks_dict: dict[str, Task] | None = None,
-        contexts_dict: dict[str, Any] | None = None,
+        contexts_dict: dict[str, Context] | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
         self.users: FakeUserRepository = FakeUserRepository(users=users_dict)
         self.tasks: FakeTaskRepository = FakeTaskRepository(tasks=tasks_dict)
         self.contexts: FakeContextRepository = FakeContextRepository(
-            contexts=contexts_dict
+            contexts=contexts_dict, tasks=self.tasks.tasks
         )
 
         self.time_entries: FakeTimeEntryRepository = FakeTimeEntryRepository()
@@ -404,7 +429,7 @@ def fake_uow_factory() -> FakeUowFactory:
     # Shared state (once per test)
     shared_users: dict[str, User] = {}
     shared_tasks: dict[str, Task] = {}
-    shared_contexts: dict[str, Any] = {}
+    shared_contexts: dict[str, Context] = {}
 
     # add others as needed
 
@@ -425,7 +450,7 @@ def use_case_context(
 ) -> UseCaseDeps:
     """
     Return a dict with all the dependencies
-     ready for a (generic) use case.
+    ready for a (generic) use case.
     """
     return {
         "uow_factory": fake_uow_factory,

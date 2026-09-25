@@ -6,6 +6,43 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.4.0] — 2026-09-25
+
+Closes Backlog 01, Part 4: contexts, from the entity to the use case.
+Requires axiom-enterprise 0.4.0 (it implements the new port).
+
+### Added
+- **Context use cases** (`c_application/use_cases/context/`):
+  `CreateContextUseCase`, `ListContextsUseCase`, `UpdateContextUseCase`
+  (name, icon, description), `DeleteContextUseCase` and
+  `SwitchContextUseCase` (the active context, or none). A context is found
+  by **name** (ignoring case) or by **ID prefix** (`find_context`); names are
+  unique per user, ignoring case (`ContextNameTakenError`).
+- `ContextRepository` port (`add`, `update`, `delete`, `get_by_id`,
+  `list_by_user`). Its `delete` must detach the context's tasks.
+- `User.switch_context(now, context_id | None)`: writes
+  `UserPrefs.active_context_id` and emits `ContextSwitchedEvent` when the
+  active context really changes.
+- `Context.create(now, …)` validates name (1–100 characters) and icon
+  (1–20); `Context.update(now, …)` changes only what it is given;
+  `Context.matches_name`.
+- `TaskOutputDTO.context_id`; `context_name` and `context_icon` are filled
+  in by every task use case (they were always `None`).
+
+### Changed
+- **Breaking:** `UnitOfWork` has a `contexts: ContextRepository` attribute —
+  implementations must provide it.
+- **Breaking:** `Context.id` is a `ContextId` (was a plain `UniqueId`), and
+  `Context.create` takes `now` (time is injected, like everywhere else).
+- **Breaking:** `ContextSwitchedEvent.new_context_id` accepts `None` (the
+  filter turned off). The unused `SwitchContextRequest` DTO is gone.
+- `CreateTaskInputDTO.context_id` and `ListTasksRequest.context_id` accept a
+  context **name** or ID prefix, and fail with `EntityNotFound` when it does
+  not exist — the CLI's `task add --context work` used to fail with "Invalid
+  context ID." A new task inherits the active context only if it still
+  exists.
+- Coverage floor 68% → 73% (335 tests).
+
 ## [0.3.11] — 2026-09-25
 
 ### Changed

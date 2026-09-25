@@ -1,5 +1,6 @@
 from datetime import datetime
 
+from b_domain.entities.context import Context
 from b_domain.entities.task import Task
 from b_domain.value_objects.identifiers import ContextId
 from c_application.dtos.task_dtos import TaskOutputDTO
@@ -18,14 +19,22 @@ class TaskMapper:
         now: datetime,
         occurrences_count: int = 5,
         active_context_id: ContextId | None = None,
+        context: Context | None = None,
     ) -> TaskOutputDTO:
-        """Maps a Domain Task entity to a TaskOutputDTO for the outside world."""
+        """Maps a Domain Task entity to a TaskOutputDTO for the outside world.
+
+        ``context`` is the task's context entity, when the caller loaded it,
+        so the DTO carries its name and icon.
+        """
         return TaskOutputDTO(
             id=str(task.id),
             title=str(task.title),
             description=str(task.description),
             status=task.status,
             priority=task.priority.name,
+            context_id=str(task.context_id) if task.context_id else None,
+            context_name=context.name if context else None,
+            context_icon=context.icon if context else None,
             required_energy_level=task.required_energy_level.value,
             due_date=task.due_date.value if task.due_date else None,
             is_overdue=task.due_date.is_overdue(now) if task.due_date else False,

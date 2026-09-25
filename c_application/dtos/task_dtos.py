@@ -23,7 +23,7 @@ class CreateTaskInputDTO(DTO):
     priority: int | None = None
     required_energy_level: int = EnergyLevel.BALANCED.value
 
-    # Contextual grouping (e.g., project, workspace)
+    # GTD context: its name or ID prefix (none: the user's active context)
     context_id: str | None = None
 
     # Due date information
@@ -85,7 +85,8 @@ class TaskOutputDTO(DTO):
     status: str
     priority: str
 
-    # Contextual information (project, workspace, etc.)
+    # Contextual information (the task's GTD context)
+    context_id: str | None = None
     context_name: str | None = None
     context_icon: str | None = None
     required_energy_level: int | None = None
@@ -185,7 +186,7 @@ class ListTasksRequest(DTO):
     include_closed: bool = True  # False hides done/cancelled/archived
     priority: str | None = None
 
-    # GTD & Organization
+    # GTD & Organization (context: its name or ID prefix)
     context_id: str | None = None
     max_energy: int | None = None
     complexity: str | None = None

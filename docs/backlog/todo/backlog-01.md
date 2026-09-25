@@ -29,7 +29,7 @@ The 2026-09-24 survey found:
 | **1** ✅ | Consolidate the WIP into thematic commits | `chore/backlog01-parte1-consolidar-wip` | — |
 | **2** ✅ | `make check` green and a real CI | `chore/backlog01-parte2-check-verde` | 1 |
 | **3** ✅ | Bugs found in the survey | `fix/backlog01-parte3-bugs-do-levantamento` | 1 |
-| **4** | Contexts: from the entity to the use case | `feat/backlog01-part4-contexts` | 1 |
+| **4** ✅ | Contexts: from the entity to the use case | `feat/backlog01-part4-contexts` | 1 |
 | **5** | Showcase: README, license, badges | `docs/backlog01-part5-showcase` | 2 |
 
 (Branches of closed parts keep the names they had in git.)
@@ -150,7 +150,7 @@ Closed in core 0.2.2 and checked in the CLI (throwaway HOME).
   `token_revoked=False` and the token is not validated (an expired one is
   discarded too). Without a token, `NotAuthenticatedError`.
 
-## Part 4 — Contexts: from the entity to the use case
+## Part 4 — Contexts: from the entity to the use case ✅ (2026-09-25)
 
 **In place today:** the `Context` entity exists; `UserPrefs.active_context_id`
 exists; `CreateTaskUseCase` already inherits the active context. But **there
@@ -159,13 +159,25 @@ uses `self.current_user` and `uow.contexts` (which do not exist) and
 `SwitchContextUseCase` does nothing. Enterprise already has an ORM model and
 a mapper.
 
-- [ ] `ContextRepository` in `b_domain/ports/repositories/` + a `contexts`
-  attribute on the `UnitOfWork` + a fake in `conftest`.
-- [ ] Use cases: create, list, rename/delete a context; switch the active
+- [x] `ContextRepository` in `b_domain/ports/repositories/` + a `contexts`
+  attribute on the `UnitOfWork` + a fake in `conftest`. *Resolved on
+  2026-09-25 (0.4.0):* `add`, `update`, `delete` (must detach the tasks),
+  `get_by_id(context_id, user_id)`, `list_by_user`. A user has few contexts,
+  so names and ID prefixes are resolved in memory (`find_context`) instead
+  of with more repository methods. Enterprise implements it in 0.4.0 (its
+  Backlog 01, Part 5).
+- [x] Use cases: create, list, rename/delete a context; switch the active
   context (writes `UserPrefs.active_context_id` and emits
-  `ContextSwitchedEvent`, which already exists).
-- [ ] `TaskOutputDTO.context_name/context_icon` filled in (always `None`
-  today).
+  `ContextSwitchedEvent`, which already exists). *Resolved on 2026-09-25
+  (0.4.0):* `Create/List/Update/Delete/SwitchContextUseCase`. A context is
+  named by its name (ignoring case) or ID prefix; names are unique per user;
+  deleting the active context turns the filter off; switching to `None`
+  turns it off too. The event's `new_context_id` became optional for that.
+- [x] `TaskOutputDTO.context_name/context_icon` filled in (always `None`
+  today). *Resolved on 2026-09-25 (0.4.0),* plus `context_id`, in every task
+  use case. Found along the way: `CreateTaskUseCase` read `context_id` as a
+  UUID, so the CLI's `task add --context work` (a name) always failed; it
+  now takes a name or ID prefix, like the list filter.
 - [x] Remove the two current sketches. *Resolved on 2026-09-24 (0.3.4),*
   together with mypy: nobody imported them.
 

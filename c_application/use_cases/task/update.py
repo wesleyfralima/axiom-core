@@ -117,5 +117,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             # 4. Persistence
             await uow.tasks.update(task)
 
+            context = (
+                await uow.contexts.get_by_id(task.context_id, user_id)
+                if task.context_id
+                else None
+            )
+
         # 5. Return mapped output DTO
-        return TaskMapper.to_output(task, now)
+        return TaskMapper.to_output(task, now, context=context)

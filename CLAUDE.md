@@ -79,6 +79,13 @@ simulator: `python -m d_fake_infra`).
 - **Short IDs:** task use cases receive a UUID **prefix** (`IdPrefix`) and
   resolve it via `TaskRepository.task_ids_from_id_prefixes`; ambiguity is an
   error.
+- **Contexts:** `b_domain/entities/context.py`, port
+  `ContextRepository`, use cases in `c_application/use_cases/context/`. A
+  context is named by its name (ignoring case) or ID prefix —
+  `c_application/utils/context_utils.py:find_context`, also used by the
+  task use cases. The active one lives in `UserPrefs.active_context_id` and
+  only changes through `User.switch_context` (which emits
+  `ContextSwitchedEvent`).
 
 The full inventory (what exists, what is missing, what is broken) is in
 `../docs/inventory.md`.
@@ -140,11 +147,12 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.3.11`: WIP consolidated (Backlog 01, Part 1), `make check` green
-  and CI (Part 2), survey bugs (Part 3), license (Part 5, 1st item), what the
-  CLI asked for daily use (list only open tasks, edit due date, validate
-  preferences), and the whole repo in English with ruff as the formatter.
-- 299 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 68.7% over a 68% floor.
+- Version `0.4.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+  and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
+  1st item), what the CLI asked for daily use (list only open tasks, edit due
+  date, validate preferences), and the whole repo in English with ruff as the
+  formatter. Backlog 01 only lacks the rest of Part 5 (showcase).
+- 335 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 73.1% over a 73% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

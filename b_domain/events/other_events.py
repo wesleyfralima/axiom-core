@@ -42,12 +42,13 @@ class ContextSwitchedEvent(DomainEvent):
     Attributes:
         user_id (UserId): Identifier of the user.
         old_context_id (Optional[ContextId]): Previous context, if any.
-        new_context_id (ContextId): New active context.
+        new_context_id (Optional[ContextId]): New active context; None turns
+            the context filter off.
         trigger_type (str): How the switch was triggered ("manual" or "automatic",
             e.g., by geofencing or schedule). Defaults to "manual".
     """
 
     user_id: UserId
     old_context_id: ContextId | None
-    new_context_id: ContextId
+    new_context_id: ContextId | None
     trigger_type: str = "manual"

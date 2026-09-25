@@ -17,7 +17,7 @@ class UserMapper[D: UserOutputDTO]:
     """
 
     # 1. When no dto_class is given,
-    # retorna estritamente UserOutputDTO
+    # it returns exactly UserOutputDTO
     @overload
     @staticmethod
     def to_output(

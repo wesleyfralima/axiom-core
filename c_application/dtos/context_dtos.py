@@ -1,23 +1,22 @@
 from dataclasses import dataclass
 
 from a_core import DTO
-from b_domain.value_objects import UserId
-from b_domain.value_objects.identifiers import ContextId
 
 
-@dataclass
-class SwitchContextRequest(DTO):
-    """Data Transfer Object (DTO) for switching a user's active context.
-
-    This request is used when a user changes their current context
-    (e.g., from "Work" to "Home"). A `None` value for `context_id`
-    disables the context filter entirely.
+@dataclass(frozen=True, kw_only=True)
+class ContextOutputDTO(DTO):
+    """A context as the interfaces see it.
 
     Attributes:
-        user_id (UserId): Identifier of the user requesting the switch.
-        context_id (Optional[ContextId]): Identifier of the new context.
-            If None, the active context filter is deactivated.
+        id (str): The context's unique identifier.
+        name (str): Human-readable name (e.g., "Work").
+        icon (str): Emoji or symbol representing the context.
+        description (str): Optional descriptive text ("" when empty).
+        is_active (bool): Whether it is the user's active context.
     """
 
-    user_id: UserId
-    context_id: ContextId | None  # None disables the filter
+    id: str
+    name: str
+    icon: str
+    description: str = ""
+    is_active: bool = False
