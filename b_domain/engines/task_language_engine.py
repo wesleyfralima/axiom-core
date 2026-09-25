@@ -1,9 +1,8 @@
 import re
-import tomllib
+from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 from enum import StrEnum
-from pathlib import Path
 from typing import Any
 
 from b_domain.value_objects.enums import EnergyLevel, Priority, TaskComplexity
@@ -720,11 +719,26 @@ class TaskLanguageEngine:
         return self.interpreter.interpret(ast, now, lang)
 
 
-def load_language_engine(config_path: Path) -> TaskLanguageEngine:
-    """Load configuration from TOML and bootstrap the TaskLanguageEngine instance."""
+def build_language_engine(
+    data: Mapping[str, Any],
+    contexts_map: Mapping[str, str] | None = None,
+) -> TaskLanguageEngine:
+    """Build a TaskLanguageEngine from an already-parsed configuration.
 
-    with open(config_path, "rb") as f:
-        data = tomllib.load(f)
+    The core never reads files: the caller loads the configuration (the
+    default one ships with this package as ``task_language_engine.toml``, next
+    to this module) and passes the resulting mapping here.
+
+    Args:
+        data (Mapping[str, Any]): Parsed configuration with the keys
+            ``archetypes``, ``lexicons``, ``modifiers``, ``priority_map`` and
+            ``date_words``.
+        contexts_map (Mapping[str, str] | None): Context keywords mapped to
+            context IDs of the current user. Defaults to an empty mapping.
+
+    Returns:
+        TaskLanguageEngine: A ready-to-use engine.
+    """
 
     # 1. Parse Archetypes mapping strings to native Domain Enums
     archetypes: dict[str, Archetype] = {}
@@ -767,142 +781,5 @@ def load_language_engine(config_path: Path) -> TaskLanguageEngine:
         semantic=semantic_inferencer,
         priority_map=priority_map,
         date_words=date_words,
-        contexts_map={"work": "ctx_1"},  # Dynamic map injected by user context
+        contexts_map=dict(contexts_map or {}),
     )
-
-
-TASKS: list[str] = [
-    # ==========================================================
-    # DEEP WORK (Energia Alta / Complexidade Alta)
-    # ==========================================================
-    "Refatorar banco de dados do Axiom",
-    "Implementar UseCase de Autenticação",
-    "Codar engine de inferência semântica",
-    "Desenvolver scheduler do Axiom 1h",
-    "Refatorar módulo de persistência difícil",
-    "Criar arquitetura do novo microservice",
-    "Buildar pipeline de deploy CI/CD",
-    "Programar parser de linguagem natural",
-    "Criar protótipo do dashboard analítico",
-    "Refatorar core do sistema urgente",
-    # ==========================================================
-    # LEARNING / RESEARCH (Energia Alta / Complexidade Média)
-    # ==========================================================
-    "Ler documentação do SQLAlchemy",
-    "Pesquisar sobre Arquitetura Hexagonal",
-    "Aprender Rust 1h",
-    "Estudar event sourcing",
-    "Revisar documentação do FastAPI",
-    "Ler artigo sobre distributed systems",
-    "Estudar padrões de arquitetura",
-    "Pesquisar otimização de queries PostgreSQL",
-    "Revisar conceitos de DDD",
-    "Aprender sobre observabilidade",
-    # ==========================================================
-    # ADMIN / SHALLOW (Energia Baixa / Complexidade Baixa)
-    # ==========================================================
-    "Pagar mensalidade da VPS",
-    "Responder e-mails da Elyon Gestão",
-    "Comprar teclado novo",
-    "Enviar feedback para o cliente",
-    "Responder email rápido",
-    "Enviar relatório financeiro",
-    "Baixar notas fiscais",
-    "Pagar boleto do domínio",
-    "Organizar lista de tarefas",
-    "Atualizar planilha de custos",
-    "Responder mensagens do WhatsApp",
-    # ==========================================================
-    # REUNIÕES / SOCIAL (Energia Equilibrada / Complexidade Média)
-    # ==========================================================
-    "Sync com a Bel",
-    "Call de alinhamento Davi Içamentos 30m",
-    "Reunião de planejamento semanal",
-    "Daily do projeto Axiom",
-    "Reunião de feedback com cliente",
-    "Call rápida com equipe",
-    "Alinhamento técnico com backend",
-    "Reunião de estratégia produto",
-    "Sync de arquitetura com time",
-    "Call de revisão sprint",
-    # ==========================================================
-    # MANUTENÇÃO / ROTINA (Energia Equilibrada / Complexidade Baixa)
-    # ==========================================================
-    "Organizar mesa de trabalho 10min",
-    "Limpar o quarto",
-    "Arrumar a cama",
-    "Organizar arquivos do computador",
-    "Limpar inbox do email",
-    "Arrumar mesa rápido",
-    "Organizar documentos pessoais",
-    "Limpar área de trabalho do PC",
-    "Revisar tarefas do dia",
-    "Planejar agenda da semana",
-    # ==========================================================
-    # TESTES DE MODIFIERS
-    # ==========================================================
-    "Codar feature rápida",
-    "Refatorar módulo complexo",
-    "Implementar autenticação difícil",
-    "Resolver bug crítico urgente",
-    "Responder email rápido",
-    "Ler documentação detalhada",
-    "Estudar algoritmo difícil",
-    "Organizar arquivos rápido",
-    "Enviar relatório urgente",
-    "Revisar código devagar",
-    # ==========================================================
-    # TESTES DE DURAÇÃO
-    # ==========================================================
-    "Codar API 2h",
-    "Estudar Rust 45min",
-    "Ler documentação 20m",
-    "Call com cliente 1h",
-    "Revisar PR 30m",
-    "Organizar mesa 5min",
-    # ==========================================================
-    # TESTES DE CONTEXTO
-    # ==========================================================
-    "Codar endpoint de pagamentos @axiom",
-    "Refatorar módulo financeiro @elyon",
-    "Responder email cliente @elyon",
-    "Estudar Rust @aprendizado",
-    "Revisar arquitetura do Axiom @axiom",
-    # ==========================================================
-    # TESTES DE PRIORIDADE
-    # ==========================================================
-    "Corrigir bug crítico !!!",
-    "Responder cliente importante !!",
-    "Comprar cabo HDMI !",
-    "Deploy urgente p1",
-    "Revisar contrato p2",
-    # ==========================================================
-    # TESTES DE DATAS
-    # ==========================================================
-    "Pagar boleto hoje",
-    "Enviar relatório amanhã",
-    "Revisar arquitetura depois de amanhã",
-    "Call cliente amanhã 30m",
-    "Deploy produção hoje urgente",
-    # ==========================================================
-    # TAREFAS MISTAS (Para testar média semântica)
-    # ==========================================================
-    "Estudar e Codar protótipo",
-    "Limpar e Organizar os boletos",
-    "Pesquisar e implementar solução",
-    "Ler documentação e refatorar código",
-    "Estudar arquitetura e programar exemplo",
-    "Organizar arquivos e enviar relatórios",
-]
-
-
-if __name__ == "__main__":
-
-    project_root: Path = Path(__file__).parent.parent.parent.parent
-    toml_path: Path = project_root / "task_lang_engine_conf.toml"
-    engine = load_language_engine(toml_path)
-
-    for t in TASKS:
-        task = engine.infer(t, now=datetime.now())
-
-        print(task, end="\n")
