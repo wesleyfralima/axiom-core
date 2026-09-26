@@ -10,10 +10,12 @@ from datetime import datetime
 
 from a_core import DTO, DomainException, UniqueId
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task
+from b_domain.entities import Task, TimeEntry
+from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
+from b_domain.value_objects.identifiers import TimeEntryId
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos.task_dtos import TaskHistoryEntryDTO
 from c_application.mappers.history_mapper import history_entry_to_dto
@@ -127,9 +129,38 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
                     now, None, UniqueId(target.entry_id), str(TaskAction.CREATED)
                 )
                 await uow.tasks.update(other)
+            # …and what it paused on its own runs again
+            for entry in await uow.task_history.caused_by(target.entry_id):
+                if entry.action == TaskAction.PAUSED:
+                    paused: Task | None = await uow.tasks.get_by_id(
+                        entry.task_id, user_id
+                    )
+                    if paused is not None:
+                        await _resume_session(uow, paused, entry)
+                        paused.revert_to(
+                            now,
+                            entry.previous,
+                            UniqueId(entry.entry_id),
+                            str(TaskAction.PAUSED),
+                            running=True,
+                        )
+                        await uow.tasks.update(paused)
+
+            # Timers: a start's session is discarded; a pause's runs again
+            if target.action == TaskAction.STARTED:
+                for session in await uow.time_entries.get_actives_for_task(task.id):
+                    await uow.time_entries.delete(TimeEntryId(session.id.value))
+            if target.action == TaskAction.PAUSED:
+                await _resume_session(uow, task, target)
 
             snapshot = None if target.action in _TAKE_AWAY else target.previous
-            task.revert_to(now, snapshot, UniqueId(target.entry_id), str(target.action))
+            task.revert_to(
+                now,
+                snapshot,
+                UniqueId(target.entry_id),
+                str(target.action),
+                running=target.action == TaskAction.PAUSED,
+            )
             await uow.tasks.update(task)
 
             return UndoOutputDTO(
@@ -138,6 +169,21 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
                 action=str(target.action),
                 also_removed=len(caused),
             )
+
+
+async def _resume_session(uow: UnitOfWork, task: Task, pause: TaskHistoryEntry) -> None:
+    """Run again the session a pause closed (the last one closed by then)."""
+    closed: list[TimeEntry] = [
+        e
+        for e in await uow.time_entries.search(
+            TimeEntryFilter(task_id=task.id, limit=10_000)
+        )
+        if e.end_time is not None and e.end_time <= pause.occurred_at
+    ]
+    if closed:
+        session: TimeEntry = max(closed, key=lambda e: e.end_time or e.start_time)
+        session.resume()
+        await uow.time_entries.update(session)
 
 
 def _last_undoable(recent: list[TaskHistoryEntry]) -> TaskHistoryEntry | None:

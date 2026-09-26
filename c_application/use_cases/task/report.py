@@ -15,13 +15,14 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from a_core import DTO
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task, User
+from b_domain.entities import Task, TimeEntry, User
 from b_domain.entities.user import UserPrefs
-from b_domain.ports.repositories.filters import TaskFilter
+from b_domain.ports.repositories.filters import TaskFilter, TimeEntryFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, Priority, TaskId, TaskStatus, UserId
 from b_domain.value_objects.recurrences._serial import axiom_date_from_dict
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
+from c_application.use_cases.task.timer import time_of
 from c_application.utils import format_task_recurrence
 from c_application.utils.date_input import DateInput, local_today, resolve_date_input
 from c_application.utils.recurrence_input import WEEK_STARTS
@@ -89,6 +90,19 @@ class SeriesReportDTO(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
+class AccuracyDTO(DTO):
+    """Estimated vs. actual for the tasks done with measured time.
+
+    ``label`` is a context name, or "all" for every one of them.
+    """
+
+    label: str
+    tasks: int
+    estimated_minutes: int
+    actual_minutes: int
+
+
+@dataclass(frozen=True, kw_only=True)
 class ReportOutputDTO(DTO):
     """What happened in the period (``start`` to ``end``, both included)."""
 
@@ -107,6 +121,14 @@ class ReportOutputDTO(DTO):
     series: list[SeriesReportDTO] = field(default_factory=list)
     # Series still going that had nothing in the period (not listed)
     quiet_series: int = 0
+    # Time measured by timers inside the period (the part of each session in
+    # it), in all and by context
+    time_spent_minutes: int = 0
+    time_by_context: list[CountDTO] = field(default_factory=list)
+    # Estimated vs. actual of the tasks done in the period with measured time
+    accuracy: list[AccuracyDTO] = field(default_factory=list)
+    # When completions happen most (hours "09:00"), from 5 completions on
+    best_hours: list[CountDTO] = field(default_factory=list)
 
 
 class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
@@ -172,6 +194,39 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                 TaskFilter(user_id=user_id, in_series=True, limit=10_000)
             )
 
+            # Sessions that touch the period (one can start the day before)
+            sessions: list[TimeEntry] = [
+                e
+                for e in await uow.time_entries.search(
+                    TimeEntryFilter(
+                        user_id=user_id,
+                        started_after=start - timedelta(days=1),
+                        started_before=end,
+                        limit=100_000,
+                    )
+                )
+                if _aware(e.end_time or now) > start
+            ]
+            session_tasks: dict[TaskId, Task] = (
+                {
+                    t.id: t
+                    for t in await uow.tasks.list(
+                        TaskFilter(
+                            user_id=user_id,
+                            ids=list({e.task_id for e in sessions}),
+                            deleted=None,
+                            limit=10_000,
+                        )
+                    )
+                }
+                if sessions
+                else {}
+            )
+            spent_on: dict[TaskId, int] = {}
+            for entry in completions:
+                if entry.task_id not in spent_on:
+                    spent_on[entry.task_id], _ = await time_of(uow, entry.task_id, now)
+
         on_time = late = no_due = 0
         by_context: Counter[str] = Counter()
         by_priority: Counter[str] = Counter()
@@ -191,6 +246,34 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                 by_priority[Priority(state["priority"]).name.lower()] += 1
 
         series, quiet = _series(in_series, entries)
+
+        # Time inside the period, by context
+        time_by_context: Counter[str] = Counter()
+        for session in sessions:
+            begin: datetime = max(_aware(session.start_time), start)
+            finish: datetime = min(_aware(session.end_time or now), end)
+            minutes: int = max(0, int((finish - begin).total_seconds() // 60))
+            owner: Task | None = session_tasks.get(session.task_id)
+            time_by_context[_context_name(_state_of(owner), contexts)] += minutes
+
+        # Estimated vs. actual, of what was done with measured time
+        accuracy: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
+        for entry in completions:
+            actual: int = spent_on.get(entry.task_id, 0)
+            if actual <= 0:
+                continue
+            state = entry.previous or _state_of(tasks.get(entry.task_id))
+            estimate: int = int(state.get("estimate") or 0)
+            if estimate <= 0:
+                continue
+            for label in ("all", _context_name(state, contexts)):
+                accuracy[label][0] += 1
+                accuracy[label][1] += estimate
+                accuracy[label][2] += actual
+
+        hours: Counter[int] = Counter(
+            _aware(e.occurred_at).astimezone(zone).hour for e in completions
+        )
         done_by_day: Counter[date] = Counter(
             _aware(e.occurred_at).astimezone(zone).date() for e in completions
         )
@@ -222,6 +305,24 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             ],
             series=series,
             quiet_series=quiet,
+            time_spent_minutes=sum(time_by_context.values()),
+            time_by_context=_counts(+time_by_context),
+            accuracy=[
+                AccuracyDTO(
+                    label=label, tasks=n, estimated_minutes=est, actual_minutes=act
+                )
+                for label, (n, est, act) in sorted(
+                    accuracy.items(), key=lambda kv: (kv[0] != "all", -kv[1][0])
+                )
+            ],
+            best_hours=(
+                [
+                    CountDTO(label=f"{hour:02d}:00", count=count)
+                    for hour, count in hours.most_common(3)
+                ]
+                if len(completions) >= 5
+                else []
+            ),
         )
 
 

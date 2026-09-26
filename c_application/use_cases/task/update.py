@@ -127,6 +127,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if energy is not None:
                 task.update_energy(now, energy)
 
+            if request.estimated_minutes is not None:
+                task.update_estimate(now, request.estimated_minutes)
+
             if request.context_id is not None:
                 target: Context = find_context(
                     await uow.contexts.list_by_user(user_id), request.context_id
@@ -280,4 +283,5 @@ def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str 
             else None
         ),
         "recurrence": format_task_recurrence(task.recurrence),
+        "estimate": str(task.estimated_duration_minutes),
     }

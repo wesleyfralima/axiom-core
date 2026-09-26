@@ -8,8 +8,10 @@ from b_domain.events.task_events import (
     TaskCreatedEvent,
     TaskDeletedEvent,
     TaskEditedEvent,
+    TaskPausedEvent,
     TaskReopenedEvent,
     TaskRestoredEvent,
+    TaskStartedEvent,
     TaskUndoneEvent,
 )
 from b_domain.value_objects.task_history import (
@@ -28,6 +30,8 @@ _ACTIONS: dict[type[DomainEvent], TaskAction] = {
     TaskDeletedEvent: TaskAction.DELETED,
     TaskRestoredEvent: TaskAction.RESTORED,
     TaskUndoneEvent: TaskAction.UNDONE,
+    TaskStartedEvent: TaskAction.STARTED,
+    TaskPausedEvent: TaskAction.PAUSED,
 }
 
 
@@ -60,6 +64,8 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
         note = event.title
     if isinstance(event, TaskUndoneEvent):
         note = event.action
+    if isinstance(event, TaskPausedEvent):
+        note = f"{event.minutes} min"
 
     caused_by = getattr(event, "caused_by", None)
     undoes = getattr(event, "undoes", None)

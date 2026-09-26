@@ -12,8 +12,10 @@ from b_domain.events.task_events import (
     TaskCreatedEvent,
     TaskDeletedEvent,
     TaskEditedEvent,
+    TaskPausedEvent,
     TaskReopenedEvent,
     TaskRestoredEvent,
+    TaskStartedEvent,
     TaskUndoneEvent,
 )
 from b_domain.exceptions.recurrence import NotRecurringTaskError
@@ -513,6 +515,80 @@ class Task(Entity):
         self.status = new_status
         self._touch(now)
 
+    def start(self, now: datetime) -> None:
+        """Start working on the task: it is in progress (a timer runs).
+
+        The use case opens the ``TimeEntry``; the entity only changes state.
+
+        Raises:
+            InvalidStateTransition: If the task cannot start now (closed,
+                waiting on other tasks, already in progress…).
+        """
+        if self.status == TaskStatus.IN_PROGRESS:
+            raise InvalidStateTransition("The task is already in progress.")
+        if self.is_blocked:
+            raise InvalidStateTransition(
+                "The task is waiting on other tasks: finish those first."
+            )
+        if self.status.is_closed:
+            raise InvalidStateTransition(
+                f"The task is {self.status}: reopen it to work on it again."
+            )
+        previous: dict[str, Any] = self.snapshot()
+        if self.status in (TaskStatus.SOMEDAY, TaskStatus.REOPENED):
+            # Neither goes straight to "in progress" in the state machine
+            self.change_status(now, TaskStatus.PENDING)
+        self.change_status(now, TaskStatus.IN_PROGRESS, allow_same=False)
+        self.add_event(
+            TaskStartedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                context_id=self.context_id,
+                previous=previous,
+            )
+        )
+
+    def pause(
+        self, now: datetime, minutes: int, caused_by: UniqueId | None = None
+    ) -> None:
+        """Stop working on the task for now (its timer stops).
+
+        Args:
+            now (datetime): When.
+            minutes (int): How long the session that ends lasted.
+            caused_by (UniqueId | None): The start of another task that
+                paused this one (undoing that start resumes this one).
+
+        Raises:
+            InvalidStateTransition: If the task is not in progress.
+        """
+        if self.status != TaskStatus.IN_PROGRESS:
+            raise InvalidStateTransition(
+                f"The task is not in progress (it is {self.status})."
+            )
+        previous: dict[str, Any] = self.snapshot()
+        self.change_status(now, TaskStatus.PAUSED, allow_same=False)
+        self.add_event(
+            TaskPausedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                minutes=minutes,
+                previous=previous,
+                caused_by=caused_by,
+            )
+        )
+
+    def record_duration(self, minutes: int) -> None:
+        """Keep the measured time of a completion: the running average (which
+        becomes the next occurrence's estimate) and the count."""
+        if minutes <= 0:
+            return
+        total: int = self.average_duration_minutes * self.success_count + minutes
+        self.success_count += 1
+        self.average_duration_minutes = round(total / self.success_count)
+
     def change_recurrence(self, now: datetime, rule: RecurrenceRule | None) -> None:
         """Repeat the task by another rule, or stop repeating it.
 
@@ -544,6 +620,17 @@ class Task(Entity):
     def update_energy(self, now: datetime, level: EnergyLevel) -> None:
         """Change the energy the task asks for."""
         self.required_energy_level = level
+        self._touch(now)
+
+    def update_estimate(self, now: datetime, minutes: int) -> None:
+        """Change how long the task is expected to take.
+
+        Raises:
+            ValidationException: If it is not 1 minute or more.
+        """
+        if minutes < 1:
+            raise ValidationException("An estimate is 1 minute or more.")
+        self.estimated_duration_minutes = minutes
         self._touch(now)
 
     def update_priority(self, now: datetime, new_priority: Priority) -> None:
@@ -773,6 +860,7 @@ class Task(Entity):
             "due": axiom_date_to_dict(self.due_date) if self.due_date else None,
             "recurrence": rule_to_dict(self.recurrence) if self.recurrence else None,
             "series_id": str(self.series_id) if self.series_id else None,
+            "estimate": self.estimated_duration_minutes,
         }
 
     def revert_to(
@@ -781,6 +869,7 @@ class Task(Entity):
         snapshot: dict[str, Any] | None,
         undoes: UniqueId,
         action: str,
+        running: bool = False,
     ) -> None:
         """Undo a change: the task goes back to ``snapshot``.
 
@@ -793,11 +882,19 @@ class Task(Entity):
             snapshot (dict | None): ``snapshot()`` from before the change.
             undoes (UniqueId): The history entry undone (its event's id).
             action (str): What is undone ("completed", "edited"…).
+            running (bool): Its timer runs again (undoing a pause): "in
+                progress" stays so.
         """
         if snapshot is None:
             self.deleted_at = now
         else:
-            self.status = TaskStatus(snapshot["status"])
+            status: TaskStatus = TaskStatus(snapshot["status"])
+            # Undo never starts a timer: "in progress" comes back paused
+            self.status = (
+                TaskStatus.PAUSED
+                if status == TaskStatus.IN_PROGRESS and not running
+                else status
+            )
             self.completed_at = _instant(snapshot.get("completed_at"))
             self.deleted_at = _instant(snapshot.get("deleted_at"))
             self.title = Title(snapshot["title"])
@@ -819,6 +916,8 @@ class Task(Entity):
                 if snapshot.get("recurrence")
                 else None
             )
+            if "estimate" in snapshot:
+                self.estimated_duration_minutes = int(snapshot["estimate"])
             if "series_id" in snapshot:
                 self.series_id = (
                     TaskId.from_string(snapshot["series_id"])

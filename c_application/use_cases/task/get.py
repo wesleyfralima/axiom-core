@@ -9,6 +9,7 @@ from b_domain.value_objects import UserId
 from c_application.dtos import TaskOutputDTO
 from c_application.dtos.task_dtos import GetTaskRequest
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.timer import time_of
 from c_application.utils.date_input import end_of_day, local_today, resolve_horizon
 
 
@@ -88,9 +89,12 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
                 request.ahead if request.ahead is not None else prefs.days_ahead,
                 today=local_today(now, prefs.timezone),
             )
+            spent, since = await time_of(uow, task.id, now)
             return TaskMapper.to_output(
                 task,
                 now,
                 occurrences_until=end_of_day(horizon, prefs.timezone),
                 context=context,
+                time_spent_minutes=spent,
+                running_since=since,
             )

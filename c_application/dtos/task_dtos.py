@@ -28,6 +28,9 @@ class CreateTaskInputDTO(DTO):
     # GTD context: its name or ID prefix (none: the user's active context)
     context_id: str | None = None
 
+    # How long it is expected to take (None: the default)
+    estimated_minutes: int | None = None
+
     # Due date: a datetime, a date (gets the user's default due time) or an
     # expression such as "tomorrow 14:00" (see c_application/utils/date_input)
     due_date: DateInput | None = None
@@ -64,6 +67,9 @@ class UpdateTaskInputDTO(DTO):
     remove_context: bool = False
     # Energy: a level name or number ("high", 4)
     energy_level: str | int | None = None
+
+    # How long it is expected to take
+    estimated_minutes: int | None = None
 
     # Due date: as in CreateTaskInputDTO; remove_due_date clears it
     due_date: DateInput | None = None
@@ -128,6 +134,11 @@ class TaskOutputDTO(DTO):
 
     # The series of a recurring task (the first occurrence's ID)
     series_id: str | None = None
+
+    # Time: the estimate, what was measured (timers) and a running timer
+    estimated_minutes: int = 30
+    time_spent_minutes: int = 0
+    running_since: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
