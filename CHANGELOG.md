@@ -6,6 +6,33 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.19.0] — 2026-09-26
+
+The first piece of sync between devices (Part 5 of the product backlog):
+the rule every device follows, pure and with no I/O. Nothing uses it yet —
+enterprise's change capture and the server come next — so enterprise and
+the CLI need no change.
+
+### Added
+- **`Hlc`** (`b_domain/value_objects/sync.py`), a hybrid logical clock:
+  milliseconds, a counter and the device, compared in that order (the
+  device breaks ties). `tick(now)` for a local change never goes back, even
+  when the device's time does; `receive(remote, now)` moves past a clock
+  from another device; `is_ahead_of(now, tolerance)` spots a device whose
+  time runs ahead. As text (`str`/`parse`) it sorts like the clock.
+- **`SyncOperation`**: one changed field of one row (`SyncEntity`: user,
+  context, calendar day, task, time entry, history), with `CREATED` (a new
+  row, every field in its value) and `DELETED` (final); `to_payload` /
+  `from_payload` for the wire. `FieldKey` names a field of a row.
+- **`plan_merge(incoming, known)`** (`b_domain/services/sync_merge.py`):
+  what a batch of operations changes on a device — the last writer wins,
+  field by field; a deletion is final; a row created on two devices merges
+  field by field and keeps the earliest creation; the same operation twice
+  changes nothing. It returns the rows to create, change or delete (a row
+  after the rows it points to), the clocks to keep, what was dropped and
+  the latest clock. A test replays random edits in random orders and
+  batches on four devices and checks they end the same.
+
 ## [0.18.1] — 2026-09-26
 
 ### Fixed
