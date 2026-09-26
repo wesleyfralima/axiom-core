@@ -25,6 +25,7 @@ from c_application.utils.date_input import (
     resolve_horizon,
 )
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
+from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import load_work_calendar
 
 
@@ -46,7 +47,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
         Steps:
             1. Validate and convert input data into value objects.
             2. Resolve user identity and preferences.
-            3. Handle parent task validation.
+            3. Resolve the parent and dependencies (IDs or ID prefixes).
             4. Resolve context associations.
             5. Inherit timezone and priority defaults.
             6. Configure recurrence rules if provided.
@@ -62,8 +63,10 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
         Raises:
             ValidationException: If input data is invalid or domain
                 invariants are violated.
-            EntityNotFound: If the requested context does not exist.
-            AmbiguousIdentifierError: If the context's ID prefix matches several.
+            EntityNotFound: If the requested context, parent or dependency
+                does not exist (among the user's own).
+            AmbiguousIdentifierError: If an ID prefix (context, parent,
+                dependency) matches several.
         """
 
         # 1. Data validation
@@ -82,15 +85,6 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
         except ValidationException as e:
             raise ValidationException(e) from e
 
-        try:
-            depends_on_vo: set[TaskId] = set(
-                [TaskId.from_string(tid) for tid in dto.depends_on]
-            )
-        except ValidationException as e:
-            raise ValidationException(
-                "'depends_on' parameter contains invalid UUIDs"
-            ) from e
-
         now_system: datetime = self.clock.now()
 
         async with self.uow as uow:
@@ -99,19 +93,16 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             if not user:
                 raise ValidationException(f"User with ID {dto.user_id} not found.")
 
-            # 3. Parent task resolution
-            parent_id_vo: TaskId | None = None
-            if dto.parent_id:
-                try:
-                    parent_id: TaskId = TaskId.from_string(
-                        dto.parent_id, error_msg="Invalid parent ID."
-                    )
-                    parent: Task | None = await uow.tasks.get_by_id(parent_id)
-                    if not parent or parent.user_id != user_id_vo:
-                        raise ValidationException("Parent task not found.")
-                    parent_id_vo = parent.id
-                except (ValueError, TypeError) as e:
-                    raise ValidationException("Invalid parent task ID format.") from e
+            # 3. Parent and dependencies: IDs or ID prefixes, among the
+            # user's own tasks (as every other command takes them)
+            parent_id_vo: TaskId | None = (
+                (await find_task(uow, dto.parent_id, user_id_vo)).id
+                if dto.parent_id
+                else None
+            )
+            depends_on_vo: set[TaskId] = {
+                (await find_task(uow, ref, user_id_vo)).id for ref in dto.depends_on
+            }
 
             # 4. Smart context resolution: the requested one (name or ID
             # prefix), else the active one if it still exists

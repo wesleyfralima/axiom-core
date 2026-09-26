@@ -4,11 +4,13 @@ from uuid import UUID, uuid4
 import pytest
 
 from a_core import ValidationException
+from a_core.exceptions import EntityNotFound
 from b_domain.entities import Context, Task, User, UserPrefs
 from b_domain.value_objects import ContextId, RecurrenceInterval, TaskId, Title
 from c_application.dtos import CreateTaskInputDTO
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
-from c_application.use_cases import CreateTaskUseCase
+from c_application.dtos.task_dtos import ListTasksRequest
+from c_application.use_cases import CreateTaskUseCase, ListTasksUseCase
 from tests.conftest import FakeClock, FakeUowFactory, UseCaseDeps
 
 
@@ -183,7 +185,7 @@ async def test_create_task_fails_if_parent_belongs_to_another_user(
 
     use_case = CreateTaskUseCase(**use_case_context)
 
-    with pytest.raises(ValidationException, match="Parent task not found"):
+    with pytest.raises(EntityNotFound, match="was not found"):
         await use_case.execute(dto)
 
 
@@ -315,3 +317,55 @@ async def test_create_task_keeps_the_hourly_window(
     )
 
     assert result.recurrence_display == "Every 2 hours between 08:00 and 20:00."
+
+
+@pytest.mark.asyncio
+@pytest.mark.uc
+async def test_parent_and_dependencies_by_id_prefix(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    wesley = User.create(username="wesley", email="wesley@test.com")
+    async with fake_uow_factory() as uow:
+        await uow.users.add(wesley)
+    create = CreateTaskUseCase(**use_case_context)
+    parent = await create.execute(
+        CreateTaskInputDTO(user_id=str(wesley.id), title="Move house")
+    )
+    before = await create.execute(
+        CreateTaskInputDTO(user_id=str(wesley.id), title="Before")
+    )
+
+    child = await create.execute(
+        CreateTaskInputDTO(
+            user_id=str(wesley.id),
+            title="Pack the books",
+            parent_id=parent.id[:4],
+            depends_on={before.id[:8].upper()},
+        )
+    )
+
+    assert child.parent_id == parent.id
+    assert child.is_blocked
+    listed = await ListTasksUseCase(**use_case_context).execute(
+        ListTasksRequest(user_id=str(wesley.id), parent_id=parent.id[:6])
+    )
+    assert [t.title for t in listed.tasks] == ["Pack the books"]
+
+
+@pytest.mark.asyncio
+@pytest.mark.uc
+async def test_a_dependency_must_exist(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory
+) -> None:
+    wesley = User.create(username="wesley", email="wesley@test.com")
+    async with fake_uow_factory() as uow:
+        await uow.users.add(wesley)
+
+    with pytest.raises(EntityNotFound):
+        await CreateTaskUseCase(**use_case_context).execute(
+            CreateTaskInputDTO(
+                user_id=str(wesley.id),
+                title="After",
+                depends_on={"071d7f23-e94e-43ba-a0d5-4c912a22e9ba"},
+            )
+        )
