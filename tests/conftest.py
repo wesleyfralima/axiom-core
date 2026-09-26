@@ -87,8 +87,7 @@ class FakeTaskRepository(TaskRepository):
         return [
             task
             for key, task in self.tasks.items()
-            if key.startswith(str(id_prefix))
-            and (user_id is None or task.user_id == user_id)
+            if id_prefix.matches(key) and (user_id is None or task.user_id == user_id)
         ]
 
     def _apply_filters(self, filters: TaskFilter) -> list[Task]:

@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 
-from a_core import EntityNotFound, IdPrefix
+from a_core import EntityNotFound, IdPrefix, ValidationException
 from a_core.exceptions import AmbiguousIdentifierError
 from b_domain.entities import Context
 
@@ -29,9 +29,9 @@ def find_context(contexts: Sequence[Context], ref: str) -> Context:
         if context.matches_name(key):
             return context
 
-    prefix: str = key.lower()
-    if len(prefix) >= IdPrefix.MIN_LENGTH:
-        matches: list[Context] = [c for c in contexts if str(c.id).startswith(prefix)]
+    prefix: IdPrefix | None = _as_prefix(key)
+    if prefix is not None:
+        matches: list[Context] = [c for c in contexts if prefix.matches(c.id)]
         if len(matches) == 1:
             return matches[0]
         if matches:
@@ -42,3 +42,11 @@ def find_context(contexts: Sequence[Context], ref: str) -> Context:
             )
 
     raise EntityNotFound(entity_name="Context", identifier=key)
+
+
+def _as_prefix(text: str) -> IdPrefix | None:
+    """The text as an ID prefix, or None when it cannot be one (a name)."""
+    try:
+        return IdPrefix(text)
+    except ValidationException:
+        return None

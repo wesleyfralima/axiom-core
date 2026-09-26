@@ -3,7 +3,8 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from a_core.ddd.identities import UniqueId
+from a_core.ddd.identities import IdPrefix, UniqueId
+from a_core.exceptions import ValidationException
 from b_domain.value_objects.identifiers import TaskId
 
 # ============================================================
@@ -55,3 +56,43 @@ def test_task_id_is_unique_id() -> None:
     tid: TaskId = TaskId()
     assert isinstance(tid, UniqueId)
     assert isinstance(tid.value, UUID)
+
+
+# ============================================================
+# IdPrefix: dashes and case do not count
+# ============================================================
+
+_ID = "45e45de9-5581-44bf-bca8-67f208bd1bff"
+
+
+@pytest.mark.parametrize(
+    "typed",
+    [
+        "45e4",
+        "45e45de9",
+        "45e45de9-55",
+        "45E45DE95581",
+        "45e45de9558144bfbca867f208bd1bff",
+        _ID,
+    ],
+)
+def test_a_prefix_matches_with_or_without_dashes(typed: str) -> None:
+    prefix = IdPrefix(typed)
+
+    assert prefix.matches(_ID)
+    assert prefix.matches(UUID(_ID))
+    assert not prefix.matches("ffff0000-0000-0000-0000-000000000000")
+
+
+@pytest.mark.parametrize(
+    ("typed", "message"),
+    [
+        ("abc", "at least 4"),
+        ("4-5-e", "at least 4"),
+        ("work", "not an ID"),
+        (_ID + "0", "cannot exceed 36"),
+    ],
+)
+def test_what_is_not_a_prefix(typed: str, message: str) -> None:
+    with pytest.raises(ValidationException, match=message):
+        IdPrefix(typed)

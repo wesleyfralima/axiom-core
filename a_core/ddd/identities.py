@@ -37,11 +37,43 @@ class UniqueId(SimpleValueObject):
 
 @dataclass(frozen=True)
 class IdPrefix(TextValueObject):
-    """Strong identifier for IDs prefixes."""
+    """The start of an ID, as the user types it ("45e4", "45e45de9-55").
+
+    Dashes and case do not count: a prefix is compared by its ``hex`` (the
+    ID's 32 hex digits, lowercase, no dashes), so the short ID, a longer
+    prefix and the full UUID all work.
+    """
 
     value: str
 
     ALLOW_NONE = False
     STRIP = True
     MIN_LENGTH = 4
-    MAX_LENGTH = 32
+    MAX_LENGTH = 36  # a full UUID, with its dashes
+
+    def validate(self, value: str) -> None:
+        """Only hex digits and dashes, with 4 to 32 digits.
+
+        Raises:
+            ValidationException: If the prefix has other characters or too
+                few/many digits.
+        """
+        digits: str = value.replace("-", "")
+        if not all(c in "0123456789abcdefABCDEF" for c in digits):
+            raise ValidationException(
+                f"'{value}' is not an ID: IDs have only 0-9 and a-f."
+            )
+        if not 4 <= len(digits) <= 32:
+            raise ValidationException(
+                "IdPrefix must have at least 4 characters (and at most the "
+                "32 digits of an ID)."
+            )
+
+    @property
+    def hex(self) -> str:
+        """The prefix as the ID's hex digits: lowercase, no dashes."""
+        return self.value.replace("-", "").lower()
+
+    def matches(self, identifier: object) -> bool:
+        """Whether an ID (a UUID, or anything whose str is one) starts so."""
+        return str(identifier).replace("-", "").lower().startswith(self.hex)
