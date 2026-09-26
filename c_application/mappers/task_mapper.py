@@ -46,6 +46,7 @@ class TaskMapper:
             is_blocked=task.is_blocked,
             created_at=task.created_at,
             completed_at=task.completed_at,
+            series_id=str(task.series_id) if task.series_id else None,
             updated_at=task.updated_at,
             recurrence_display=(
                 format_task_recurrence(task.recurrence) if task.recurrence else None

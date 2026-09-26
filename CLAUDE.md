@@ -181,7 +181,7 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.13.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.14.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -191,9 +191,9 @@ there too.
   edit changes context and energy and can remove the due date or context
   (0.8.0); recurrence edit and `count` fixed (0.9.0); weekly `set_pos`
   (0.10.0); time entries tracked by the UoW (0.11.0); the task history
-  (0.12.0); undo and tombstones (0.13.0).
+  (0.12.0); undo and tombstones (0.13.0); reports and series (0.14.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 480 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 78.5% over a 78.5% floor.
+- 488 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 79.3% over a 79.2% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

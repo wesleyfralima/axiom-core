@@ -105,8 +105,17 @@ class FakeTaskRepository(TaskRepository):
         results = [
             t
             for t in self.tasks.values()
-            if (t.deleted_at is not None) == filters.deleted
+            if filters.deleted is None or (t.deleted_at is not None) == filters.deleted
         ]
+        if filters.series_id is not None:
+            results = [t for t in results if t.series_id == filters.series_id]
+        if filters.in_series is not None:
+            results = [
+                t for t in results if (t.series_id is not None) == filters.in_series
+            ]
+        if filters.ids is not None:
+            wanted = {str(i) for i in filters.ids}
+            results = [t for t in results if str(t.id) in wanted]
 
         if filters.user_id:
             results = [t for t in results if t.user_id == filters.user_id]
@@ -440,6 +449,22 @@ class FakeTaskHistoryRepository(TaskHistoryRepository):
 
     async def caused_by(self, entry_id: UUID) -> list[TaskHistoryEntry]:
         return [e for e in self.entries if e.caused_by == entry_id]
+
+    async def between(
+        self, user_id: UserId, start: datetime, end: datetime
+    ) -> list[TaskHistoryEntry]:
+        return [
+            e
+            for e in self.entries
+            if e.user_id == user_id and start <= e.occurred_at < end
+        ]
+
+    async def list_for_tasks(
+        self, task_ids: list[TaskId], user_id: UserId
+    ) -> list[TaskHistoryEntry]:
+        return [
+            e for e in self.entries if e.task_id in task_ids and e.user_id == user_id
+        ]
 
     async def list_for_task(
         self, task_id: TaskId, user_id: UserId

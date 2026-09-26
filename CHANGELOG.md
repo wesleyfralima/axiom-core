@@ -6,6 +6,33 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.14.0] — 2026-09-26
+
+Reports and series (Part 3 of the product backlog). Enterprise 0.10.0
+stores the series; the CLI 0.16.0 has `axpro report` and `task log --series`.
+
+### Added
+- **`ReportUseCase`** (`ReportRequest`: the last 7 days by default, `week`
+  from the user's `week_start`, `month`, or `start`/`end` as typed) →
+  `ReportOutputDTO`: done, created, cancelled; done on time, late or
+  without a due date — **against the due date the task had when it was
+  completed** (its history snapshot); per day, by context and by priority;
+  the series with something done or missed in the period (done, missed,
+  current streak, completion rate), and how many others are going with
+  nothing in it. An undone change does not count.
+- **Series**: `Task.series_id` — set when a task gets a rule (the first
+  occurrence's ID), carried to each next occurrence, kept in the snapshot
+  (undo) and when the task stops repeating.
+- `GetTaskHistoryUseCase` takes a `TaskHistoryRequest` (was
+  `TaskByUserRequest`) with `series`: the whole series' history;
+  `TaskHistoryOutputDTO.series_size`; each entry says its `task_id`.
+- History port: `between(user, start, end)` and `list_for_tasks`.
+  `TaskFilter.deleted` is `bool | None` (None: both); `series_id` and
+  `in_series`. `TaskOutputDTO.series_id`.
+
+### Changed
+- Coverage floor 78.5% → 79.2% (488 tests).
+
 ## [0.13.0] — 2026-09-26
 
 Undo and deleted tasks as tombstones (Part 2 of the product backlog).

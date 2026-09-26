@@ -69,6 +69,9 @@ class Task(Entity):
     completed_at: datetime | None = None
     # When it was deleted: a tombstone, restorable until it is purged
     deleted_at: datetime | None = None
+    # The series a recurring task belongs to: the first occurrence's ID,
+    # carried to each next one (kept when the task stops repeating)
+    series_id: TaskId | None = None
 
     is_system_generated: bool = False
 
@@ -104,6 +107,7 @@ class Task(Entity):
         attempt_count: int = 0,
         average_duration_minutes: int = 0,
         caused_by: UniqueId | None = None,
+        series_id: TaskId | None = None,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -180,6 +184,10 @@ class Task(Entity):
             attempt_count=attempt_count,
             average_duration_minutes=average_duration_minutes,
         )
+
+        # A new series starts with its first occurrence; the next ones carry it
+        if recurrence is not None:
+            created.series_id = series_id or created.id
 
         created.add_event(
             TaskCreatedEvent(
@@ -446,6 +454,7 @@ class Task(Entity):
             estimated_duration_minutes=self.estimated_duration_minutes,
             average_duration_minutes=self.average_duration_minutes,
             caused_by=caused_by,
+            series_id=self.series_id,
         )
 
     def next_occurrence_due_date(self) -> Optional["DueDate"]:
@@ -523,6 +532,8 @@ class Task(Entity):
                 "The rule and the due date must both be fixed or both floating."
             )
         self.recurrence = rule
+        if rule is not None and self.series_id is None:
+            self.series_id = self.id
         self._touch(now)
 
     def move_to_context(self, now: datetime, context_id: ContextId | None) -> None:
@@ -761,6 +772,7 @@ class Task(Entity):
             "context_id": str(self.context_id) if self.context_id else None,
             "due": axiom_date_to_dict(self.due_date) if self.due_date else None,
             "recurrence": rule_to_dict(self.recurrence) if self.recurrence else None,
+            "series_id": str(self.series_id) if self.series_id else None,
         }
 
     def revert_to(
@@ -807,6 +819,12 @@ class Task(Entity):
                 if snapshot.get("recurrence")
                 else None
             )
+            if "series_id" in snapshot:
+                self.series_id = (
+                    TaskId.from_string(snapshot["series_id"])
+                    if snapshot["series_id"]
+                    else None
+                )
         self._touch(now)
         self.add_event(
             TaskUndoneEvent(
