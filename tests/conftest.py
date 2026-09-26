@@ -283,11 +283,13 @@ class FakeUserRepository(UserRepository):
 
 
 class FakeTimeEntryRepository(TimeEntryRepository):
-    def __init__(self) -> None:
-        # A list simulates the table, though a dict would give
-        # O(1) lookup by ID.
-        self.entries: list[TimeEntry] = []
+    def __init__(self, entries: list[TimeEntry] | None = None) -> None:
+        # A list simulates the table (shared by the units of work of a test)
+        self.entries: list[TimeEntry] = entries if entries is not None else []
         super().__init__(seen_entities=set())
+
+    async def delete(self, entry_id: TimeEntryId) -> None:
+        self.entries[:] = [e for e in self.entries if e.id.value != entry_id.value]
 
     @tracks_entity
     async def add(self, entry: TimeEntry) -> TimeEntry:
@@ -338,7 +340,16 @@ class FakeTimeEntryRepository(TimeEntryRepository):
 
     @tracks_entity
     async def search(self, filters: TimeEntryFilter) -> list[TimeEntry]:
-        return []
+        found = list(self.entries)
+        if filters.user_id is not None:
+            found = [e for e in found if e.user_id == filters.user_id]
+        if filters.task_id is not None:
+            found = [e for e in found if e.task_id == filters.task_id]
+        if filters.started_after is not None:
+            found = [e for e in found if e.start_time >= filters.started_after]
+        if filters.started_before is not None:
+            found = [e for e in found if e.start_time < filters.started_before]
+        return found
 
 
 class FakeContextRepository(ContextRepository):
@@ -481,6 +492,7 @@ class FakeUnitOfWork(UnitOfWork):
         tasks_dict: dict[str, Task] | None = None,
         contexts_dict: dict[str, Context] | None = None,
         history: list[TaskHistoryEntry] | None = None,
+        time_entries: list[TimeEntry] | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
@@ -490,7 +502,9 @@ class FakeUnitOfWork(UnitOfWork):
             contexts=contexts_dict, tasks=self.tasks.tasks
         )
 
-        self.time_entries: FakeTimeEntryRepository = FakeTimeEntryRepository()
+        self.time_entries: FakeTimeEntryRepository = FakeTimeEntryRepository(
+            time_entries
+        )
         self.task_history: FakeTaskHistoryRepository = FakeTaskHistoryRepository(
             history
         )
@@ -547,6 +561,7 @@ def fake_uow_factory() -> FakeUowFactory:
     shared_tasks: dict[str, Task] = {}
     shared_contexts: dict[str, Context] = {}
     shared_history: list[TaskHistoryEntry] = []
+    shared_time_entries: list[TimeEntry] = []
 
     # add others as needed
 
@@ -557,6 +572,7 @@ def fake_uow_factory() -> FakeUowFactory:
             tasks_dict=shared_tasks,
             contexts_dict=shared_contexts,
             history=shared_history,
+            time_entries=shared_time_entries,
         )
 
     return factory

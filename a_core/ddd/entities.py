@@ -55,6 +55,10 @@ class Entity:
         """
         self._domain_events.append(event)
 
+    def peek_events(self) -> list[DomainEvent]:
+        """The events recorded so far, without taking them (a copy)."""
+        return self._domain_events[:]
+
     def pull_events(self) -> list[DomainEvent]:
         """Extract all recorded domain events and clear the internal list.
 

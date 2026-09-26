@@ -18,6 +18,7 @@ from .task.list import ListTasksUseCase
 from .task.reopen import ReopenTaskUseCase
 from .task.report import ReportUseCase
 from .task.restore import RestoreTaskUseCase
+from .task.timer import PauseTaskUseCase, StartTaskUseCase
 from .task.undo import UndoPreviewUseCase, UndoUseCase
 from .task.update import UpdateTaskUseCase
 from .user.get_current import GetCurrentUserUseCase
@@ -37,10 +38,12 @@ __all__ = [
     "ListContextsUseCase",
     "ListTasksUseCase",
     "LoginUseCase",
+    "PauseTaskUseCase",
     "RegisterUserUseCase",
     "ReopenTaskUseCase",
     "ReportUseCase",
     "RestoreTaskUseCase",
+    "StartTaskUseCase",
     "SwitchContextUseCase",
     "UndoPreviewUseCase",
     "UndoUseCase",

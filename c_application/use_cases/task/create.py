@@ -177,6 +177,10 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 is_floating=dto.is_floating,
                 tz_name=tz_to_use,
                 required_energy_level=energy_level_enum,
+                estimated_duration_minutes=(
+                    dto.estimated_minutes
+                    or user.preferences.default_task_duration_minutes
+                ),
             )
 
             await uow.tasks.add(task)

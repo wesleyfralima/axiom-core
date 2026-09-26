@@ -63,10 +63,14 @@ closed here with the reference.
 - [ ] Entity methods still missing: `start` (→ `IN_PROGRESS`, emits
   `TaskStartedEvent`), `pause`, `skip` (records `last_skipped_at`), `abandon`
   (emits `TaskAbandonedEvent`), `defer`. The state machine already allows
-  these transitions.
+  these transitions. *`start` and `pause` done on 2026-09-26 (0.15.0)* as
+  timers, which do not depend on Flow's rules (product backlog, Part 4);
+  `skip`, `abandon` and `defer` are Flow's signals and stay here.
 - [ ] Use cases `StartTask` (opens a `TimeEntry`), `PauseTask`, `SkipTask`,
   `AbandonTask` (close the `TimeEntry`). `CompleteTaskUseCase` already closes
-  timers — today nobody opens them.
+  timers — today nobody opens them. *`StartTask` and `PauseTask` done on
+  2026-09-26 (0.15.0)*, one timer at a time; `SkipTask` and `AbandonTask`
+  stay with Flow.
 - [x] `ReopenTask`, `ArchiveTask`, `CancelTask` (the entity methods exist).
   *Resolved on 2026-09-25 (0.6.0),* ahead of the rest of the part because
   it does not depend on Flow. Decided by the owner the same day: cancelling

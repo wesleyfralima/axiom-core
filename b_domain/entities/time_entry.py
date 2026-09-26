@@ -59,6 +59,10 @@ class TimeEntry(Entity):
 
         return int(delta.total_seconds() // 60)
 
+    def resume(self) -> None:
+        """Run again a timer that was stopped (undoing a pause)."""
+        self.end_time = None
+
     def stop(self, now: datetime) -> None:
         """Stop the timer by setting the `end_time`.
 

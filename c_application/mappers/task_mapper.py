@@ -20,6 +20,8 @@ class TaskMapper:
         now: datetime,
         occurrences_until: datetime | None = None,
         occurrences: list[datetime] | None = None,
+        time_spent_minutes: int = 0,
+        running_since: datetime | None = None,
         active_context_id: ContextId | None = None,
         context: Context | None = None,
     ) -> TaskOutputDTO:
@@ -47,6 +49,9 @@ class TaskMapper:
             created_at=task.created_at,
             completed_at=task.completed_at,
             series_id=str(task.series_id) if task.series_id else None,
+            estimated_minutes=task.estimated_duration_minutes,
+            time_spent_minutes=time_spent_minutes,
+            running_since=running_since,
             updated_at=task.updated_at,
             recurrence_display=(
                 format_task_recurrence(task.recurrence) if task.recurrence else None

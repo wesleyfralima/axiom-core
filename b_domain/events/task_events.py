@@ -71,8 +71,10 @@ class TaskStartedEvent(DomainEvent):
 
     task_id: TaskId
     user_id: UserId
-    context_id: ContextId
-    momentum_at_start: float
+    context_id: ContextId | None = None
+    momentum_at_start: float = 0.0
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -174,3 +176,22 @@ class TaskUndoneEvent(DomainEvent):
     user_id: UserId
     undoes: UniqueId
     action: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskPausedEvent(DomainEvent):
+    """Triggered when the user pauses a task in progress (its timer stops).
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        minutes (int): How long the session that just ended lasted.
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    minutes: int = 0
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
+    # The start of another task that paused this one on its own
+    caused_by: UniqueId | None = None

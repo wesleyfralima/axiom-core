@@ -21,6 +21,8 @@ class TaskAction(StrEnum):
     DELETED = "deleted"
     RESTORED = "restored"
     UNDONE = "undone"
+    STARTED = "started"
+    PAUSED = "paused"
 
 
 @dataclass(frozen=True, kw_only=True)

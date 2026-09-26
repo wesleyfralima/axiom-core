@@ -31,6 +31,10 @@ class TimeEntryRepository(ABC, BaseRepository):
         raise NotImplementedError
 
     @abstractmethod
+    async def delete(self, entry_id: TimeEntryId) -> None:
+        """Remove a time entry (undoing the start that opened it)."""
+
+    @abstractmethod
     @tracks_entity
     async def get_by_id(self, entry_id: TimeEntryId) -> TimeEntry | None:
         """Retrieves a specific entry by its unique ID."""

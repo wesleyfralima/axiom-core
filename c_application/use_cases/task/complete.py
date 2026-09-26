@@ -8,6 +8,7 @@ from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
 from c_application.dtos.task_dtos import CompleteTaskOutputDTO, TaskByUserRequest
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.timer import time_of
 
 
 class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
@@ -58,6 +59,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
             task.mark_as_done(now, actual_minutes=actual_duration)
+            # A measured time: the running average (the next occurrence's
+            # estimate) learns from it
+            task.record_duration(actual_duration)
 
             # 4. Persist changes
             await uow.tasks.update(task)
@@ -119,24 +123,22 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             request (TaskByUserRequest): Request containing completion time.
 
         Returns:
-            int: Total elapsed minutes from timers.
+            int: Minutes spent on the task: every session, the ones just
+            closed included.
         """
 
+        effective_now: datetime = request.completed_at or now
         active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(
             task.id
         )
-        if not active_timers:
-            return 0
-
-        actual_duration: int = 0
-        effective_now: datetime = request.completed_at or now
-
         for timer in active_timers:
             timer.stop(effective_now)
-            actual_duration += timer.elapsed_minutes(effective_now)
+        if active_timers:
+            await uow.time_entries.update_all(active_timers)
 
-        await uow.time_entries.update_all(active_timers)
-        return actual_duration
+        # Every session counts, the paused ones too (not only the running one)
+        spent, _ = await time_of(uow, task.id, effective_now)
+        return spent
 
     @staticmethod
     def _build_response(

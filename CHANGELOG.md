@@ -6,6 +6,43 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.15.0] — 2026-09-26
+
+Timers and estimates (Part 4 of the product backlog). Enterprise 0.11.0
+and CLI 0.17.0 pick it up.
+
+### Added
+- **`StartTaskUseCase` / `PauseTaskUseCase`** (`TaskTimerOutputDTO`): a
+  `TimeEntry` opens and closes; **one thing at a time** — starting a task
+  pauses the one that was running (its pause is `caused_by` the start, so
+  undoing the start resumes it). `Task.start` (→ in progress; a blocked or
+  closed task cannot start) and `Task.pause`; `TaskPausedEvent`;
+  `TaskStartedEvent` no longer needs a context or Flow's momentum.
+  History actions `started` and `paused`.
+- **Undo of timers**: undoing a start throws its session away; undoing a
+  pause runs the same session again. Any other undo brings "in progress"
+  back as paused (undo never starts a timer).
+- **Estimates**: `estimated_minutes` on create (default: the
+  `default_task_duration_minutes` preference, which did nothing) and edit
+  (`Task.update_estimate`); in the snapshot and the edit history.
+- **Estimates that learn**: a completion with measured time updates the
+  task's running average (`Task.record_duration`), which becomes the next
+  occurrence's estimate — the handler already used it; nothing computed it.
+- `TaskOutputDTO.estimated_minutes`, `time_spent_minutes`, `running_since`
+  (on show and on the timers' answers); `timer.time_of`.
+- **Report**: time measured inside the period (the part of each session in
+  it), in all and by context; estimated vs. actual of what was done with
+  measured time, in all and by context; the best hours (when completions
+  happen most, from 5 on).
+- `Entity.peek_events()`; `TimeEntry.resume()`; `TimeEntryRepository.delete`.
+
+### Fixed
+- **A completion counted only the running session** (`actual_minutes`):
+  every session of the task counts now, the paused ones too.
+
+### Changed
+- Coverage floor 79.2% → 80.2% (494 tests).
+
 ## [0.14.0] — 2026-09-26
 
 Reports and series (Part 3 of the product backlog). Enterprise 0.10.0
