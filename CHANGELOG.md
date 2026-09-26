@@ -6,6 +6,38 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.20.0] — 2026-09-26
+
+Sync reaches the application (Part 5 of the product backlog): the ports a
+device and the server's client implement, and the use cases the CLI will
+call. Enterprise 0.15.0 implements `SyncStore`; the server's side and the
+HTTP client come with axiom-web.
+
+### Added
+- **`SyncStore`** (`b_domain/ports/repositories/sync_store.py`), now
+  `uow.sync`: the device's state (`SyncState`: server, account, device,
+  clock, cursor, last sync and error), the operations waiting to be pushed,
+  the clocks it keeps, `apply` (another device's changes, straight to the
+  data), `snapshot` (every row as a new one, for the first push) and
+  `adopt_account` (a device joining an existing account becomes it).
+- **`SyncTransport`** (`b_domain/ports/sync_transport.py`): create an
+  account from an invite, register a device (a token of its own), push,
+  pull a page after a cursor, list and revoke devices.
+  `SyncUnavailableError` / `SyncRefusedError` (and `NotJoinedError`,
+  `AlreadyJoinedError`) in `b_domain/exceptions/sync.py`.
+- **Use cases** (`c_application/use_cases/sync/`): `JoinSyncUseCase` (the
+  first device creates the account with its own user ID; the next ones
+  become it; the password typed becomes the local one), `RunSyncUseCase`
+  (push in batches, then pull pages, each applied with its cursor in one
+  transaction; a failure is kept in the state), `GetSyncStatusUseCase`,
+  `ListSyncDevicesUseCase`, `RevokeSyncDeviceUseCase` (by name or ID
+  prefix; not this device). Tests run two devices against a fake server.
+- `TaskHistoryEntry.device_id`: the device that made the change.
+
+### Changed
+- **`undo` only takes back changes made on this device**: once the device
+  syncs, a change another device made (and sync brought) is skipped.
+
 ## [0.19.0] — 2026-09-26
 
 The first piece of sync between devices (Part 5 of the product backlog):

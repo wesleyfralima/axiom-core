@@ -134,8 +134,13 @@ simulator: `python -m d_fake_infra`).
   `SyncOperation`, `FieldKey`) and `b_domain/services/sync_merge.py`
   (`plan_merge`: last writer per field, final deletions). Sync carries
   results, not commands: a device applies the plan straight to its data —
-  no use case, no event, no history entry. The design is in the product
-  backlog (`../docs/backlog/todo/backlog-01.md`, Part 5).
+  no use case, no event, no history entry. The device's side is the
+  `SyncStore` port (`uow.sync`), which records every change as operations
+  on its own once the device joined; the server is the `SyncTransport`
+  port; the use cases are in `c_application/use_cases/sync/` (join, run,
+  status, devices). `undo` skips the changes of other devices
+  (`TaskHistoryEntry.device_id`). The design is in the product backlog
+  (`../docs/backlog/todo/backlog-01.md`, Part 5).
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -204,7 +209,7 @@ there too.
 
 ## Current state (2026-09-26)
 
-- Version `0.19.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.20.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -218,9 +223,10 @@ there too.
   timers and estimates (0.15.0); business days: work days, a region's
   holidays and the user's own days (0.16.0); the regions to choose from
   (0.17.0); tags, the inbox, skipping a holiday by name (0.18.0); the
-  sync rule: clock, operation, merge (0.19.0).
+  sync rule: clock, operation, merge (0.19.0); the sync ports and use
+  cases (0.20.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 663 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 83.7% over a 83.6% floor.
+- 689 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 84.5% over a 84.4% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

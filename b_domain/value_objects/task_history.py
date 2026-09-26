@@ -55,6 +55,8 @@ class TaskHistoryEntry:
         caused_by (UUID | None): The entry whose change made this one on its
             own.
         undoes (UUID | None): For an "undone" entry, the entry it undid.
+        device_id (UUID | None): The device that made the change (set by the
+            storage once the device syncs).
     """
 
     task_id: TaskId
@@ -72,3 +74,6 @@ class TaskHistoryEntry:
     caused_by: UUID | None = None
     # For an "undone" entry, the entry it undid
     undoes: UUID | None = None
+    # The device that made the change, once the user syncs (None: this
+    # device, before it joined)
+    device_id: UUID | None = None

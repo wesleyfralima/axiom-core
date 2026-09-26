@@ -22,8 +22,16 @@ from .security import (
     NotAuthenticatedError,
     SecurityException,
 )
+from .sync import (
+    AlreadyJoinedError,
+    NotJoinedError,
+    SyncException,
+    SyncRefusedError,
+    SyncUnavailableError,
+)
 
 __all__ = [
+    "AlreadyJoinedError",
     "BySetPosRequiresWeeklyOrMonthly",
     "BySetPosWithMonthDays",
     "BySetPosWithWeekdaysInAWeek",
@@ -38,10 +46,14 @@ __all__ = [
     "MutuallyExclusiveEndDateAndCount",
     "MutuallyExclusiveWeekAndMonthDays",
     "NotAuthenticatedError",
+    "NotJoinedError",
     "NotRecurringTaskError",
     "NthBusinessDayRequiresPredicate",
     "NthBusinessDayWithOtherDayRules",
     "RecurrenceRuleException",
     "SecurityException",
+    "SyncException",
+    "SyncRefusedError",
+    "SyncUnavailableError",
     "UnknownHolidayRegionError",
 ]

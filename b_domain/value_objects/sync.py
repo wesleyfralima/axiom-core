@@ -287,3 +287,28 @@ class FieldKey(ValueObject):
     entity: SyncEntity
     entity_id: UUID
     field: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class SyncState(ValueObject):
+    """A device's place in the sync: set when it joins an account.
+
+    Attributes:
+        server_url (str): The server it syncs with.
+        account_id (UUID): The account (the user's ID on every device).
+        device_id (UUID): This device, as the server knows it.
+        device_name (str): What the owner calls it ("mint", "phone").
+        clock (Hlc): The latest clock this device wrote or saw.
+        cursor (int): The last server sequence already pulled.
+        last_sync_at (datetime | None): When a sync last went through.
+        last_error (str | None): Why the last one failed, if it did.
+    """
+
+    server_url: str
+    account_id: UUID
+    device_id: UUID
+    device_name: str
+    clock: Hlc
+    cursor: int = 0
+    last_sync_at: datetime | None = None
+    last_error: str | None = None
