@@ -7,6 +7,8 @@ from b_domain.entities.user import UserPrefs
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import Priority, UserId
 from b_domain.value_objects.enums import EnergyLevel
+from b_domain.value_objects.recurrences import RecurrenceRule
+from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
@@ -17,6 +19,10 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.recurrence_input import build_recurrence
+
+PREVIEW_MAX: int = 10
+"""The most occurrences an edit's result previews."""
 
 
 class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
@@ -73,6 +79,8 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             raise ValidationException("Set a new due date or remove it, not both.")
         if request.remove_context and request.context_id is not None:
             raise ValidationException("Pick a context or remove it, not both.")
+        if request.remove_recurrence and request.recurrence is not None:
+            raise ValidationException("Set a new rule or stop repeating, not both.")
 
         async with self.uow as uow:
             # 2. Search by prefix scoped to user
@@ -155,6 +163,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     now, new_due, is_floating=is_floating, tz_name=tz_name
                 )
 
+            if request.remove_recurrence:
+                task.change_recurrence(now, None)
+            elif request.recurrence is not None:
+                self._repeat_by(task, request.recurrence, request, prefs, now)
+
             # 4. Persistence
             await uow.tasks.update(task)
 
@@ -164,13 +177,66 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 else None
             )
 
-        # 5. Return mapped output DTO (recurring: the occurrences ahead)
+        # 5. Return mapped output DTO. Recurring: a preview of what comes
+        # next — up to days_ahead, but at least the next one and at most
+        # ten, hourly rules included
         horizon: date = resolve_horizon(
             prefs.days_ahead, today=local_today(now, prefs.timezone)
         )
         return TaskMapper.to_output(
             task,
             now,
-            occurrences_until=end_of_day(horizon, prefs.timezone),
+            occurrences=task.upcoming_occurrences(
+                now,
+                end_of_day(horizon, prefs.timezone),
+                limit=PREVIEW_MAX,
+                include_sub_daily=True,
+                at_least=1,
+            ),
             context=context,
         )
+
+    @staticmethod
+    def _repeat_by(
+        task: Task,
+        recurrence: RecurrenceInputDTO,
+        request: UpdateTaskInputDTO,
+        prefs: UserPrefs,
+        now: datetime,
+    ) -> None:
+        """Give the task a new rule; its due date stays.
+
+        The rule starts at the due date (or at ``recurrence.start_date``), so
+        its time of day is the due date's. A task without a due date gets
+        the rule's first occurrence as one, as on create.
+        """
+        today: date = local_today(now, prefs.timezone)
+        is_floating: bool = (
+            task.due_date.is_floating
+            if task.due_date
+            else (request.is_floating if request.is_floating is not None else True)
+        )
+        tz: str = (
+            task.due_date.timezone
+            if task.due_date and task.due_date.timezone
+            else prefs.timezone
+        )
+        start: datetime
+        if recurrence.start_date is not None:
+            start = at_time(
+                resolve_date_input(recurrence.start_date, today=today),
+                prefs.default_due_clock,
+            )
+        elif task.due_date is not None:
+            start = task.due_date.value
+        else:
+            start = at_time(today, prefs.default_due_clock)
+
+        rule: RecurrenceRule = build_recurrence(
+            recurrence, start=start, is_floating=is_floating, tz=tz, today=today
+        )
+        if task.due_date is None:
+            first: datetime | None = rule.get_next_occurrence()
+            if first is not None:
+                task.update_due_date(now, first, is_floating=is_floating, tz_name=tz)
+        task.change_recurrence(now, rule)

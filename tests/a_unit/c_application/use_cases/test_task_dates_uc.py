@@ -263,3 +263,114 @@ async def test_editing_refuses_contradictions(
             due_date="today",
             remove_due_date=True,
         )
+
+
+# ---------------------------------------------------------------- recurrence
+
+
+def _weekly(*days: int, **kwargs: object) -> RecurrenceInputDTO:
+    return RecurrenceInputDTO(
+        frequency=RecurrenceInterval.WEEKLY,
+        by_week_days=list(days),
+        **kwargs,  # type: ignore[arg-type]
+    )
+
+
+async def test_a_new_rule_keeps_the_due_date_and_leads_the_next_ones(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    # Due Monday the 9th at 07:00, every Monday
+    created = await _create(
+        use_case_context, user, recurrence=_weekly(0, start_date="2026-03-09 07:00")
+    )
+
+    edited = await _edit(
+        use_case_context, user, created.id[:8], recurrence=_weekly(1, 3)
+    )
+
+    assert edited.due_date == datetime(2026, 3, 9, 7, 0)  # untouched
+    assert edited.recurrence_display is not None
+    assert "Tuesdays and Thursdays" in edited.recurrence_display
+    # days_ahead 7 → up to the 12th: Tue 10, Thu 12
+    assert edited.next_occurrences == [
+        datetime(2026, 3, 10, 7, 0),
+        datetime(2026, 3, 12, 7, 0),
+    ]
+
+
+async def test_the_preview_shows_at_least_the_next_one(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(use_case_context, user, due_date="2026-03-09 07:00")
+
+    edited = await _edit(
+        use_case_context,
+        user,
+        created.id[:8],
+        recurrence=RecurrenceInputDTO(frequency=RecurrenceInterval.MONTHLY),
+    )
+
+    assert edited.next_occurrences == [datetime(2026, 4, 9, 7, 0)]
+
+
+async def test_the_preview_stops_at_ten_even_hourly(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(use_case_context, user, due_date="2026-03-09 07:00")
+
+    edited = await _edit(
+        use_case_context,
+        user,
+        created.id[:8],
+        recurrence=RecurrenceInputDTO(frequency=RecurrenceInterval.HOURLY),
+    )
+
+    assert len(edited.next_occurrences) == 10
+    assert edited.next_occurrences[0] == datetime(2026, 3, 9, 8, 0)
+
+
+async def test_stop_repeating_and_start_repeating(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(use_case_context, user, recurrence=_daily("tomorrow 07:00"))
+    prefix = created.id[:8]
+
+    one_off = await _edit(use_case_context, user, prefix, remove_recurrence=True)
+    assert one_off.recurrence is None
+    assert one_off.next_occurrences == []
+    assert one_off.due_date == datetime(2026, 3, 6, 7, 0)
+
+    plain = await _create(use_case_context, user)
+    repeating = await _edit(use_case_context, user, plain.id[:8], recurrence=_weekly(4))
+    # No due date: the rule's first occurrence becomes it (default due time)
+    assert repeating.due_date == datetime(2026, 3, 6, 23, 59)  # Friday
+
+
+async def test_the_rule_comes_back_as_fields(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(
+        use_case_context,
+        user,
+        recurrence=_weekly(0, 2, start_date="2026-03-09 07:00", count=4, interval=2),
+    )
+
+    rule = created.recurrence
+    assert rule is not None
+    assert (rule.frequency, rule.interval, rule.count, rule.by_week_days) == (
+        RecurrenceInterval.WEEKLY,
+        2,
+        4,
+        [0, 2],
+    )
+
+
+async def test_count_is_what_is_left(use_case_context: UseCaseDeps, user: User) -> None:
+    created = await _create(
+        use_case_context, user, recurrence=_daily("tomorrow 07:00", count=3)
+    )
+    # This one and two more
+    assert created.next_occurrences == [
+        datetime(2026, 3, 7, 7, 0),
+        datetime(2026, 3, 8, 7, 0),
+    ]

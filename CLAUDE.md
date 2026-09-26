@@ -88,6 +88,9 @@ simulator: `python -m d_fake_infra`).
 - **Projection:** `Task.upcoming_occurrences(now, until)` (not hourly);
   `ListTasksUseCase` fills `projected` and `GetTaskUseCase`
   `next_occurrences` up to `ahead` or the `days_ahead` preference.
+- **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
+  the rule starts at it (`build_recurrence`, shared with create), the next
+  occurrences follow it. `count` = occurrences left, this one included.
 - **Task lifecycle:** the state machine is `TaskStatus._get_transitions`
   (`b_domain/value_objects/enums.py`). Closed = done, cancelled, archived;
   only done/cancelled can be reopened or archived; archived is terminal and
@@ -162,7 +165,7 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.8.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.9.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the

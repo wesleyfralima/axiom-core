@@ -4,6 +4,7 @@ from b_domain.entities.context import Context
 from b_domain.entities.task import Task
 from b_domain.value_objects.identifiers import ContextId
 from c_application.dtos.task_dtos import TaskOutputDTO
+from c_application.mappers.recurrence_mapper import RecurrenceMapper
 from c_application.utils import format_task_recurrence
 
 
@@ -18,6 +19,7 @@ class TaskMapper:
         task: Task,
         now: datetime,
         occurrences_until: datetime | None = None,
+        occurrences: list[datetime] | None = None,
         active_context_id: ContextId | None = None,
         context: Context | None = None,
     ) -> TaskOutputDTO:
@@ -25,7 +27,8 @@ class TaskMapper:
 
         ``context`` is the task's context entity, when the caller loaded it,
         so the DTO carries its name and icon. ``occurrences_until`` (aware)
-        fills ``next_occurrences`` with the occurrences projected up to it.
+        fills ``next_occurrences`` with the occurrences projected up to it;
+        ``occurrences`` gives them ready (they win).
         """
         return TaskOutputDTO(
             id=str(task.id),
@@ -46,8 +49,13 @@ class TaskMapper:
             recurrence_display=(
                 format_task_recurrence(task.recurrence) if task.recurrence else None
             ),
+            recurrence=(
+                RecurrenceMapper.to_output(task.recurrence) if task.recurrence else None
+            ),
             next_occurrences=(
-                task.upcoming_occurrences(now, occurrences_until)
+                occurrences
+                if occurrences is not None
+                else task.upcoming_occurrences(now, occurrences_until)
                 if occurrences_until
                 else []
             ),
