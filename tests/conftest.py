@@ -250,7 +250,9 @@ class FakeTimeEntryRepository(TimeEntryRepository):
         # A list simulates the table, though a dict would give
         # O(1) lookup by ID.
         self.entries: list[TimeEntry] = []
+        super().__init__(seen_entities=set())
 
+    @tracks_entity
     async def add(self, entry: TimeEntry) -> TimeEntry:
         """Simulate the INSERT into the database."""
         self.entries.append(entry)
@@ -271,14 +273,17 @@ class FakeTimeEntryRepository(TimeEntryRepository):
         for entry in entries:
             await self.update(entry)
 
+    @tracks_entity
     async def get_by_id(self, entry_id: TimeEntryId) -> TimeEntry | None:
         """Fetch a specific entry."""
         return next((e for e in self.entries if e.id == entry_id), None)
 
+    @tracks_entity
     async def get_actives_for_task(self, task_id: TaskId) -> list[TimeEntry]:
         """Return the running timers for a specific task."""
         return [e for e in self.entries if e.task_id == task_id and e.end_time is None]
 
+    @tracks_entity
     async def get_active_for_user(self, user_id: UserId) -> TimeEntry | None:
         """
         Fetch the user's currently active timer.
@@ -289,10 +294,12 @@ class FakeTimeEntryRepository(TimeEntryRepository):
             None,
         )
 
+    @tracks_entity
     async def find_by_user(self, user_id: UserId) -> list[TimeEntry]:
         """Return the user's whole tracking history."""
         return [e for e in self.entries if e.user_id == user_id]
 
+    @tracks_entity
     async def search(self, filters: TimeEntryFilter) -> list[TimeEntry]:
         return []
 

@@ -6,6 +6,23 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.11.0] — 2026-09-26
+
+Closes, with enterprise 0.7.1, the item "time entries, behavior metrics and
+profiles are created without `_seen_entities`" (enterprise Backlog 01,
+Part 5).
+
+### Changed
+- **`TimeEntryRepository` is a `BaseRepository`** (like the task, user and
+  context ports): the entries it hands out are tracked by the unit of work,
+  so an event a `TimeEntry` records reaches the outbox — ready for the
+  timers of the product backlog. Implementations take `seen_entities` and
+  decorate `add`, `get_*`, `find_by_user` and `search` with
+  `@tracks_entity` (the base class refuses them otherwise). Breaks
+  implementers: enterprise adapts in 0.7.1.
+- Behavior metrics and profiles are not tracked: they are value objects,
+  which record no events.
+
 ## [0.10.0] — 2026-09-26
 
 `set_pos` works with weekly rules too, and is never silently dropped
