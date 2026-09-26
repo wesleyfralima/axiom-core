@@ -22,7 +22,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
-from c_application.utils.recurrence_input import build_recurrence
+from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
 
 
 # TODO: better system of id prefix when needed, because
@@ -155,6 +155,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     is_floating=dto.is_floating,
                     tz=tz_to_use,
                     today=today,
+                    week_start=WEEK_STARTS[user.preferences.week_start],
                 )
 
                 # First occurrence becomes the due date

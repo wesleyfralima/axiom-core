@@ -19,7 +19,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
-from c_application.utils.recurrence_input import build_recurrence
+from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
 
 PREVIEW_MAX: int = 10
 """The most occurrences an edit's result previews."""
@@ -233,7 +233,12 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             start = at_time(today, prefs.default_due_clock)
 
         rule: RecurrenceRule = build_recurrence(
-            recurrence, start=start, is_floating=is_floating, tz=tz, today=today
+            recurrence,
+            start=start,
+            is_floating=is_floating,
+            tz=tz,
+            today=today,
+            week_start=WEEK_STARTS[prefs.week_start],
         )
         if task.due_date is None:
             first: datetime | None = rule.get_next_occurrence()

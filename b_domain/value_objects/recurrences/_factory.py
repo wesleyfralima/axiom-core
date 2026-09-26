@@ -2,6 +2,11 @@ from collections.abc import Callable
 from datetime import date, time
 
 from a_core import ValidationException
+from b_domain.exceptions.recurrence import (
+    BySetPosRequiresWeeklyOrMonthly,
+    BySetPosWithMonthDays,
+    BySetPosWithWeekdaysInAWeek,
+)
 from b_domain.value_objects.dates import AxiomDate
 from b_domain.value_objects.enums import RecurrenceInterval
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -19,6 +24,9 @@ from b_domain.value_objects.recurrences.monthly_by_weekdays import (
 )
 from b_domain.value_objects.recurrences.simple import SimpleIntervalRule
 from b_domain.value_objects.recurrences.weekly_by_days import WeeklyByDaysRule
+from b_domain.value_objects.recurrences.weekly_by_position import (
+    WeeklyPositionalRule,
+)
 
 
 class RecurrenceFactory:
@@ -43,6 +51,7 @@ class RecurrenceFactory:
         is_business_day_checker: Callable[[date], bool] | None = None,
         window_start: time | None = None,
         window_end: time | None = None,
+        week_start: int = 0,
     ) -> RecurrenceRule:
         """Create the appropriate recurrence rule based on input parameters.
 
@@ -70,13 +79,27 @@ class RecurrenceFactory:
                 window rules. Defaults to None.
             window_end (Optional[time], optional): End time for hourly
                 window rules. Defaults to None.
+            week_start (int, optional): The week's first day (0 = Monday,
+                6 = Sunday), for "the Nth day of the week". Defaults to 0.
 
         Returns:
             RecurrenceRule: The appropriate recurrence rule implementation.
 
         Raises:
             ValidationException: If required parameters are missing or invalid.
+            RecurrenceRuleException: If a position (``set_pos``) is given to a
+                rule that is neither weekly nor monthly, together with days of
+                the month, or to a weekly rule together with weekdays.
         """
+        # 0. A position is the Nth day of a week or of a month: never ignored
+        if set_pos is not None and nth_business_day is None:
+            if frequency not in (RecurrenceInterval.WEEKLY, RecurrenceInterval.MONTHLY):
+                raise BySetPosRequiresWeeklyOrMonthly(frequency.name.lower())
+            if days_of_month:
+                raise BySetPosWithMonthDays()
+            if frequency == RecurrenceInterval.WEEKLY and days_of_week:
+                raise BySetPosWithWeekdaysInAWeek()
+
         # 1. Business Day Rule
         if nth_business_day is not None:
             if not is_business_day_checker:
@@ -105,6 +128,16 @@ class RecurrenceFactory:
 
         # 3. Weekly Rules
         if frequency == RecurrenceInterval.WEEKLY:
+            # Ex: The last day of the week
+            if set_pos is not None:
+                return WeeklyPositionalRule(
+                    start_date=start_date,
+                    interval=interval,
+                    end_date=end_date,
+                    count=count,
+                    set_pos=set_pos,
+                    week_start=week_start,
+                )
             if days_of_week:
                 return WeeklyByDaysRule(
                     start_date=start_date,
