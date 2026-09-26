@@ -10,6 +10,7 @@ from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, Priority, UserId
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.recurrences import RecurrenceRule
+from b_domain.value_objects.texts import normalize_tags
 from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
@@ -142,6 +143,18 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
             if request.estimated_minutes is not None:
                 task.update_estimate(now, request.estimated_minutes)
+
+            if request.tags is not None or request.add_tags or request.remove_tags:
+                tags: frozenset[str] = (
+                    normalize_tags(request.tags)
+                    if request.tags is not None
+                    else task.tags
+                )
+                tags = (tags | normalize_tags(request.add_tags)) - normalize_tags(
+                    request.remove_tags
+                )
+                if tags != task.tags:
+                    task.set_tags(now, tags)
 
             if request.context_id is not None:
                 target: Context = find_context(
@@ -306,4 +319,5 @@ def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str 
         ),
         "recurrence": format_task_recurrence(task.recurrence),
         "estimate": str(task.estimated_duration_minutes),
+        "tags": " ".join(f"#{t}" for t in sorted(task.tags)) or None,
     }

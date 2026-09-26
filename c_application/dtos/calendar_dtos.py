@@ -19,6 +19,7 @@ class CalendarDayOutputDTO(DTO):
         yearly (bool): One of the user's days that repeats every year.
         holiday (str | None): The region's holiday on that date, when one of
             the user's days falls on it (and decides over it).
+        skipped (bool): A region's holiday the user skips every year.
     """
 
     date: str
@@ -28,6 +29,7 @@ class CalendarDayOutputDTO(DTO):
     kind: str | None = None
     yearly: bool = False
     holiday: str | None = None
+    skipped: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -43,6 +45,8 @@ class WorkCalendarOutputDTO(DTO):
         until (str): The last day looked at (ISO).
         days (list[CalendarDayOutputDTO]): The holidays and own days in that
             window, by date.
+        skipped_holidays (list[str]): The region's holidays skipped every
+            year, by name.
     """
 
     work_days: str
@@ -51,6 +55,7 @@ class WorkCalendarOutputDTO(DTO):
     until: str
     suggested_region: str | None = None
     days: list[CalendarDayOutputDTO] = field(default_factory=list)
+    skipped_holidays: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -102,3 +107,20 @@ class HolidayRegionsOutputDTO(DTO):
     regions: list[HolidayRegionOutputDTO] = field(default_factory=list)
     country: HolidayRegionOutputDTO | None = None
     current_region: str = ""
+
+
+@dataclass(frozen=True, kw_only=True)
+class HolidaySkippedOutputDTO(DTO):
+    """A region's holiday skipped every year, or counted again.
+
+    Attributes:
+        name (str): The holiday's name.
+        skipped (bool): Skipped now (True) or counted again (False).
+        next_date (str | None): When it falls next (ISO), within a year.
+        skipped_holidays (list[str]): All the skipped ones, after the change.
+    """
+
+    name: str
+    skipped: bool
+    next_date: str | None = None
+    skipped_holidays: list[str] = field(default_factory=list)

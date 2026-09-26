@@ -85,6 +85,9 @@ class ShowWorkCalendarUseCase(UseCase[ShowWorkCalendarInputDTO, WorkCalendarOutp
             start=today.isoformat(),
             until=until.isoformat(),
             days=days,
+            skipped_holidays=[
+                n.strip() for n in prefs.skipped_holidays.split(";") if n.strip()
+            ],
         )
 
 
@@ -101,4 +104,5 @@ def _entry(day: date, calendar: WorkCalendar) -> CalendarDayOutputDTO | None:
         name=holiday,
         source="holiday",
         is_business_day=calendar.is_business_day(day),
+        skipped=calendar.is_skipped(day),
     )

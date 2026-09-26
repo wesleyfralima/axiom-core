@@ -11,7 +11,7 @@ from datetime import date, datetime
 import pytest
 
 from a_core import EntityNotFound
-from a_core.exceptions import InvalidValueError
+from a_core.exceptions import InvalidValueError, ValidationException
 from b_domain.entities import Task, User
 from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.exceptions import UnknownHolidayRegionError
@@ -52,6 +52,8 @@ from c_application.use_cases.work_calendar import (
     SetCalendarDayUseCase,
     ShowWorkCalendarInputDTO,
     ShowWorkCalendarUseCase,
+    SkipHolidayInputDTO,
+    SkipHolidayUseCase,
 )
 from tests.conftest import FakeUowFactory, UseCaseDeps
 
@@ -369,6 +371,70 @@ async def test_searching_regions(
 
     assert listed.country is None
     assert [r.code for r in listed.regions] == found
+
+
+# ---------------------------------------------------------------- skipped
+
+
+async def _skip(deps: UseCaseDeps, user: User, name: str, skip: bool = True):  # type: ignore[no-untyped-def]
+    return await SkipHolidayUseCase(**deps).execute(
+        SkipHolidayInputDTO(user_id=str(user.id), name=name, skip=skip)
+    )
+
+
+async def test_skipping_a_holiday_by_its_name(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    _in_brazil(user)
+
+    skipped = await _skip(use_case_context, user, "good fri")
+
+    assert (skipped.name, skipped.skipped, skipped.next_date) == (
+        "Good Friday",
+        True,
+        "2026-04-03",
+    )
+    assert user.preferences.skipped_holidays == "Good Friday"
+    shown = await ShowWorkCalendarUseCase(**use_case_context).execute(
+        ShowWorkCalendarInputDTO(user_id=str(user.id), ahead="2026-04-30")
+    )
+    friday = next(d for d in shown.days if d.date == "2026-04-03")
+    assert (friday.skipped, friday.is_business_day) == (True, True)
+    assert shown.skipped_holidays == ["Good Friday"]
+    # The 5th business day of April is the 7th again
+    assert _day(await _fifth_business_day(use_case_context, user)) == date(2026, 4, 7)
+
+
+async def test_counting_a_skipped_holiday_again(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    _in_brazil(user)
+    await _skip(use_case_context, user, "Good Friday")
+    await _skip(use_case_context, user, "labour")
+
+    counted = await _skip(use_case_context, user, "GOOD", skip=False)
+
+    assert (counted.name, counted.skipped) == ("Good Friday", False)
+    assert counted.skipped_holidays == ["Labour Day"]
+
+
+@pytest.mark.parametrize(
+    ("name", "error"),
+    [("Christmas", "No holiday is called"), ("day", "could be")],
+)
+async def test_a_holiday_to_skip_must_be_one(
+    use_case_context: UseCaseDeps, user: User, name: str, error: str
+) -> None:
+    _in_brazil(user)
+    with pytest.raises(ValidationException, match=error):
+        await _skip(use_case_context, user, name)
+
+
+async def test_skipping_needs_a_region(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    with pytest.raises(ValidationException, match="No holiday region"):
+        await _skip(use_case_context, user, "Good Friday")
 
 
 # ---------------------------------------------------------------- the rule

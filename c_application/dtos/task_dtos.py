@@ -31,6 +31,12 @@ class CreateTaskInputDTO(DTO):
     # How long it is expected to take (None: the default)
     estimated_minutes: int | None = None
 
+    # Tags ("#" optional; a text may hold several: "home, urgent")
+    tags: list[str] = field(default_factory=list)
+    # With no context_id: False leaves the task without one even when the
+    # user has an active context (quick capture to the inbox)
+    use_active_context: bool = True
+
     # Due date: a datetime, a date (gets the user's default due time) or an
     # expression such as "tomorrow 14:00" (see c_application/utils/date_input)
     due_date: DateInput | None = None
@@ -71,6 +77,11 @@ class UpdateTaskInputDTO(DTO):
     # How long it is expected to take
     estimated_minutes: int | None = None
 
+    # Tags: replace them all (tags), or add and remove some
+    tags: list[str] | None = None
+    add_tags: list[str] = field(default_factory=list)
+    remove_tags: list[str] = field(default_factory=list)
+
     # Due date: as in CreateTaskInputDTO; remove_due_date clears it
     due_date: DateInput | None = None
     remove_due_date: bool = False
@@ -104,6 +115,7 @@ class TaskOutputDTO(DTO):
     context_id: str | None = None
     context_name: str | None = None
     context_icon: str | None = None
+    tags: list[str] = field(default_factory=list)
     required_energy_level: int | None = None
     is_blocked: bool = False
 
@@ -256,7 +268,11 @@ class ListTasksRequest(DTO):
     use_active_context: bool = False
     max_energy: int | None = None
     complexity: str | None = None
+    # Only tasks with every one of these tags
     tags: list[str] = field(default_factory=list)
+    # The inbox instead: open tasks with no due date and no context, in any
+    # context (the active one does not limit it)
+    inbox: bool = False
 
     # Behavior Flags
     include_blocked: bool = True  # Maps to is_blocked in TaskFilter

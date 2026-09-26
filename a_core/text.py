@@ -1,5 +1,7 @@
-"""Small helpers to build English phrases (ordinals, natural lists)."""
+"""Small helpers for text: English phrases (ordinals, natural lists) and
+comparing what people type (``fold``)."""
 
+import unicodedata
 from collections.abc import Iterable
 
 _ORDINAL_WORDS: dict[int, str] = {1: "first", 2: "second", 3: "third"}
@@ -69,3 +71,12 @@ def join_naturally(items: Iterable[str]) -> str:
         return f"{items_list[0]} and {items_list[1]}"
 
     return f"{', '.join(items_list[:-1])}, and {items_list[-1]}"
+
+
+def fold(text: str) -> str:
+    """Text to compare as people mean it: lower case, no accents, single
+    spaces ("São  Paulo" → "sao paulo")."""
+
+    decomposed: str = unicodedata.normalize("NFKD", text)
+    stripped: str = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return " ".join(stripped.lower().split())

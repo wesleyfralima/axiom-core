@@ -64,7 +64,9 @@ class TaskFilter(BaseFilter):
         is_blocked (Optional[bool]): Filter blocked tasks.
         is_recurring (Optional[bool]): Filter recurring tasks.
         only_roots (bool): If True, only return root tasks (no parents).
-        tags (list[str]): Filter tasks by tags.
+        tags (list[str]): Only tasks with every one of these tags.
+        has_context (Optional[bool]): With a context (True) or without (False).
+        has_due_date (Optional[bool]): With a due date (True) or without (False).
     """
 
     user_id: UserId | None = None
@@ -88,6 +90,8 @@ class TaskFilter(BaseFilter):
 
     only_roots: bool = False
     tags: list[str] = field(default_factory=list)
+    has_context: bool | None = None
+    has_due_date: bool | None = None
 
     # Deleted tasks: False leaves them out, True only them, None both
     deleted: bool | None = False

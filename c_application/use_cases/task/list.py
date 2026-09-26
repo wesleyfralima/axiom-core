@@ -15,6 +15,7 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
+from b_domain.value_objects.texts import normalize_tags
 from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.task_dtos import (
     ListTasksRequest,
@@ -103,7 +104,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             user: User | None = await uow.users.get_by_id(f_user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
             active_id: ContextId | None = prefs.active_context_id
-            if request.context_id:
+            if request.inbox:
+                scope = None  # the inbox has no context, whatever is active
+            elif request.context_id:
                 scope = find_context(contexts, request.context_id)
             elif request.use_active_context and active_id:
                 scope = next((c for c in contexts if c.id == active_id), None)
@@ -156,12 +159,14 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                     frozenset()
                     if f_status is not None or request.deleted
                     else frozenset({TaskStatus.ARCHIVED})
-                    if request.include_closed
+                    if request.include_closed and not request.inbox
                     else TaskStatus.closed()
                 ),
                 priority=f_priority,
                 context_id=f_context_id,
-                tags=request.tags,
+                tags=sorted(normalize_tags(request.tags)),
+                has_context=False if request.inbox else None,
+                has_due_date=False if request.inbox else None,
                 # GTD specific
                 max_energy_level=energy_level,
                 complexity=f_complexity,

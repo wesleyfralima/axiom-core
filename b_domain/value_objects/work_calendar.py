@@ -9,6 +9,9 @@ Three layers, each one above the one before:
 3. The user's **own days** (``CalendarDay``): a day off or a working day,
    once or every year. They win over the other two: a working day on a
    holiday or on a Saturday is a business day.
+
+A region's holiday can also be skipped by its name, every year (``skipped``):
+a moveable one changes date, so an own day cannot cover it.
 """
 
 from collections.abc import Callable, Mapping
@@ -18,6 +21,7 @@ from enum import StrEnum
 
 from a_core import ValueObject
 from a_core.exceptions import InvalidValueError, ValidationException
+from a_core.text import fold
 
 WEEKDAY_NAMES: tuple[str, ...] = ("mon", "tue", "wed", "thu", "fri", "sat", "sun")
 """The short names of the days of the week, Monday first (``date.weekday()``)."""
@@ -171,12 +175,15 @@ class WorkCalendar:
         region (str): The holiday region (``BR``, ``BR-SP``), or empty.
         holidays (HolidayLookup): The region's holidays for a year.
         days (tuple[CalendarDay, ...]): The user's own days.
+        skipped (frozenset[str]): The region's holidays the user works
+            anyway, by name (folded: ``a_core.text.fold``).
     """
 
     work_days: frozenset[int] = frozenset(range(5))
     region: str = ""
     holidays: HolidayLookup = field(default=no_holidays, compare=False, repr=False)
     days: tuple[CalendarDay, ...] = ()
+    skipped: frozenset[str] = frozenset()
     _by_year: dict[int, Mapping[date, str]] = field(
         default_factory=dict, compare=False, repr=False
     )
@@ -190,13 +197,22 @@ class WorkCalendar:
         own: CalendarDay | None = self.own_day(day)
         if own is not None:
             return not own.is_day_off
-        return day.weekday() in self.work_days and self.holiday(day) is None
+        return day.weekday() in self.work_days and not self.counts_as_holiday(day)
 
     def own_day(self, day: date) -> CalendarDay | None:
         """The user's own day on ``day``: the one-off first, then a yearly one."""
         matches: list[CalendarDay] = [d for d in self.days if d.applies_to(day)]
         matches.sort(key=lambda d: d.yearly)
         return matches[0] if matches else None
+
+    def is_skipped(self, day: date) -> bool:
+        """A region's holiday falls on ``day``, and the user skips it."""
+        name: str | None = self.holiday(day)
+        return name is not None and fold(name) in self.skipped
+
+    def counts_as_holiday(self, day: date) -> bool:
+        """A region's holiday falls on ``day``, and the user does not skip it."""
+        return self.holiday(day) is not None and not self.is_skipped(day)
 
     def holiday(self, day: date) -> str | None:
         """The name of the region's holiday on ``day``, if there is one."""

@@ -209,3 +209,33 @@ def test_other_rules_ignore_business_days() -> None:
     )
     assert not rule.uses_business_days
     assert rule.with_business_days(lambda _: False) is rule
+
+
+# ---------------------------------------------------------------- skipped
+
+
+def test_a_skipped_holiday_is_a_business_day() -> None:
+    calendar = WorkCalendar(holidays=_holidays, skipped=frozenset({"good friday"}))
+
+    assert calendar.holiday(GOOD_FRIDAY) == "Good Friday"
+    assert calendar.is_skipped(GOOD_FRIDAY)
+    assert not calendar.counts_as_holiday(GOOD_FRIDAY)
+    assert calendar.is_business_day(GOOD_FRIDAY)
+
+
+def test_own_days_still_win_over_a_skipped_holiday() -> None:
+    calendar = WorkCalendar(
+        holidays=_holidays,
+        skipped=frozenset({"good friday"}),
+        days=(CalendarDay(day=GOOD_FRIDAY, kind=OFF),),
+    )
+    assert not calendar.is_business_day(GOOD_FRIDAY)
+
+
+def test_preferences_keep_skipped_holidays_tidy() -> None:
+    prefs = UserPrefs().update(
+        skipped_holidays=" Corpus  Christi ;corpus christi; Carnival ;"
+    )
+
+    assert prefs.skipped_holidays == "Corpus Christi; Carnival"
+    assert prefs.skipped_holiday_names == {"corpus christi", "carnival"}

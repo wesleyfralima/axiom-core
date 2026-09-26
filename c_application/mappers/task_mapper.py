@@ -50,6 +50,7 @@ class TaskMapper:
             completed_at=task.completed_at,
             series_id=str(task.series_id) if task.series_id else None,
             estimated_minutes=task.estimated_duration_minutes,
+            tags=sorted(task.tags),
             time_spent_minutes=time_spent_minutes,
             running_since=running_since,
             updated_at=task.updated_at,

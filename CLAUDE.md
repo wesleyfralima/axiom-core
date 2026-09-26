@@ -122,7 +122,14 @@ simulator: `python -m d_fake_infra`).
   `c_application/utils/work_calendar.use_work_calendar` first (create, edit,
   list, show, the next occurrence, the calendar export do). Use cases in
   `c_application/use_cases/work_calendar/` (the regions to choose from:
-  `ListHolidayRegionsUseCase`, search in `utils/holiday_regions.py`).
+  `ListHolidayRegionsUseCase`, search in `utils/holiday_regions.py`). A
+  region's holiday can be skipped every year by name (`skipped_holidays`,
+  `SkipHolidayUseCase`).
+- **Tags and the inbox:** `Task.tags` (normalized by
+  `b_domain/value_objects/texts.normalize_tags`); the inbox is not a field
+  but a view — open tasks with no due date and no context
+  (`ListTasksRequest.inbox`); `use_active_context=False` on create sends a
+  task there.
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -191,7 +198,7 @@ there too.
 
 ## Current state (2026-09-26)
 
-- Version `0.17.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.18.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -204,9 +211,9 @@ there too.
   (0.12.0); undo and tombstones (0.13.0); reports and series (0.14.0);
   timers and estimates (0.15.0); business days: work days, a region's
   holidays and the user's own days (0.16.0); the regions to choose from
-  (0.17.0).
+  (0.17.0); tags, the inbox, skipping a holiday by name (0.18.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 565 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 82.6% over a 82.6% floor.
+- 587 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 83.0% over a 83.0% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
