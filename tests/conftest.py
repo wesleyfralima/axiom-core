@@ -38,7 +38,7 @@ from b_domain.value_objects import (
 from b_domain.value_objects.identifiers import TimeEntryId
 from b_domain.value_objects.task_history import TaskHistoryEntry
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
-from b_domain.value_objects.work_calendar import CalendarDay
+from b_domain.value_objects.work_calendar import CalendarDay, HolidayRegion
 
 
 class FakeClock(ClockProvider):
@@ -504,29 +504,50 @@ class FakeCalendarDayRepository(CalendarDayRepository):
 
 
 class FakeHolidayProvider:
-    """Holidays by region, set by the test: ``{"BR": {date: "name"}}``.
+    """Holidays by region, set by the test: ``by_region["BR"] = {date: "name"}``.
 
-    A holiday counts in its year only; ``region_for_timezone`` knows
-    ``America/Sao_Paulo`` (BR) when BR is a region.
+    A holiday counts in its year only; a region is supported once it has an
+    entry. ``names`` are the regions it lists (a few countries and states);
+    ``region_for_timezone`` knows ``America/Sao_Paulo`` (BR) when BR is
+    supported.
     """
 
-    def __init__(self, regions: dict[str, dict[date, str]] | None = None) -> None:
-        self.regions: dict[str, dict[date, str]] = (
-            regions if regions is not None else {}
+    def __init__(
+        self,
+        by_region: dict[str, dict[date, str]] | None = None,
+        names: dict[str, str] | None = None,
+    ) -> None:
+        self.by_region: dict[str, dict[date, str]] = (
+            by_region if by_region is not None else {}
         )
+        self.names: dict[str, str] = names or {
+            "BR": "Brazil",
+            "BR-RJ": "Rio de Janeiro",
+            "BR-SP": "São Paulo",
+            "PT": "Portugal",
+            "US": "United States",
+            "US-CA": "California",
+        }
 
     def supports(self, region: str) -> bool:
-        return region in self.regions
+        return region in self.by_region
+
+    def regions(self, country: str | None = None) -> list[HolidayRegion]:
+        return [
+            HolidayRegion(code, name)
+            for code, name in sorted(self.names.items())
+            if ("-" not in code if country is None else code.startswith(f"{country}-"))
+        ]
 
     def holidays(self, region: str, year: int) -> Mapping[date, str]:
         return {
             d: name
-            for d, name in self.regions.get(region, {}).items()
+            for d, name in self.by_region.get(region, {}).items()
             if d.year == year
         }
 
     def region_for_timezone(self, timezone: str) -> str | None:
-        if timezone == "America/Sao_Paulo" and "BR" in self.regions:
+        if timezone == "America/Sao_Paulo" and "BR" in self.by_region:
             return "BR"
         return None
 

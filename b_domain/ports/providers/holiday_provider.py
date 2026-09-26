@@ -2,6 +2,8 @@ from collections.abc import Mapping
 from datetime import date
 from typing import Protocol
 
+from b_domain.value_objects.work_calendar import HolidayRegion
+
 
 class HolidayProvider(Protocol):
     """Contract for the public holidays of a region.
@@ -19,6 +21,18 @@ class HolidayProvider(Protocol):
 
         Returns:
             bool: True if its holidays can be listed.
+        """
+
+    def regions(self, country: str | None = None) -> list[HolidayRegion]:
+        """The regions this provider knows, by code.
+
+        Args:
+            country (str | None): None for every country; a country's code
+                (``BR``) for its subdivisions (``BR-SP``…).
+
+        Returns:
+            list[HolidayRegion]: The countries, or the country's
+            subdivisions (empty for an unknown country or one without them).
         """
 
     def holidays(self, region: str, year: int) -> Mapping[date, str]:

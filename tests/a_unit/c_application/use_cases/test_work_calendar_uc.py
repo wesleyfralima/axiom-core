@@ -14,6 +14,7 @@ from a_core import EntityNotFound
 from a_core.exceptions import InvalidValueError
 from b_domain.entities import Task, User
 from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.exceptions import UnknownHolidayRegionError
 from b_domain.value_objects import RecurrenceInterval
 from b_domain.value_objects.work_calendar import CalendarDay, CalendarDayKind
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
@@ -43,6 +44,8 @@ from c_application.use_cases.user.update_prefs import (
     UpdateUserPreferencesUseCase,
 )
 from c_application.use_cases.work_calendar import (
+    ListHolidayRegionsInputDTO,
+    ListHolidayRegionsUseCase,
     RemoveCalendarDayInputDTO,
     RemoveCalendarDayUseCase,
     SetCalendarDayInputDTO,
@@ -63,7 +66,7 @@ async def user(fake_uow_factory: FakeUowFactory) -> User:
     created = User.create(username="wesley", email="wesley@test.com")
     uow = fake_uow_factory()
     await uow.users.add(created)
-    uow.holidays.regions["BR"] = {
+    uow.holidays.by_region["BR"] = {
         GOOD_FRIDAY: "Good Friday",
         LABOUR_DAY: "Labour Day",
         date(2026, 11, 15): "Republic Day",  # a Sunday
@@ -266,7 +269,7 @@ async def test_a_region_must_be_known(
 ) -> None:
     update = UpdateUserPreferencesUseCase(**use_case_context)
 
-    with pytest.raises(InvalidValueError, match="no holidays known"):
+    with pytest.raises(UnknownHolidayRegionError, match="No holidays known"):
         await update.execute(
             UpdateUserPreferencesInputDTO(
                 username="wesley",
@@ -296,6 +299,74 @@ async def test_preparing_the_preferences_suggests_a_region(
         PrepareUserPreferencesInputDTO(username="wesley", timezone="America/Sao_Paulo")
     )
     assert prepared.suggested_holiday_region is None
+
+
+async def test_an_unknown_region_suggests_close_ones(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    update = UpdateUserPreferencesUseCase(**use_case_context)
+
+    for typed, suggested in [("Brasil", "BR (Brazil)"), ("br-paulo", "BR-SP")]:
+        with pytest.raises(UnknownHolidayRegionError) as caught:
+            await update.execute(
+                UpdateUserPreferencesInputDTO(
+                    username="wesley",
+                    preferences=UserPrefsInputDTO(holiday_region=typed),
+                )
+            )
+        assert f"Did you mean {suggested}" in str(caught.value)
+
+
+# ---------------------------------------------------------------- regions
+
+
+async def _regions(deps: UseCaseDeps, user: User, query: str | None = None):  # type: ignore[no-untyped-def]
+    return await ListHolidayRegionsUseCase(**deps).execute(
+        ListHolidayRegionsInputDTO(user_id=str(user.id), query=query)
+    )
+
+
+async def test_every_country(use_case_context: UseCaseDeps, user: User) -> None:
+    _in_brazil(user)
+    listed = await _regions(use_case_context, user)
+
+    assert [r.code for r in listed.regions] == ["BR", "PT", "US"]
+    assert listed.country is None
+    assert listed.current_region == "BR"
+
+
+async def test_a_countrys_subdivisions(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    listed = await _regions(use_case_context, user, "br")
+
+    assert listed.country is not None
+    assert (listed.country.code, listed.country.name) == ("BR", "Brazil")
+    assert [(r.code, r.name) for r in listed.regions] == [
+        ("BR-RJ", "Rio de Janeiro"),
+        ("BR-SP", "São Paulo"),
+    ]
+
+
+@pytest.mark.parametrize(
+    ("query", "found"),
+    [
+        ("port", ["PT"]),  # part of the name
+        ("united", ["US"]),
+        ("Brasil", ["BR"]),  # close to the name
+        ("BR-SP", ["BR-SP"]),
+        ("br-sao", ["BR-SP"]),  # accents never matter
+        ("br-", ["BR-RJ", "BR-SP"]),
+        ("atlantis", []),
+    ],
+)
+async def test_searching_regions(
+    use_case_context: UseCaseDeps, user: User, query: str, found: list[str]
+) -> None:
+    listed = await _regions(use_case_context, user, query)
+
+    assert listed.country is None
+    assert [r.code for r in listed.regions] == found
 
 
 # ---------------------------------------------------------------- the rule

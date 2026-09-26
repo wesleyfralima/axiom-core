@@ -3,8 +3,10 @@ from typing import Any
 
 from a_core import DTO
 from a_core.exceptions import InvalidValueError, ValidationException
-from b_domain.entities.user import User
+from b_domain.entities.user import User, UserPrefs
+from b_domain.exceptions.calendar import UnknownHolidayRegionError
 from b_domain.exceptions.user import UserNotFoundError
+from b_domain.ports.providers.holiday_provider import HolidayProvider
 from b_domain.ports.use_case import UseCase
 from c_application.dtos.user_dtos import (
     PreferenceChangeDTO,
@@ -12,6 +14,7 @@ from c_application.dtos.user_dtos import (
     UserPrefsOutputDTO,
 )
 from c_application.mappers.user_mapper import UserMapper
+from c_application.utils.holiday_regions import find_regions
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -88,8 +91,9 @@ class UpdateUserPreferencesUseCase(
         Raises:
             UserNotFoundError: If the user does not exist.
             ValidationException: If no preferences were provided to update.
-            InvalidValueError: If a provided preference value is invalid, or
-                the holiday region is one whose holidays are not known.
+            InvalidValueError: If a provided preference value is invalid.
+            UnknownHolidayRegionError: If no holidays are known for the
+                holiday region (with the close ones, if any).
         """
 
         async with self.uow as uow:
@@ -106,6 +110,10 @@ class UpdateUserPreferencesUseCase(
             if not changes:
                 raise ValidationException("No preferences were provided to update.")
 
+            # A region is only good if its holidays are known
+            if "holiday_region" in changes:
+                _check_region(uow.holidays, str(changes["holiday_region"]))
+
             # Snapshot BEFORE state
             before: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)
 
@@ -116,18 +124,6 @@ class UpdateUserPreferencesUseCase(
                 raise InvalidValueError(
                     concept="Preference Value", invalid_value=str(e)
                 ) from e
-
-            # A region is only good if its holidays are known
-            region: str = user.preferences.holiday_region
-            if (
-                "holiday_region" in changes
-                and region
-                and not uow.holidays.supports(region)
-            ):
-                raise InvalidValueError(
-                    concept="holiday region (no holidays known for it)",
-                    invalid_value=str(changes["holiday_region"]),
-                )
 
             # Snapshot AFTER state
             after: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)
@@ -162,3 +158,19 @@ class UpdateUserPreferencesUseCase(
             preferences=after,
             changes=computed_changes,
         )
+
+
+def _check_region(provider: HolidayProvider, typed: str) -> None:
+    """Refuse a region whose holidays are not known, suggesting close ones.
+
+    Raises:
+        UnknownHolidayRegionError: If the text is not a region's code, or no
+            holidays are known for it ("none" and "" are fine: no region).
+    """
+    try:
+        region: str | None = UserPrefs().update(holiday_region=typed).holiday_region
+    except InvalidValueError:
+        region = None
+    if region == "" or (region is not None and provider.supports(region)):
+        return
+    raise UnknownHolidayRegionError(typed, find_regions(provider, typed)[:3])

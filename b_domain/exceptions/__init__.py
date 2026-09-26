@@ -1,3 +1,4 @@
+from .calendar import UnknownHolidayRegionError
 from .context import ContextNameTakenError
 from .recurrence import (
     BySetPosRequiresWeeklyOrMonthly,
@@ -42,4 +43,5 @@ __all__ = [
     "NthBusinessDayWithOtherDayRules",
     "RecurrenceRuleException",
     "SecurityException",
+    "UnknownHolidayRegionError",
 ]
