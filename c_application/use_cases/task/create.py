@@ -11,9 +11,7 @@ from b_domain.value_objects import (
     Title,
     UserId,
 )
-from b_domain.value_objects.dates import build_axiom_date
 from b_domain.value_objects.enums import EnergyLevel, Priority
-from b_domain.value_objects.recurrences import RecurrenceFactory
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
@@ -24,6 +22,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.recurrence_input import build_recurrence
 
 
 # TODO: better system of id prefix when needed, because
@@ -150,44 +149,12 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     else due_date or today,
                     due_clock,
                 )
-                start_axiom = build_axiom_date(
-                    start, is_floating=dto.is_floating, tz=tz_to_use
-                )
-                end_axiom = None
-                if dto.recurrence.end_date is not None:
-                    # A date alone: the whole of that day
-                    end_axiom = build_axiom_date(
-                        at_time(
-                            resolve_date_input(dto.recurrence.end_date, today=today),
-                            time(23, 59),
-                        ),
-                        is_floating=dto.is_floating,
-                        tz=tz_to_use,
-                    )
-
-                recurrence_vo = RecurrenceFactory.create_from_input(
-                    start_date=start_axiom,
-                    end_date=end_axiom,
-                    frequency=dto.recurrence.frequency,
-                    interval=dto.recurrence.interval,
-                    count=dto.recurrence.count,
-                    days_of_week=(
-                        set(dto.recurrence.by_week_days)
-                        if dto.recurrence.by_week_days
-                        else None
-                    ),
-                    days_of_month=(
-                        set(dto.recurrence.by_month_days)
-                        if dto.recurrence.by_month_days
-                        else None
-                    ),
-                    set_pos=dto.recurrence.by_set_pos,
-                    nth_business_day=dto.recurrence.nth_business_day,
-                    is_business_day_checker=lambda dt: (
-                        dt.weekday() < 5
-                    ),  # Simple weekday check  TODO: change this
-                    window_start=dto.recurrence.window_start,
-                    window_end=dto.recurrence.window_end,
+                recurrence_vo = build_recurrence(
+                    dto.recurrence,
+                    start=start,
+                    is_floating=dto.is_floating,
+                    tz=tz_to_use,
+                    today=today,
                 )
 
                 # First occurrence becomes the due date

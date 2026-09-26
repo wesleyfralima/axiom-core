@@ -1,6 +1,10 @@
+from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
 
+import pytest
+
+from a_core.exceptions import ValidationException
 from b_domain.entities import Task
 from b_domain.value_objects import (
     ContextId,
@@ -237,3 +241,29 @@ def test_next_occurrence_keeps_what_the_user_set() -> None:
     assert next_task.complexity is TaskComplexity.HIGH
     assert next_task.priority is Priority.CRITICAL
     assert next_task.estimated_duration_minutes == 90
+
+
+def test_count_is_carried_as_what_is_left() -> None:
+    task = create_task_with_recurrence(datetime(2026, 3, 9, 7, 0))
+    assert task.recurrence is not None
+    task.recurrence = replace(task.recurrence, count=3)
+
+    second = task.create_next_occurrence(datetime(2026, 3, 9, 8, 0))
+    assert second is not None and second.recurrence is not None
+    assert second.recurrence.count == 2
+
+    third = second.create_next_occurrence(datetime(2026, 3, 10, 8, 0))
+    assert third is not None and third.recurrence is not None
+    assert third.recurrence.count == 1
+
+    assert third.create_next_occurrence(datetime(2026, 3, 11, 8, 0)) is None
+
+
+def test_a_rule_of_another_kind_is_refused() -> None:
+    floating = create_task_with_recurrence(datetime(2026, 3, 9, 7, 0))
+    fixed_rule = create_task_with_recurrence(
+        datetime(2026, 3, 9, 7, 0), is_floating=False
+    ).recurrence
+
+    with pytest.raises(ValidationException, match="fixed or both floating"):
+        floating.change_recurrence(datetime(2026, 3, 9), fixed_rule)

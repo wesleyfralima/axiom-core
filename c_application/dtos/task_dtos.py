@@ -4,7 +4,7 @@ from datetime import datetime
 from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel
 from c_application.dtos.context_dtos import ContextOutputDTO
-from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
+from c_application.dtos.recurrence_dtos import RecurrenceInputDTO, RecurrenceOutputDTO
 from c_application.utils.date_input import DateInput
 
 
@@ -71,8 +71,11 @@ class UpdateTaskInputDTO(DTO):
     is_floating: bool | None = None
     timezone: str | None = None
 
-    # Recurrence configuration
+    # Recurrence: a new rule (its start_date defaults to the task's due date,
+    # which stays — the occurrences after it follow the new rule), or
+    # remove_recurrence to stop repeating
     recurrence: RecurrenceInputDTO | None = None
+    remove_recurrence: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -109,6 +112,8 @@ class TaskOutputDTO(DTO):
 
     # Recurrence and scheduling
     recurrence_display: str | None = None
+    # The rule as editable fields (None: does not repeat)
+    recurrence: RecurrenceOutputDTO | None = None
     next_occurrences: list[datetime] = field(default_factory=list)
 
     # Focus state (e.g., currently active or highlighted)

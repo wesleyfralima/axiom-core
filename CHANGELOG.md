@@ -6,6 +6,37 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.9.0] — 2026-09-25
+
+Editing a task's recurrence (owner's decision, 2026-09-25: the current
+occurrence keeps its due date; the ones after it follow the new rule).
+
+### Added
+- `UpdateTaskInputDTO.recurrence` **is applied** (it was ignored) and
+  `remove_recurrence` stops repeating. The new rule starts at the task's
+  due date — so it keeps its time of day — or at `recurrence.start_date`;
+  a task without a due date gets the rule's first occurrence as one.
+- `Task.change_recurrence(now, rule | None)`; the rule and the due date must
+  share their kind (fixed/floating).
+- `c_application/utils/recurrence_input.build_recurrence`: create and edit
+  build rules the same way (an end date alone covers that whole day).
+- `TaskOutputDTO.recurrence` (`RecurrenceOutputDTO`): the rule as the fields
+  it is created from (`RecurrenceMapper`), so an interface can edit it.
+- **The update's result previews what comes next**: `next_occurrences` up to
+  `days_ahead`, but at least the next one and at most ten
+  (`UpdateTaskUseCase.PREVIEW_MAX`), hourly rules included.
+  `Task.upcoming_occurrences(…, include_sub_daily=, at_least=)`;
+  `TaskMapper.to_output(…, occurrences=)`.
+
+### Fixed
+- **`count` never ended a series**: every occurrence carried the full count
+  and it was never checked. Now `count` is how many are left, the current
+  one included: each new occurrence carries one fewer, the one with 1 is the
+  last, and the projection stops there too.
+
+### Changed
+- Coverage floor 74.6% → 75.1% (423 tests).
+
 ## [0.8.0] — 2026-09-25
 
 What an edit can change, for the CLI's editor mode.

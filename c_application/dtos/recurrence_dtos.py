@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from datetime import time
+from datetime import datetime, time
 
 from a_core import DTO
 from b_domain.value_objects.enums import RecurrenceInterval
@@ -39,5 +39,25 @@ class RecurrenceInputDTO(DTO):
     nth_business_day: int | None = None  # e.g., 3 for "third business day"
 
     # Hourly window rules
+    window_start: time | None = None
+    window_end: time | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class RecurrenceOutputDTO(DTO):
+    """A task's rule in the terms it was created with (``RecurrenceInputDTO``).
+
+    Lets an interface show the rule as editable fields and send it back.
+    ``count`` is how many occurrences are left, the current one included.
+    """
+
+    frequency: RecurrenceInterval
+    interval: int = 1
+    end_date: datetime | None = None
+    count: int | None = None
+    by_week_days: list[int] | None = None
+    by_month_days: list[int] | None = None
+    by_set_pos: int | None = None
+    nth_business_day: int | None = None
     window_start: time | None = None
     window_end: time | None = None

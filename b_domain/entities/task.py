@@ -213,7 +213,13 @@ class Task(Entity):
         return len(self.depends_on) > 0
 
     def upcoming_occurrences(
-        self, now: datetime, until: datetime, limit: int = 400
+        self,
+        now: datetime,
+        until: datetime,
+        limit: int = 400,
+        *,
+        include_sub_daily: bool = False,
+        at_least: int = 0,
     ) -> list[datetime]:
         """The occurrences that will follow this one, up to ``until``.
 
@@ -225,14 +231,22 @@ class Task(Entity):
         Args:
             now (datetime): The current instant (aware).
             until (datetime): The last instant to include (aware).
-            limit (int): Safety cap on the number of occurrences.
+            limit (int): The most occurrences to return.
+            include_sub_daily (bool): Project hourly rules too.
+            at_least (int): Go past ``until`` if needed to return this many
+                (when the series has them).
 
         Returns:
             list[datetime]: The occurrences, in the rule's own kind (naive
             wall-clock time for a floating task, aware for a fixed one).
         """
-        if not self.recurrence or not self.due_date or self.recurrence.is_sub_daily:
+        if not self.recurrence or not self.due_date:
             return []
+        if self.recurrence.is_sub_daily and not include_sub_daily:
+            return []
+        if self.recurrence.count is not None:
+            # The ones left after this one
+            limit = min(limit, max(self.recurrence.count - 1, 0))
 
         start: datetime = self._in_due_kind(now)
         end: datetime = self._in_due_kind(until)
@@ -246,7 +260,7 @@ class Task(Entity):
             if upcoming is None:
                 break
             current: datetime = self._in_due_kind(upcoming)
-            if current <= previous or current > end:
+            if current <= previous or (current > end and len(occurrences) >= at_least):
                 break
             if current > start:
                 occurrences.append(current)
@@ -293,6 +307,11 @@ class Task(Entity):
         """
 
         if not self.recurrence or not self.due_date:
+            return None
+
+        # count is how many occurrences are left, this one included: the
+        # one with count 1 is the last
+        if self.recurrence.count is not None and self.recurrence.count <= 1:
             return None
 
         # 1. Initial reference
@@ -374,6 +393,12 @@ class Task(Entity):
                     is_floating=is_floating,
                     tz=tz_name,
                 ),
+                # One occurrence fewer left (count includes the current one)
+                count=(
+                    self.recurrence.count - 1
+                    if self.recurrence.count is not None
+                    else None
+                ),
             )
 
         # 4. Call Task.create with the dynamically extracted parameters.
@@ -452,6 +477,27 @@ class Task(Entity):
                 f"Cannot change task status from {self.status} to {new_status}"
             )
         self.status = new_status
+        self._touch(now)
+
+    def change_recurrence(self, now: datetime, rule: RecurrenceRule | None) -> None:
+        """Repeat the task by another rule, or stop repeating it.
+
+        The due date stays: this occurrence keeps it, and the occurrences
+        after it follow the new rule.
+
+        Raises:
+            ValidationException: If the rule is floating and the due date is
+                fixed, or the other way around.
+        """
+        if (
+            rule is not None
+            and self.due_date is not None
+            and rule.start_date.is_floating != self.due_date.is_floating
+        ):
+            raise ValidationException(
+                "The rule and the due date must both be fixed or both floating."
+            )
+        self.recurrence = rule
         self._touch(now)
 
     def move_to_context(self, now: datetime, context_id: ContextId | None) -> None:
