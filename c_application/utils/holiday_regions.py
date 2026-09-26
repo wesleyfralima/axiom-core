@@ -17,7 +17,8 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     Without a dash, among the countries; with one (``BR-SP``, ``br-paulo``),
     among that country's subdivisions. An exact code comes first, then the
     codes and names that contain the text; with none of those, the names
-    that are close to it (a typo, another language's spelling).
+    that are close to it or start close to it (a typo, another language's
+    spelling: "Brasil", "bras").
 
     Args:
         provider (HolidayProvider): Who knows the regions.
@@ -51,9 +52,23 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     if exact or containing:
         return exact + containing
 
-    by_name: dict[str, HolidayRegion] = {_plain(r.name): r for r in candidates}
-    close: list[str] = difflib.get_close_matches(text, by_name, n=3, cutoff=0.75)
-    return [by_name[name] for name in close]
+    # Close: to the whole name ("brasil" ~ "brazil") or to its start ("bras")
+    scored: list[tuple[float, HolidayRegion]] = []
+    for region in candidates:
+        name: str = _plain(region.name)
+        score: float = max(_similar(text, name), _similar(text, name[: len(text)]))
+        if score >= _CLOSE:
+            scored.append((score, region))
+    scored.sort(key=lambda pair: -pair[0])
+    return [region for _, region in scored[:3]]
+
+
+_CLOSE: float = 0.75
+"""How similar a name must be to count as a typo of the text (0 to 1)."""
+
+
+def _similar(a: str, b: str) -> float:
+    return difflib.SequenceMatcher(None, a, b).ratio()
 
 
 def _plain(text: str) -> str:

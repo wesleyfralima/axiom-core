@@ -354,6 +354,7 @@ async def test_a_countrys_subdivisions(
         ("port", ["PT"]),  # part of the name
         ("united", ["US"]),
         ("Brasil", ["BR"]),  # close to the name
+        ("bras", ["BR"]),  # close to its start
         ("BR-SP", ["BR-SP"]),
         ("br-sao", ["BR-SP"]),  # accents never matter
         ("br-", ["BR-RJ", "BR-SP"]),
