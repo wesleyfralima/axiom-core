@@ -2,6 +2,7 @@ import pytest
 
 from a_core.exceptions import ValidationException
 from b_domain.value_objects import Description, Title
+from b_domain.value_objects.texts import normalize_tag, normalize_tags
 
 # ============================================================
 # Fixtures
@@ -179,3 +180,23 @@ def test_description_inequality_with_different_value(
 def test_description_string_representation(valid_description: Description) -> None:
     """Ensure __str__ returns the raw description value."""
     assert str(valid_description) == "This is a valid description."
+
+
+# ---------------------------------------------------------------- tags
+
+
+@pytest.mark.parametrize(
+    ("typed", "tag"), [("home", "home"), ("#Home", "home"), (" saúde ", "saúde")]
+)
+def test_a_tag_as_stored(typed: str, tag: str) -> None:
+    assert normalize_tag(typed) == tag
+
+
+@pytest.mark.parametrize("typed", ["", "#", "two words", "a/b", "x" * 31])
+def test_a_tag_must_be_one_word(typed: str) -> None:
+    with pytest.raises(ValidationException, match="A tag is"):
+        normalize_tag(typed)
+
+
+def test_several_tags_in_one_text() -> None:
+    assert normalize_tags(["#home, errands", "home"]) == {"home", "errands"}

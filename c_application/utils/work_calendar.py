@@ -38,6 +38,7 @@ async def load_work_calendar(
         region=prefs.holiday_region,
         holidays=region_holidays(uow, prefs.holiday_region),
         days=tuple(await uow.calendar_days.list_by_user(user_id)),
+        skipped=prefs.skipped_holiday_names,
     )
 
 

@@ -4,8 +4,7 @@
 case and accents never matter.
 """
 
-import unicodedata
-
+from a_core.text import fold
 from b_domain.ports.providers.holiday_provider import HolidayProvider
 from b_domain.value_objects.work_calendar import HolidayRegion
 
@@ -26,7 +25,7 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     Returns:
         list[HolidayRegion]: The matches, best first (may be empty).
     """
-    text: str = _plain(query)
+    text: str = fold(query)
     if not text:
         return []
     country, dash, sub = text.partition("-")
@@ -40,13 +39,13 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
         return candidates
 
     def short(region: HolidayRegion) -> str:
-        return _plain(region.code.rpartition("-")[2])
+        return fold(region.code.rpartition("-")[2])
 
     exact: list[HolidayRegion] = [r for r in candidates if short(r) == text]
     containing: list[HolidayRegion] = [
         r
         for r in candidates
-        if r not in exact and (text in short(r) or text in _plain(r.name))
+        if r not in exact and (text in short(r) or text in fold(r.name))
     ]
     if exact or containing:
         return exact + containing
@@ -56,7 +55,7 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     allowed: int = 1 if len(text) <= 5 else 2
     scored: list[tuple[int, HolidayRegion]] = []
     for region in candidates:
-        name: str = _plain(region.name)
+        name: str = fold(region.name)
         edits: int = min(_edits(text, name), _edits(text, name[: len(text)]))
         if edits <= allowed:
             scored.append((edits, region))
@@ -79,10 +78,3 @@ def _edits(a: str, b: str) -> int:
             )
         previous = current
     return previous[-1]
-
-
-def _plain(text: str) -> str:
-    """Lower case, no accents, single spaces: "São  Paulo" → "sao paulo"."""
-    decomposed: str = unicodedata.normalize("NFKD", text)
-    stripped: str = "".join(c for c in decomposed if not unicodedata.combining(c))
-    return " ".join(stripped.lower().split())

@@ -6,6 +6,33 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.18.0] — 2026-09-26
+
+Quick wins (Part 7 of the product backlog). Enterprise 0.14.0 and CLI
+0.21.0 pick it up.
+
+### Added
+- **Tags** on tasks: `Task.tags` (lower case, no `#`; letters, digits,
+  `-`, `_`, up to 30), `Task.set_tags`, `normalize_tag(s)` (a text may hold
+  several: "home, urgent"). `tags` on create; on edit `tags` (replace),
+  `add_tags`, `remove_tags`; `TaskOutputDTO.tags`. In the edit history
+  ("#home → #home #urgent"), the undo snapshot, and the next occurrence of
+  a recurring task. Listing by `tags` asks for every one of them.
+- **The inbox**: `CreateTaskInputDTO.use_active_context=False` leaves a new
+  task without a context even with one active; `ListTasksRequest.inbox`
+  lists the open tasks with no due date and no context, in any context.
+  `TaskFilter.has_context` / `has_due_date`.
+- **Skipping a region's holiday every year, by its name**:
+  `SkipHolidayUseCase` (a name or part of one, among the next year's
+  holidays; `skip=False` counts it again) and the `skipped_holidays`
+  preference ("Corpus Christi; Carnival"). `WorkCalendar.skipped`,
+  `is_skipped`, `counts_as_holiday`; a skipped holiday is a business day
+  (own days still win). The calendar marks it (`skipped`) and lists them.
+- `a_core.text.fold` (lower case, no accents, single spaces).
+
+### Changed
+- Coverage floor 82.6% → 83% (587 tests).
+
 ## [0.17.0] — 2026-09-26
 
 Choosing the holiday region (Part 6 of the product backlog). Enterprise

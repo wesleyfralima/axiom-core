@@ -12,6 +12,7 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.enums import EnergyLevel, Priority
+from b_domain.value_objects.texts import normalize_tags
 from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
@@ -71,6 +72,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 dto.user_id, error_msg="Invalid user ID."
             )
             title_vo: Title = Title(dto.title)
+            tags: frozenset[str] = normalize_tags(dto.tags)
             description_vo: Description = Description(
                 dto.description if dto.description else None
             )
@@ -118,7 +120,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 context = find_context(
                     await uow.contexts.list_by_user(user_id_vo), dto.context_id
                 )
-            elif user.preferences.active_context_id:
+            elif dto.use_active_context and user.preferences.active_context_id:
                 context = await uow.contexts.get_by_id(
                     user.preferences.active_context_id, user_id_vo
                 )
@@ -192,6 +194,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     dto.estimated_minutes
                     or user.preferences.default_task_duration_minutes
                 ),
+                tags=tags,
             )
 
             await uow.tasks.add(task)

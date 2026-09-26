@@ -131,6 +131,16 @@ class FakeTaskRepository(TaskRepository):
             results = [t for t in results if t.priority == filters.priority]
         if filters.complexity:
             results = [t for t in results if t.complexity == filters.complexity]
+        if filters.tags:
+            results = [t for t in results if set(filters.tags) <= t.tags]
+        if filters.has_context is not None:
+            results = [
+                t for t in results if (t.context_id is not None) == filters.has_context
+            ]
+        if filters.has_due_date is not None:
+            results = [
+                t for t in results if (t.due_date is not None) == filters.has_due_date
+            ]
 
         return results
 

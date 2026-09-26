@@ -12,6 +12,7 @@ from a_core.exceptions import (
     InvalidValueError,
     ValidationException,
 )
+from a_core.text import fold
 from b_domain.events.other_events import ContextSwitchedEvent
 from b_domain.value_objects import UserId
 from b_domain.value_objects.enums import Priority
@@ -45,6 +46,9 @@ class UserPrefs(ValueObject):
     work_days: str = DEFAULT_WORK_DAYS
     # Whose public holidays are not business days ("BR", "BR-SP"; "": none)
     holiday_region: str = ""
+    # The region's holidays the user works anyway, every year, by name
+    # ("Corpus Christi; Carnival")
+    skipped_holidays: str = ""
     external_calendar_name: str = "Axiom Pro"
     external_calendar_id: str | None = None
     external_calendar_autosync: bool = True
@@ -102,6 +106,13 @@ class UserPrefs(ValueObject):
     def work_weekdays(self) -> frozenset[int]:
         """``work_days`` as ``date.weekday()`` numbers (0 = Monday)."""
         return parse_work_days(self.work_days)
+
+    @property
+    def skipped_holiday_names(self) -> frozenset[str]:
+        """``skipped_holidays`` as folded names (to compare: ``fold``)."""
+        return frozenset(
+            fold(name) for name in self.skipped_holidays.split(";") if name.strip()
+        )
 
     def update(self, **changes: Any) -> "UserPrefs":
         """Creates a new UserPrefs instance with the updated values.
@@ -180,6 +191,9 @@ class UserPrefs(ValueObject):
                 parse_work_days(str(result["work_days"]))
             )
 
+        if "skipped_holidays" in result:
+            result["skipped_holidays"] = _names_text(str(result["skipped_holidays"]))
+
         if "holiday_region" in result:
             result["holiday_region"] = _region_text(str(result["holiday_region"]))
 
@@ -203,6 +217,16 @@ def _clock_time_text(concept: str, text: str) -> str:
         return time(hours, minutes).strftime("%H:%M")
     except ValueError as e:
         raise InvalidValueError(concept=concept, invalid_value=text) from e
+
+
+def _names_text(text: str) -> str:
+    """Names separated by ";", trimmed, each once (ignoring case and accents)."""
+    names: dict[str, str] = {}
+    for name in text.split(";"):
+        clean: str = " ".join(name.split())
+        if clean:
+            names.setdefault(fold(clean), clean)
+    return "; ".join(names.values())
 
 
 _REGION_RE: re.Pattern[str] = re.compile(r"^[A-Z]{2}(-[A-Z0-9]{1,5})?$")

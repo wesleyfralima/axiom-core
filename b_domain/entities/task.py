@@ -54,6 +54,9 @@ class Task(Entity):
 
     context_id: ContextId | None = None
 
+    # Free labels, lower case, no "#" (normalize_tags)
+    tags: frozenset[str] = field(default_factory=frozenset)
+
     # Dependency graph: IDs of other tasks that block this one
     depends_on: set[TaskId] = field(default_factory=set)
 
@@ -111,6 +114,7 @@ class Task(Entity):
         average_duration_minutes: int = 0,
         caused_by: UniqueId | None = None,
         series_id: TaskId | None = None,
+        tags: frozenset[str] | None = None,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -137,6 +141,7 @@ class Task(Entity):
             attempt_count (int): Task attempt count. Defaults to 0.
             average_duration_minutes (int): Task average (real) duration minutes.
                 Defaults to 0.
+            tags (frozenset[str] | None): Its tags, already normalized.
 
         Returns:
             Task: A new Task instance.
@@ -175,6 +180,7 @@ class Task(Entity):
             priority=Priority(priority),
             required_energy_level=EnergyLevel(required_energy_level),
             context_id=context_id,
+            tags=tags or frozenset(),
             due_date=due,
             created_at=now,
             updated_at=now,
@@ -458,6 +464,7 @@ class Task(Entity):
             average_duration_minutes=self.average_duration_minutes,
             caused_by=caused_by,
             series_id=self.series_id,
+            tags=self.tags,
         )
 
     def next_occurrence_due_date(self) -> Optional["DueDate"]:
@@ -611,6 +618,11 @@ class Task(Entity):
         self.recurrence = rule
         if rule is not None and self.series_id is None:
             self.series_id = self.id
+        self._touch(now)
+
+    def set_tags(self, now: datetime, tags: frozenset[str]) -> None:
+        """Replace the task's tags (already normalized: ``normalize_tags``)."""
+        self.tags = frozenset(tags)
         self._touch(now)
 
     def use_business_days(self, is_business_day: Callable[[date], bool]) -> None:
@@ -871,6 +883,7 @@ class Task(Entity):
             "recurrence": rule_to_dict(self.recurrence) if self.recurrence else None,
             "series_id": str(self.series_id) if self.series_id else None,
             "estimate": self.estimated_duration_minutes,
+            "tags": sorted(self.tags),
         }
 
     def revert_to(
@@ -928,6 +941,8 @@ class Task(Entity):
             )
             if "estimate" in snapshot:
                 self.estimated_duration_minutes = int(snapshot["estimate"])
+            if "tags" in snapshot:
+                self.tags = frozenset(snapshot["tags"])
             if "series_id" in snapshot:
                 self.series_id = (
                     TaskId.from_string(snapshot["series_id"])

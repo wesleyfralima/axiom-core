@@ -2,6 +2,7 @@ from .regions import ListHolidayRegionsInputDTO, ListHolidayRegionsUseCase
 from .remove_day import RemoveCalendarDayInputDTO, RemoveCalendarDayUseCase
 from .set_day import SetCalendarDayInputDTO, SetCalendarDayUseCase
 from .show import ShowWorkCalendarInputDTO, ShowWorkCalendarUseCase
+from .skip_holiday import SkipHolidayInputDTO, SkipHolidayUseCase
 
 __all__ = [
     "ListHolidayRegionsInputDTO",
@@ -12,4 +13,6 @@ __all__ = [
     "SetCalendarDayUseCase",
     "ShowWorkCalendarInputDTO",
     "ShowWorkCalendarUseCase",
+    "SkipHolidayInputDTO",
+    "SkipHolidayUseCase",
 ]

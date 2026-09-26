@@ -36,6 +36,7 @@ class UserPrefsInputDTO(DTO):
     working_hours_end: int | None = None
     work_days: str | None = None  # mon,tue,… or a range (mon-fri)
     holiday_region: str | None = None  # BR, BR-SP…; "none" for no holidays
+    skipped_holidays: str | None = None  # names, "; " between them
 
     default_task_duration_minutes: int | None = None
 
@@ -91,6 +92,7 @@ class UserPrefsOutputDTO(DTO):
     working_hours_end: int
     work_days: str  # mon,tue,wed,thu,fri
     holiday_region: str  # "" when none
+    skipped_holidays: str  # the region's holidays worked anyway ("a; b")
 
     default_task_duration_minutes: int
 

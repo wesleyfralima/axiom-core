@@ -104,6 +104,7 @@ class UserMapper[D: UserOutputDTO]:
             working_hours_end=prefs.working_hours_end,
             work_days=prefs.work_days,
             holiday_region=prefs.holiday_region,
+            skipped_holidays=prefs.skipped_holidays,
             default_task_duration_minutes=prefs.default_task_duration_minutes,
             default_task_priority=prefs.default_task_priority,
             default_task_status=prefs.default_task_status,
