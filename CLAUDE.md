@@ -189,6 +189,6 @@ there too.
   (0.12.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
 - 457 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 75.9% over a 75.9% floor.
+  tests), ruff with `B`/`RUF`, coverage 76.9% over a 76.8% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
