@@ -36,6 +36,15 @@ the least explicit data collection". Hints the code already has: natural
 language inference (Part 4), behavior learning (Part 5), heuristic cold start
 (Part 6).
 
+## Not everything here waits for Flow
+
+Two lines of work in this file do not depend on Flow's rules and are
+scheduled with the product's other features (the product backlog, in the
+parent folder `axiom-pro/`, 2026-09-26): the **timers** of Part 1
+(`start`, `pause`, a `TimeEntry` opened and closed) and **natural language
+creation** (Part 4). They move out of this file when that work starts,
+closed here with the reference.
+
 ## Breakdown
 
 | Part | Scope | Branch | Depends on |
