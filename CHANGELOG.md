@@ -6,6 +6,17 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.11.1] — 2026-09-26
+
+### Fixed
+- **An ID prefix with a dash, or longer than the short ID, found nothing**
+  (on SQLite, which stores UUIDs without dashes): `45e45de9-55` or the full
+  UUID from a card's footer. `IdPrefix` now compares by `hex` (lowercase,
+  no dashes) with `matches(id)`; it takes up to 36 characters (a full UUID)
+  and only hex digits and dashes (a clearer error than "not found").
+  `find_context` and the test fakes use the same rule; enterprise 0.7.2
+  does it in SQL.
+
 ## [0.11.0] — 2026-09-26
 
 Closes, with enterprise 0.7.1, the item "time entries, behavior metrics and

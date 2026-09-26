@@ -76,7 +76,9 @@ simulator: `python -m d_fake_infra`).
   `TaskLanguageEngine.infer(text, now, lang)`). The latter's default
   configuration is `b_domain/engines/task_language_engine.toml`, packaged;
   the caller reads it (`importlib.resources` + `tomllib`), never the core.
-- **Short IDs:** task use cases receive a UUID **prefix** (`IdPrefix`) and
+- **Short IDs:** dashes and case never matter — compare with
+  `IdPrefix.matches(id)` / `IdPrefix.hex`, never `str(id).startswith`.
+  Task use cases receive a UUID **prefix** (`IdPrefix`) and
   resolve it with `c_application/utils/task_utils.find_task` (scoped by
   user; older use cases still go through
   `TaskRepository.task_ids_from_id_prefixes`); ambiguity is an error.
@@ -169,7 +171,7 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.11.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.11.1`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -180,7 +182,7 @@ there too.
   (0.8.0); recurrence edit and `count` fixed (0.9.0); weekly `set_pos`
   (0.10.0); time entries tracked by the UoW (0.11.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 440 tests passing; **`make check` green**: mypy at zero (packages and
+- 451 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 75.5% over a 75.5% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

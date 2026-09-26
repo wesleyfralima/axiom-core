@@ -134,3 +134,14 @@ def test_context_switched_event_survives_the_outbox_round_trip(
     assert back.user_id == event.user_id
     assert back.old_context_id == event.old_context_id
     assert back.new_context_id == new_id
+
+
+def test_a_context_is_found_by_a_prefix_with_or_without_dashes() -> None:
+    from c_application.utils import find_context
+
+    work = Context.create(now=datetime(2026, 1, 1), user_id=UserId(), name="Work")
+    full: str = str(work.id)
+
+    assert find_context([work], full[:11]) is work  # "xxxxxxxx-xx"
+    assert find_context([work], full.replace("-", "")[:12]) is work
+    assert find_context([work], full.upper()) is work
