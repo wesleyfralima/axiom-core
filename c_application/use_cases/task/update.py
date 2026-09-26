@@ -2,12 +2,14 @@ from datetime import date, datetime
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
-from b_domain.entities import Task, User
+from b_domain.entities import Context, Task, User
 from b_domain.entities.user import UserPrefs
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import Priority, UserId
+from b_domain.value_objects.enums import EnergyLevel
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.utils import find_context
 from c_application.utils.date_input import (
     at_time,
     end_of_day,
@@ -62,6 +64,15 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         priority: Priority | None = (
             Priority.parse(request.priority) if request.priority is not None else None
         )
+        energy: EnergyLevel | None = (
+            EnergyLevel.parse(request.energy_level)
+            if request.energy_level is not None
+            else None
+        )
+        if request.remove_due_date and request.due_date is not None:
+            raise ValidationException("Set a new due date or remove it, not both.")
+        if request.remove_context and request.context_id is not None:
+            raise ValidationException("Pick a context or remove it, not both.")
 
         async with self.uow as uow:
             # 2. Search by prefix scoped to user
@@ -97,6 +108,20 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
             if priority is not None:
                 task.update_priority(now, priority)
+
+            if energy is not None:
+                task.update_energy(now, energy)
+
+            if request.context_id is not None:
+                target: Context = find_context(
+                    await uow.contexts.list_by_user(user_id), request.context_id
+                )
+                task.move_to_context(now, target.id)
+            elif request.remove_context:
+                task.move_to_context(now, None)
+
+            if request.remove_due_date:
+                task.update_due_date(now, None)
 
             if request.due_date is not None:
                 # Keep the task's own kind (floating/fixed) unless the request

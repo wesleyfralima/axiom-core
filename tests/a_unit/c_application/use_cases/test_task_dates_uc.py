@@ -1,4 +1,5 @@
-"""Due dates as typed (default due time, day words) and projected occurrences.
+"""Due dates as typed (default due time, day words), projected occurrences
+and what an edit can change.
 
 The fake clock says 2026-03-05 12:00 UTC (a Thursday); the user is in UTC.
 """
@@ -7,9 +8,10 @@ from datetime import datetime
 
 import pytest
 
-from a_core.exceptions import InvalidValueError
-from b_domain.entities import User
+from a_core.exceptions import InvalidValueError, ValidationException
+from b_domain.entities import Context, User
 from b_domain.value_objects import RecurrenceInterval, TaskStatus
+from b_domain.value_objects.enums import EnergyLevel
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import (
     CreateTaskInputDTO,
@@ -206,3 +208,58 @@ async def test_show_projects_the_occurrences_ahead(
         GetTaskRequest(task_id_prefix=one_off.id[:8], user_id=str(user.id), ahead=30)
     )
     assert plain.next_occurrences == []
+
+
+# ---------------------------------------------------------------- edit
+
+
+async def _edit(
+    deps: UseCaseDeps, user: User, prefix: str, **kwargs: object
+) -> TaskOutputDTO:
+    return await UpdateTaskUseCase(**deps).execute(
+        UpdateTaskInputDTO(task_id_prefix=prefix, user_id=str(user.id), **kwargs)  # type: ignore[arg-type]
+    )
+
+
+async def test_editing_removes_the_due_date(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(use_case_context, user, due_date="tomorrow")
+
+    edited = await _edit(use_case_context, user, created.id[:8], remove_due_date=True)
+
+    assert edited.due_date is None
+
+
+async def test_editing_changes_energy_and_context(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    work = Context.create(now=datetime(2026, 3, 5), user_id=user.id, name="Work")
+    async with fake_uow_factory() as uow:
+        await uow.contexts.add(work)
+    created = await _create(use_case_context, user)
+    prefix = created.id[:8]
+
+    edited = await _edit(
+        use_case_context, user, prefix, energy_level="high", context_id="work"
+    )
+    assert edited.required_energy_level == EnergyLevel.HIGH.value
+    assert edited.context_name == "Work"
+
+    cleared = await _edit(use_case_context, user, prefix, remove_context=True)
+    assert cleared.context_id is None
+
+
+async def test_editing_refuses_contradictions(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    created = await _create(use_case_context, user, due_date="tomorrow")
+
+    with pytest.raises(ValidationException, match="not both"):
+        await _edit(
+            use_case_context,
+            user,
+            created.id[:8],
+            due_date="today",
+            remove_due_date=True,
+        )
