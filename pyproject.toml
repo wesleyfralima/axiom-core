@@ -30,7 +30,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.report]
 # Floor = real coverage, so `make check` is green; raise it whenever tests are added.
-fail_under = 75.9
+fail_under = 76.8
 precision = 1
 exclude_lines = [
     "pragma: no cover",

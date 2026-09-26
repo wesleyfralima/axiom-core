@@ -38,7 +38,7 @@ it; the CLI 0.14.0 shows it (`axpro task log`).
   use case tests used to go nowhere.
 
 ### Changed
-- Coverage floor 75.5% → 75.9% (457 tests).
+- Coverage floor 75.5% → 76.8% (457 tests; coverage 76.9%).
 
 ## [0.11.1] — 2026-09-26
 
