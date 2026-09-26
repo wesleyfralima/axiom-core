@@ -8,6 +8,7 @@ from .monthly_by_weekday_pos import MonthlyWeekdayPositionalRule
 from .monthly_by_weekdays import MonthlyAllWeekdaysRule
 from .simple import SimpleIntervalRule
 from .weekly_by_days import WeeklyByDaysRule
+from .weekly_by_position import WeeklyPositionalRule
 
 __all__ = [
     "BusinessDayRule",
@@ -20,4 +21,5 @@ __all__ = [
     "RecurrenceRule",
     "SimpleIntervalRule",
     "WeeklyByDaysRule",
+    "WeeklyPositionalRule",
 ]

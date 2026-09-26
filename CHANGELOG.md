@@ -6,6 +6,33 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.10.0] — 2026-09-26
+
+`set_pos` works with weekly rules too, and is never silently dropped
+(owner's request, 2026-09-26: "the second or the last day of the month or
+of the week").
+
+### Added
+- **`WeeklyPositionalRule`**: the Nth day of the week — `set_pos` 1 to 7
+  from the week's first day, -1 to -7 from its end ("Every week on the last
+  day (Sunday)"). The week starts on the user's `week_start` preference
+  (`week_start` on the rule: 0 = Monday, 6 = Sunday), passed by create and
+  edit (`build_recurrence(…, week_start=)`, `WEEK_STARTS`). RRULE:
+  `BYDAY=MO,…,SU;BYSETPOS=n;WKST=…`.
+- `BySetPosRequiresWeeklyOrMonthly` (replaces
+  `BySetPosRequiresMonthlyFrequency`) and `BySetPosWithWeekdaysInAWeek`.
+
+### Fixed
+- **A position was silently ignored** with a weekly rule, with days of the
+  month, and with daily/yearly/hourly rules: the task repeated as if it had
+  not been given. The factory now builds the weekly rule, or refuses the
+  combination saying why (`BySetPosWithMonthDays` has a clearer message).
+  Monthly positions are unchanged: alone, the Nth day of the month; with
+  weekdays, the Nth of each of them ("the second Friday").
+
+### Changed
+- Coverage floor 75.1% → 75.5% (439 tests).
+
 ## [0.9.0] — 2026-09-25
 
 Editing a task's recurrence (owner's decision, 2026-09-25: the current

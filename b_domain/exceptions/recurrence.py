@@ -121,16 +121,28 @@ class BySetPosWithMonthDays(RecurrenceRuleException):
 
     def __init__(self) -> None:
         super().__init__(
-            "The 'by_set_pos' rule cannot be used together with 'by_month_days'."
+            "A position (set_pos) doesn't go with days of the month: use the "
+            "days alone, or the position alone for the Nth day of the month."
         )
 
 
-class BySetPosRequiresMonthlyFrequency(RecurrenceRuleException):
-    """Raised when BySetPos is used without a monthly frequency."""
+class BySetPosRequiresWeeklyOrMonthly(RecurrenceRuleException):
+    """Raised when a position (set_pos) is given to a rule that is neither
+    weekly nor monthly."""
 
     def __init__(self, current_frequency: str) -> None:
         self.current_frequency = current_frequency
         super().__init__(
-            f"The 'by_set_pos' rule requires a 'MONTHLY' frequency, "
-            f"but '{current_frequency}' was provided."
+            "A position (set_pos) only works with weekly or monthly rules "
+            f"(this one is {current_frequency})."
+        )
+
+
+class BySetPosWithWeekdaysInAWeek(RecurrenceRuleException):
+    """Raised when a weekly rule gets both weekdays and a position."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "In a week each weekday happens once: use the weekdays alone, or "
+            "the position alone for the Nth day of the week."
         )

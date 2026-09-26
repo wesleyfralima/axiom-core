@@ -374,3 +374,23 @@ async def test_count_is_what_is_left(use_case_context: UseCaseDeps, user: User) 
         datetime(2026, 3, 7, 7, 0),
         datetime(2026, 3, 8, 7, 0),
     ]
+
+
+async def test_the_last_day_of_the_week_follows_week_start(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    last_day = RecurrenceInputDTO(
+        frequency=RecurrenceInterval.WEEKLY,
+        by_set_pos=-1,
+        start_date="2026-03-05 07:00",
+    )
+
+    from_monday = await _create(use_case_context, user, recurrence=last_day)
+    assert from_monday.recurrence_display is not None
+    assert "last day (Sunday)" in from_monday.recurrence_display
+
+    user.preferences = user.preferences.update(week_start="sunday")
+    from_sunday = await _create(use_case_context, user, recurrence=last_day)
+    assert from_sunday.recurrence_display is not None
+    assert "last day (Saturday)" in from_sunday.recurrence_display
+    assert from_sunday.due_date == datetime(2026, 3, 7, 7, 0)

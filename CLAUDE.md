@@ -88,6 +88,10 @@ simulator: `python -m d_fake_infra`).
 - **Projection:** `Task.upcoming_occurrences(now, until)` (not hourly);
   `ListTasksUseCase` fills `projected` and `GetTaskUseCase`
   `next_occurrences` up to `ahead` or the `days_ahead` preference.
+- **Positions (`set_pos`):** weekly alone = the Nth day of the week (from
+  the user's `week_start`); monthly alone = the Nth day of the month;
+  monthly with weekdays = the Nth of each. Any other combination is refused
+  by `RecurrenceFactory` — never ignored.
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
   the rule starts at it (`build_recurrence`, shared with create), the next
   occurrences follow it. `count` = occurrences left, this one included.
@@ -165,7 +169,7 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.9.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.10.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -173,9 +177,10 @@ there too.
   archive and cancel a task (0.6.0, Backlog 02, Part 1); dates as typed,
   `default_due_time` and the projection of recurring tasks (0.7.0); an
   edit changes context and energy and can remove the due date or context
-  (0.8.0); recurrence edit and `count` fixed (0.9.0).
+  (0.8.0); recurrence edit and `count` fixed (0.9.0); weekly `set_pos`
+  (0.10.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 423 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 75.1% over a 75.1% floor.
+- 439 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 75.5% over a 75.5% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

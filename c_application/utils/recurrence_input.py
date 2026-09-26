@@ -7,6 +7,9 @@ from b_domain.value_objects.recurrences import RecurrenceFactory, RecurrenceRule
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.utils.date_input import at_time, resolve_date_input
 
+WEEK_STARTS: dict[str, int] = {"monday": 0, "sunday": 6}
+"""The ``week_start`` preference as a weekday number."""
+
 
 def build_recurrence(
     dto: RecurrenceInputDTO,
@@ -15,6 +18,7 @@ def build_recurrence(
     is_floating: bool,
     tz: str,
     today: date,
+    week_start: int = 0,
 ) -> RecurrenceRule:
     """The rule for ``dto``, starting at ``start``.
 
@@ -25,6 +29,8 @@ def build_recurrence(
         is_floating (bool): The due date's kind; the rule takes the same.
         tz (str): The time zone the dates are in.
         today (date): The user's today, for an end date typed as a word.
+        week_start (int): The user's first day of the week (0 = Monday,
+            6 = Sunday), for "the Nth day of the week".
 
     Returns:
         RecurrenceRule: The rule.
@@ -56,4 +62,5 @@ def build_recurrence(
         is_business_day_checker=lambda dt: dt.weekday() < 5,  # TODO: holidays
         window_start=dto.window_start,
         window_end=dto.window_end,
+        week_start=week_start,
     )
