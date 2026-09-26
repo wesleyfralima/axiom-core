@@ -1,16 +1,21 @@
 from abc import ABC, abstractmethod
 
+from a_core import BaseRepository, tracks_entity
 from b_domain.entities.time_entry import TimeEntry
 from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.value_objects.identifiers import TaskId, TimeEntryId, UserId
 
 
-class TimeEntryRepository(ABC):
+class TimeEntryRepository(ABC, BaseRepository):
     """
     Port (Interface) for persisting and retrieving time tracking data.
+
+    A ``BaseRepository``: the entries it hands out are tracked by the unit of
+    work, so an event a ``TimeEntry`` records reaches the outbox.
     """
 
     @abstractmethod
+    @tracks_entity
     async def add(self, entry: TimeEntry) -> TimeEntry:
         """Persists a new time entry."""
         raise NotImplementedError
@@ -26,11 +31,13 @@ class TimeEntryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    @tracks_entity
     async def get_by_id(self, entry_id: TimeEntryId) -> TimeEntry | None:
         """Retrieves a specific entry by its unique ID."""
         raise NotImplementedError
 
     @abstractmethod
+    @tracks_entity
     async def get_actives_for_task(self, task_id: TaskId) -> list[TimeEntry]:
         """
         Finds all running timers (where end_time is None) for a specific task.
@@ -39,6 +46,7 @@ class TimeEntryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    @tracks_entity
     async def get_active_for_user(self, user_id: UserId) -> TimeEntry | None:
         """
         Finds the currently running timer for a user.
@@ -47,11 +55,13 @@ class TimeEntryRepository(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    @tracks_entity
     async def find_by_user(self, user_id: UserId) -> list[TimeEntry]:
         """Retrieves the full time tracking history for a user."""
         raise NotImplementedError
 
     @abstractmethod
+    @tracks_entity
     async def search(self, filters: TimeEntryFilter) -> list[TimeEntry]:
         """Searches for time entries matching the given filters."""
         raise NotImplementedError

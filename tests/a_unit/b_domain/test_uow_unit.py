@@ -74,3 +74,18 @@ async def test_unit_of_work_rolls_back_when_exception_is_raised() -> None:
 
     assert uow.committed is False
     assert uow.rolled_back is True
+
+
+def test_a_time_entry_repository_must_track_what_it_hands_out() -> None:
+    """Like tasks and users: an event a TimeEntry records must reach the outbox."""
+
+    from b_domain.entities.time_entry import TimeEntry
+    from b_domain.ports.repositories.time_entry_repository import (
+        TimeEntryRepository,
+    )
+
+    with pytest.raises(TypeError, match="must be decorated with @tracks_entity"):
+
+        class Untracked(TimeEntryRepository):  # pyright: ignore
+            async def add(self, entry: TimeEntry) -> TimeEntry:  # no @tracks_entity
+                return entry
