@@ -6,6 +6,51 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.7.0] — 2026-09-25
+
+Due dates as people type them, a default due time and the projection of
+recurring tasks (owner's requests, 2026-09-25). Enterprise and the CLI pick
+it up in 0.6.0 and 0.10.0.
+
+### Added
+- **`c_application/utils/date_input.py`**: `DateInput` (a datetime, a date
+  without time, or a text) and `resolve_date_input(value, today=…)`, which
+  takes `2026-10-01`, `2026-10-01 14:00`, `today`, `tomorrow`, `yesterday`
+  (optionally followed by `HH:MM`) relative to the user's today. New
+  expressions go in its `_DAY_OFFSETS` (or next to it): the use cases do not
+  change. Also `local_today`, `at_time`, `end_of_day`, `resolve_horizon`
+  (a number of days or a date).
+- **Preference `default_due_time`** (`"23:59"`, validated and normalized to
+  `HH:MM`; `UserPrefs.default_due_clock`): a due date typed without a time
+  gets it — on create, on edit and for a recurrence's first date. A
+  recurrence with no first date starts today at that time (before: the
+  creation instant). A recurrence's end date typed without a time covers
+  that whole day.
+- **Preference `days_ahead`** (7, 0 to 366) replaces
+  `recurring_tasks_visible_ahead_days` (14, never used; the stored key is
+  now ignored, so every account gets 7).
+- **Projection of recurring tasks**: `Task.upcoming_occurrences(now, until)`
+  — the occurrences after the current one, still ahead, up to `until`;
+  hourly rules are not projected. `ListTasksRequest.ahead` (days or a date;
+  default `days_ahead`) fills `TaskListOutputDTO.projected` with copies of
+  the open recurring tasks at each future date (`TaskOutputDTO.is_projected`,
+  the current occurrence's `id`), sorted by date and inside the due filters.
+  `GetTaskRequest.ahead` does the same for `next_occurrences`; create and
+  update project with `days_ahead`. `RecurrenceRule.is_sub_daily`.
+
+### Changed
+- `CreateTaskInputDTO.due_date`, `UpdateTaskInputDTO.due_date`,
+  `RecurrenceInputDTO.start_date`/`end_date` and `ListTasksRequest.due_before`
+  /`due_after` are `DateInput`; `RecurrenceInputDTO.start_date` is optional.
+  In the list filters a date alone means its midnight.
+- `TaskOutputDTO.next_occurrences` only has the occurrences after the due
+  date, up to the horizon (before: the next five from now, the current one
+  included). `TaskMapper.to_output(…, occurrences_until=…)` replaces
+  `occurrences_count`; **`GetTaskRequest.n_occurrences` is gone** (`ahead`).
+- `ListTasksUseCase` always reads the user (preferences for the time zone
+  and the horizon).
+- Coverage floor 73.8% → 74.4% (412 tests); coverage reports one decimal.
+
 ## [0.6.0] — 2026-09-25
 
 Reopen, archive and cancel a task (Backlog 02, Part 1, last item). For a

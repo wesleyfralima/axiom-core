@@ -78,6 +78,11 @@ class RecurrenceRule(ValueObject, ABC):
                     end_date=dt_end,
                 )
 
+    @property
+    def is_sub_daily(self) -> bool:
+        """Whether it repeats more than once a day (hourly rules)."""
+        return self._freq == "HOURLY"
+
     # noinspection PyMethodMayBeStatic
     def supports_native_sync(self) -> bool:
         """

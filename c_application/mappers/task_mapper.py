@@ -17,14 +17,15 @@ class TaskMapper:
     def to_output(
         task: Task,
         now: datetime,
-        occurrences_count: int = 5,
+        occurrences_until: datetime | None = None,
         active_context_id: ContextId | None = None,
         context: Context | None = None,
     ) -> TaskOutputDTO:
         """Maps a Domain Task entity to a TaskOutputDTO for the outside world.
 
         ``context`` is the task's context entity, when the caller loaded it,
-        so the DTO carries its name and icon.
+        so the DTO carries its name and icon. ``occurrences_until`` (aware)
+        fills ``next_occurrences`` with the occurrences projected up to it.
         """
         return TaskOutputDTO(
             id=str(task.id),
@@ -46,10 +47,8 @@ class TaskMapper:
                 format_task_recurrence(task.recurrence) if task.recurrence else None
             ),
             next_occurrences=(
-                task.recurrence.get_next_n_occurrences(
-                    n=occurrences_count, start_from=now
-                )
-                if task.recurrence
+                task.upcoming_occurrences(now, occurrences_until)
+                if occurrences_until
                 else []
             ),
             is_in_focus=(

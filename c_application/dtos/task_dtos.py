@@ -5,6 +5,7 @@ from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel
 from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
+from c_application.utils.date_input import DateInput
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -27,8 +28,9 @@ class CreateTaskInputDTO(DTO):
     # GTD context: its name or ID prefix (none: the user's active context)
     context_id: str | None = None
 
-    # Due date information
-    due_date: datetime | None = None
+    # Due date: a datetime, a date (gets the user's default due time) or an
+    # expression such as "tomorrow 14:00" (see c_application/utils/date_input)
+    due_date: DateInput | None = None
     is_floating: bool = True
     timezone: str | None = None
 
@@ -61,8 +63,8 @@ class UpdateTaskInputDTO(DTO):
     context_id: str | None = None
     energy_level: int | None = None
 
-    # Due date information
-    due_date: datetime | None = None
+    # Due date: as in CreateTaskInputDTO
+    due_date: DateInput | None = None
     is_floating: bool | None = None
     timezone: str | None = None
 
@@ -108,6 +110,10 @@ class TaskOutputDTO(DTO):
 
     # Focus state (e.g., currently active or highlighted)
     is_in_focus: bool = False
+
+    # A future occurrence of a recurring task, projected: it does not exist
+    # yet (``id`` is the current occurrence's)
+    is_projected: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -194,8 +200,9 @@ class GetTaskRequest(DTO):
     task_id_prefix: str
     user_id: str
 
-    # Number of next occurrences to fetch, if applicable (default: 5)
-    n_occurrences: int = 5
+    # How far to project a recurring task's next occurrences: a number of
+    # days or a date (None: the user's days_ahead preference)
+    ahead: int | DateInput | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -231,9 +238,13 @@ class ListTasksRequest(DTO):
     is_recurring: bool | None = None
     only_roots: bool = False
 
-    # Temporal Filters (Task Specific)
-    due_before: datetime | None = None
-    due_after: datetime | None = None
+    # Temporal Filters (Task Specific); a date alone means its midnight
+    due_before: DateInput | None = None
+    due_after: DateInput | None = None
+
+    # Project recurring tasks' future occurrences up to a number of days or a
+    # date (None: the user's days_ahead preference; 0: only today)
+    ahead: int | DateInput | None = None
 
     # Pagination (from BaseFilter)
     limit: int = 100
@@ -261,3 +272,7 @@ class TaskListOutputDTO(DTO):
     # The context the list is limited to (requested, or the active one);
     # None when the list spans every context
     context: ContextOutputDTO | None = None
+
+    # Future occurrences of the listed recurring tasks, not created yet
+    # (``is_projected``), up to the horizon; sorted by due date
+    projected: list[TaskOutputDTO] = field(default_factory=list)

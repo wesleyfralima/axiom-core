@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import date, datetime, time
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
@@ -17,6 +17,13 @@ from b_domain.value_objects.recurrences import RecurrenceFactory
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
+from c_application.utils.date_input import (
+    at_time,
+    end_of_day,
+    local_today,
+    resolve_date_input,
+    resolve_horizon,
+)
 
 
 # TODO: better system of id prefix when needed, because
@@ -123,20 +130,37 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 dto.priority or user.preferences.default_task_priority
             )
 
-            # 6. Configure recurrence
+            # 6. Dates as typed ("tomorrow", a date alone…), in the user's
+            # today; a date without time gets the default due time
+            today: date = local_today(now_system, tz_to_use)
+            due_clock: time = user.preferences.default_due_clock
+            due_date: datetime | None = (
+                at_time(resolve_date_input(dto.due_date, today=today), due_clock)
+                if dto.due_date is not None
+                else None
+            )
+
+            # 7. Configure recurrence
             recurrence_vo: RecurrenceRule | None = None
-            due_date: datetime | None = dto.due_date
 
             if dto.recurrence:
+                start: datetime = at_time(
+                    resolve_date_input(dto.recurrence.start_date, today=today)
+                    if dto.recurrence.start_date is not None
+                    else due_date or today,
+                    due_clock,
+                )
                 start_axiom = build_axiom_date(
-                    dto.recurrence.start_date or dto.due_date or now_system,
-                    is_floating=dto.is_floating,
-                    tz=tz_to_use,
+                    start, is_floating=dto.is_floating, tz=tz_to_use
                 )
                 end_axiom = None
-                if dto.recurrence.end_date:
+                if dto.recurrence.end_date is not None:
+                    # A date alone: the whole of that day
                     end_axiom = build_axiom_date(
-                        dto.recurrence.end_date,
+                        at_time(
+                            resolve_date_input(dto.recurrence.end_date, today=today),
+                            time(23, 59),
+                        ),
                         is_floating=dto.is_floating,
                         tz=tz_to_use,
                     )
@@ -170,7 +194,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 # TODO: must add catch_up param
                 due_date = recurrence_vo.get_next_occurrence()
 
-            # 7. Instantiate and persist domain entity
+            # 8. Instantiate and persist domain entity
             task: Task = Task.create(
                 now=now_system,
                 user_id=user_id_vo,
@@ -189,5 +213,11 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
 
             await uow.tasks.add(task)
 
-        # 8. Return mapped output DTO
-        return TaskMapper.to_output(task, now_system, context=context)
+        # 9. Return mapped output DTO (recurring: the occurrences ahead)
+        horizon: date = resolve_horizon(user.preferences.days_ahead, today=today)
+        return TaskMapper.to_output(
+            task,
+            now_system,
+            occurrences_until=end_of_day(horizon, user.preferences.timezone),
+            context=context,
+        )
