@@ -1,6 +1,7 @@
 import builtins
 from abc import ABC, abstractmethod
 from collections.abc import Iterable
+from datetime import datetime
 
 from a_core import BaseRepository, IdPrefix, tracks_entity
 from b_domain.entities import Task
@@ -53,10 +54,19 @@ class TaskRepository(ABC, BaseRepository):
 
     @abstractmethod
     async def delete(self, task_id: TaskId) -> None:
-        """Permanently remove a task.
+        """Permanently remove a task (``Task.mark_deleted`` is the user's
+        delete: a tombstone; this one is final, e.g. the purge).
 
         Args:
             task_id (TaskId): The ID of the task to delete.
+        """
+
+    @abstractmethod
+    async def purge_deleted(self, user_id: UserId, before: datetime) -> int:
+        """Remove for good the user's tasks deleted at or before ``before``.
+
+        Returns:
+            int: How many were removed.
         """
 
     @abstractmethod
@@ -64,7 +74,8 @@ class TaskRepository(ABC, BaseRepository):
     async def get_by_id(
         self, task_id: TaskId, user_id: UserId | None = None
     ) -> Task | None:
-        """Retrieve a task by its exact ID.
+        """Retrieve a task by its exact ID — a deleted one too (the tombstone
+        is still the task; undo and restore need it).
 
         If user_id is provided, the repository must ensure the task belongs
         to that user (security scoping).
@@ -128,13 +139,20 @@ class TaskRepository(ABC, BaseRepository):
     @abstractmethod
     @tracks_entity
     async def find_by_id_prefix(
-        self, id_prefix: IdPrefix, user_id: UserId | None = None
+        self,
+        id_prefix: IdPrefix,
+        user_id: UserId | None = None,
+        deleted: bool = False,
     ) -> builtins.list[Task]:
         """Find tasks by matching an ID prefix.
+
+        Like every search, it sees only tasks that are not deleted — unless
+        ``deleted``, and then only the deleted ones (to restore them).
 
         Args:
             id_prefix (IdPrefix): Prefix string to match against task IDs.
             user_id (UserId, optional): Scope search to a specific user.
+            deleted (bool): Search the deleted tasks instead.
 
         Returns:
             List[Task]: Tasks whose IDs start with the given prefix.

@@ -2,6 +2,7 @@ import builtins
 from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import Any, Protocol
+from uuid import UUID
 
 import pytest
 
@@ -87,18 +88,25 @@ class FakeTaskRepository(TaskRepository):
         self,
         id_prefix: IdPrefix,
         user_id: UserId | None = None,
+        deleted: bool = False,
     ) -> list[Task]:
         # Scoped by user, as the real repository is
         return [
             task
             for key, task in self.tasks.items()
-            if id_prefix.matches(key) and (user_id is None or task.user_id == user_id)
+            if id_prefix.matches(key)
+            and (user_id is None or task.user_id == user_id)
+            and (task.deleted_at is not None) == deleted
         ]
 
     def _apply_filters(self, filters: TaskFilter) -> list[Task]:
         """Internal helper to reuse the filter logic."""
 
-        results = [t for t in self.tasks.values()]
+        results = [
+            t
+            for t in self.tasks.values()
+            if (t.deleted_at is not None) == filters.deleted
+        ]
 
         if filters.user_id:
             results = [t for t in results if t.user_id == filters.user_id]
@@ -138,7 +146,23 @@ class FakeTaskRepository(TaskRepository):
 
     @tracks_entity
     async def find_tasks_blocked_by(self, task_id: TaskId) -> builtins.list[Task]:
-        return [t for t in self.tasks.values() if task_id in t.depends_on]
+        return [
+            t
+            for t in self.tasks.values()
+            if task_id in t.depends_on and t.deleted_at is None
+        ]
+
+    async def purge_deleted(self, user_id: UserId, before: datetime) -> int:
+        gone: list[str] = [
+            key
+            for key, t in self.tasks.items()
+            if t.user_id == user_id
+            and t.deleted_at is not None
+            and t.deleted_at <= before
+        ]
+        for key in gone:
+            del self.tasks[key]
+        return len(gone)
 
     # --- Helper for the Axiom context/energy logic ---
 
@@ -409,6 +433,13 @@ class FakeTaskHistoryRepository(TaskHistoryRepository):
 
     async def add_many(self, entries: list[TaskHistoryEntry]) -> None:
         self.entries.extend(entries)
+
+    async def recent(self, user_id: UserId, limit: int = 200) -> list[TaskHistoryEntry]:
+        mine = [e for e in self.entries if e.user_id == user_id]
+        return list(reversed(mine))[:limit]
+
+    async def caused_by(self, entry_id: UUID) -> list[TaskHistoryEntry]:
+        return [e for e in self.entries if e.caused_by == entry_id]
 
     async def list_for_task(
         self, task_id: TaskId, user_id: UserId

@@ -1,7 +1,8 @@
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Any
 
-from a_core import DomainEvent
+from a_core import DomainEvent, UniqueId
 from b_domain.value_objects import ContextId, TaskId, UserId
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 
@@ -14,6 +15,9 @@ class TaskCreatedEvent(DomainEvent):
     task_id: TaskId
     due_date: datetime | None = None
     user_id: UserId | None = None
+    # The event of the user's action that made the task on its own (the next
+    # occurrence of a completed one); None when the user created it
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -30,6 +34,8 @@ class TaskEditedEvent(DomainEvent):
     task_id: TaskId
     user_id: UserId
     changes: dict[str, list[str | None]]
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -38,6 +44,8 @@ class TaskReopenedEvent(DomainEvent):
 
     task_id: TaskId
     user_id: UserId
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +54,8 @@ class TaskArchivedEvent(DomainEvent):
 
     task_id: TaskId
     user_id: UserId
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -84,6 +94,8 @@ class TaskCompletedEvent(DomainEvent):
     actual_minutes: int
     energy_level_used: EnergyLevel
     task_complexity: TaskComplexity
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -101,6 +113,8 @@ class TaskCancelledEvent(DomainEvent):
     task_id: TaskId
     user_id: UserId
     end_series: bool = False
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -133,3 +147,30 @@ class TaskDeletedEvent(DomainEvent):
     task_id: TaskId
     user_id: UserId
     title: str
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskRestoredEvent(DomainEvent):
+    """Triggered when a deleted task is brought back."""
+
+    task_id: TaskId
+    user_id: UserId
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskUndoneEvent(DomainEvent):
+    """Triggered when a change to the task is undone.
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        undoes (UniqueId): The history entry (its event's id) undone.
+        action (str): What was undone ("completed", "edited"…).
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    undoes: UniqueId
+    action: str

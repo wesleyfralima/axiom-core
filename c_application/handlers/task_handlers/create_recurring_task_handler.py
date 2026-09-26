@@ -46,7 +46,10 @@ class CreateRecurringTaskHandler:
                 return
 
             # Create the next occurrence based on completion time
-            next_task: Task | None = task.create_next_occurrence(event.occurred_at)
+            # Linked to the change that made it: undo removes it with that one
+            next_task: Task | None = task.create_next_occurrence(
+                event.occurred_at, caused_by=event.id
+            )
             if not next_task:
                 return
 

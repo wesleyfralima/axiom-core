@@ -6,6 +6,46 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.13.0] — 2026-09-26
+
+Undo and deleted tasks as tombstones (Part 2 of the product backlog).
+Enterprise 0.9.0 stores them; the CLI 0.15.0 has `undo` and `task restore`.
+
+### Added
+- **Undo**: `UndoPreviewUseCase` (what would be undone, whether it can be,
+  what goes with it) and `UndoUseCase` (it refuses if the last change is no
+  longer the one the preview showed). It walks back in time: each run
+  takes back the newest change of the user not undone yet, so a snapshot is
+  never restored over a later change. What a change made on its own goes
+  with it (the next occurrence of a completed recurring task:
+  `TaskCreatedEvent.caused_by`, passed by `create_next_occurrence`).
+- **Snapshots**: `Task.snapshot()` (status, dates, title, description,
+  priority, energy, context, due date, the whole rule) travels as
+  `previous` in the events of every change and is kept in the history;
+  `Task.revert_to(now, snapshot, undoes, action)` — undo is not a
+  transition, the state machine does not apply. Rules to and from plain
+  data: `recurrences/_serial.py` (every rule class, round-trip tested).
+- **Tombstones**: `Task.deleted_at`; `mark_deleted` no longer removes the
+  task (the use case updates it), `Task.restore` and `RestoreTaskUseCase`
+  bring it back. Searches see only live tasks — `find_by_id_prefix(…,
+  deleted=True)` and `TaskFilter.deleted` / `ListTasksRequest.deleted` see
+  only the deleted ones; `get_by_id` sees both. `purge_deleted(user,
+  before)` removes them for good; the delete use case runs it with the new
+  preference **`keep_deleted_days`** (30; 0: deleted for good at once).
+  `DeleteTaskOutputDTO.kept_days`.
+- History: `TaskAction.RESTORED` and `UNDONE`; entries carry `entry_id`
+  (their event's id), `previous`, `caused_by` and `undoes`;
+  `TaskHistoryRepository.recent` and `caused_by`. Events
+  `TaskRestoredEvent`, `TaskUndoneEvent`.
+
+### Fixed
+- **Deleting a task its dependents waited on left them blocked forever**:
+  `UnlockTaskDependenciesHandler` also reacts to `TaskDeletedEvent`.
+
+### Changed
+- `c_application/mappers/history_mapper.py` (entry → DTO), shared.
+- Coverage floor 76.8% → 78.5% (480 tests).
+
 ## [0.12.0] — 2026-09-26
 
 The task history (Part 1 of the product backlog). Enterprise 0.8.0 stores

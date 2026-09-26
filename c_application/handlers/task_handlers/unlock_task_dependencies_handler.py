@@ -1,5 +1,9 @@
 from b_domain.entities import Task
-from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
+from b_domain.events.task_events import (
+    TaskCancelledEvent,
+    TaskCompletedEvent,
+    TaskDeletedEvent,
+)
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unit_of_work import UnitOfWork
 
@@ -22,7 +26,9 @@ class UnlockTaskDependenciesHandler:
         self.uow = uow
         self.clock = clock
 
-    async def handle(self, event: TaskCompletedEvent | TaskCancelledEvent) -> None:
+    async def handle(
+        self, event: TaskCompletedEvent | TaskCancelledEvent | TaskDeletedEvent
+    ) -> None:
         """Handle a TaskCompletedEvent or a TaskCancelledEvent.
 
         Steps:

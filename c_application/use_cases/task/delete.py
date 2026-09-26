@@ -1,8 +1,9 @@
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from a_core import DTO, EntityNotFound, IdPrefix
 from a_core.exceptions import AmbiguousIdentifierError
-from b_domain.entities import Task
+from b_domain.entities import Task, User
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
 
@@ -31,6 +32,8 @@ class DeleteTaskOutputDTO(DTO):
 
     success: bool
     task_id: str
+    # How many days it can still be restored (0: it is gone)
+    kept_days: int = 30
 
 
 class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
@@ -86,8 +89,16 @@ class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
 
             task_to_delete: Task = tasks_found[0]
 
-            # 3. Safe deletion (the history keeps a record of it)
-            task_to_delete.mark_deleted(self.clock.now())
-            await uow.tasks.delete(task_to_delete.id)
+            # 3. A tombstone: restorable (task restore, undo) until the purge
+            now: datetime = self.clock.now()
+            task_to_delete.mark_deleted(now)
+            await uow.tasks.update(task_to_delete)
 
-            return DeleteTaskOutputDTO(success=True, task_id=str(task_to_delete.id))
+            # 4. Remove for good what was deleted long enough ago
+            user: User | None = await uow.users.get_by_id(user_id)
+            keep_days: int = user.preferences.keep_deleted_days if user else 30
+            await uow.tasks.purge_deleted(user_id, now - timedelta(days=keep_days))
+
+            return DeleteTaskOutputDTO(
+                success=True, task_id=str(task_to_delete.id), kept_days=keep_days
+            )

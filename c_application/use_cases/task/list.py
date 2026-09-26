@@ -153,7 +153,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 # archived tasks only show when asked for by status
                 exclude_statuses=(
                     frozenset()
-                    if f_status is not None
+                    if f_status is not None or request.deleted
                     else frozenset({TaskStatus.ARCHIVED})
                     if request.include_closed
                     else TaskStatus.closed()
@@ -175,6 +175,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 created_after=request.created_after,
                 updated_before=request.updated_before,
                 updated_after=request.updated_after,
+                deleted=request.deleted,
             )
 
             # 3. Query repository
@@ -194,7 +195,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 outputs.append(output)
 
                 # 5. The occurrences to come, which do not exist yet
-                if task.status.is_closed:
+                if task.status.is_closed or request.deleted:
                     continue
                 for occurrence in task.upcoming_occurrences(now, until):
                     wall: datetime = _wall_clock(occurrence, prefs.timezone)

@@ -3,6 +3,8 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
+from uuid import UUID, uuid4
 
 from b_domain.value_objects.identifiers import TaskId, UserId
 
@@ -17,6 +19,8 @@ class TaskAction(StrEnum):
     REOPENED = "reopened"
     ARCHIVED = "archived"
     DELETED = "deleted"
+    RESTORED = "restored"
+    UNDONE = "undone"
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -44,6 +48,11 @@ class TaskHistoryEntry:
         changes (tuple[FieldChange, ...]): For an edit, what changed.
         note (str | None): Anything else worth keeping ("the series ends
             here", "approximate: before the history existed").
+        entry_id (UUID): The entry's identity (its event's id).
+        previous (dict | None): The task before the change, for undo.
+        caused_by (UUID | None): The entry whose change made this one on its
+            own.
+        undoes (UUID | None): For an "undone" entry, the entry it undid.
     """
 
     task_id: TaskId
@@ -52,3 +61,12 @@ class TaskHistoryEntry:
     action: TaskAction
     changes: tuple[FieldChange, ...] = field(default_factory=tuple)
     note: str | None = None
+    # The event it came from (its id): what `undoes` and `caused_by` point to
+    entry_id: UUID = field(default_factory=uuid4)
+    # The task before the change (``Task.snapshot``), to undo it
+    previous: dict[str, Any] | None = None
+    # Made on its own by another entry's change (the next occurrence of a
+    # completed task): undone with that one, never alone
+    caused_by: UUID | None = None
+    # For an "undone" entry, the entry it undid
+    undoes: UUID | None = None

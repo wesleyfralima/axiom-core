@@ -50,6 +50,8 @@ class UserPrefs(ValueObject):
     default_due_time: str = "23:59"
     auto_schedule_tasks: bool = False
     allow_overdue_tasks: bool = True
+    # How long a deleted task can still be restored (0: deleted for good)
+    keep_deleted_days: int = 30
 
     # ------------------------------------------------------------------
     # Notifications
@@ -144,6 +146,14 @@ class UserPrefs(ValueObject):
         if "default_due_time" in result:
             result["default_due_time"] = _clock_time_text(
                 "default due time", str(result["default_due_time"])
+            )
+
+        if "keep_deleted_days" in result and not (
+            0 <= int(result["keep_deleted_days"]) <= 3650
+        ):
+            raise InvalidValueError(
+                concept="keep deleted days (0 to 3650)",
+                invalid_value=str(result["keep_deleted_days"]),
             )
 
         if "days_ahead" in result and not 0 <= int(result["days_ahead"]) <= 366:
