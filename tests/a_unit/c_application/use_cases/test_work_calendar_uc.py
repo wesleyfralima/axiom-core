@@ -359,6 +359,7 @@ async def test_a_countrys_subdivisions(
         ("br-sao", ["BR-SP"]),  # accents never matter
         ("br-", ["BR-RJ", "BR-SP"]),
         ("atlantis", []),
+        ("xyz", []),
     ],
 )
 async def test_searching_regions(

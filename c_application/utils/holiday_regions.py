@@ -4,7 +4,6 @@
 case and accents never matter.
 """
 
-import difflib
 import unicodedata
 
 from b_domain.ports.providers.holiday_provider import HolidayProvider
@@ -17,8 +16,8 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     Without a dash, among the countries; with one (``BR-SP``, ``br-paulo``),
     among that country's subdivisions. An exact code comes first, then the
     codes and names that contain the text; with none of those, the names
-    that are close to it or start close to it (a typo, another language's
-    spelling: "Brasil", "bras").
+    a typo away from it or from its start (another language's spelling:
+    "Brasil", "bras").
 
     Args:
         provider (HolidayProvider): Who knows the regions.
@@ -52,23 +51,34 @@ def find_regions(provider: HolidayProvider, query: str) -> list[HolidayRegion]:
     if exact or containing:
         return exact + containing
 
-    # Close: to the whole name ("brasil" ~ "brazil") or to its start ("bras")
-    scored: list[tuple[float, HolidayRegion]] = []
+    # Close: a typo away from the whole name ("brasil" → "brazil") or from
+    # its start ("bras" → "braz…")
+    allowed: int = 1 if len(text) <= 5 else 2
+    scored: list[tuple[int, HolidayRegion]] = []
     for region in candidates:
         name: str = _plain(region.name)
-        score: float = max(_similar(text, name), _similar(text, name[: len(text)]))
-        if score >= _CLOSE:
-            scored.append((score, region))
-    scored.sort(key=lambda pair: -pair[0])
+        edits: int = min(_edits(text, name), _edits(text, name[: len(text)]))
+        if edits <= allowed:
+            scored.append((edits, region))
+    scored.sort(key=lambda pair: pair[0])
     return [region for _, region in scored[:3]]
 
 
-_CLOSE: float = 0.75
-"""How similar a name must be to count as a typo of the text (0 to 1)."""
-
-
-def _similar(a: str, b: str) -> float:
-    return difflib.SequenceMatcher(None, a, b).ratio()
+def _edits(a: str, b: str) -> int:
+    """How many letters to add, remove or change to turn ``a`` into ``b``."""
+    previous: list[int] = list(range(len(b) + 1))
+    for i, char_a in enumerate(a, start=1):
+        current: list[int] = [i]
+        for j, char_b in enumerate(b, start=1):
+            current.append(
+                min(
+                    previous[j] + 1,
+                    current[j - 1] + 1,
+                    previous[j - 1] + (char_a != char_b),
+                )
+            )
+        previous = current
+    return previous[-1]
 
 
 def _plain(text: str) -> str:
