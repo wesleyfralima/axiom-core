@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import date, datetime
+from typing import Self
 
 from a_core import ValidationException, ValueObject
 from a_core.text import join_naturally
@@ -82,6 +84,19 @@ class RecurrenceRule(ValueObject, ABC):
     def is_sub_daily(self) -> bool:
         """Whether it repeats more than once a day (hourly rules)."""
         return self._freq == "HOURLY"
+
+    @property
+    def uses_business_days(self) -> bool:
+        """Whether the rule counts business days (they need the user's calendar)."""
+        return False
+
+    def with_business_days(self, is_business_day: Callable[[date], bool]) -> Self:
+        """This rule counting business days with ``is_business_day``.
+
+        Only a rule that counts them changes (see ``uses_business_days``);
+        the others are returned as they are.
+        """
+        return self
 
     # noinspection PyMethodMayBeStatic
     def supports_native_sync(self) -> bool:

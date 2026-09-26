@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from datetime import date, datetime
 from typing import Any
 
@@ -9,6 +10,7 @@ from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, Priority, UserId
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.recurrences import RecurrenceRule
+from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
@@ -21,6 +23,7 @@ from c_application.utils.date_input import (
     resolve_horizon,
 )
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
+from c_application.utils.work_calendar import load_work_calendar, use_work_calendar
 
 PREVIEW_MAX: int = 10
 """The most occurrences an edit's result previews."""
@@ -111,6 +114,16 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             previous: dict[str, Any] = task.snapshot()
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
+            # Business days are the user's, for the rule it has or gets
+            calendar: WorkCalendar | None = await use_work_calendar(
+                uow, user_id, prefs, [task]
+            )
+            if (
+                calendar is None
+                and request.recurrence is not None
+                and request.recurrence.nth_business_day is not None
+            ):
+                calendar = await load_work_calendar(uow, user_id, prefs)
 
             # 3. Apply partial updates
             now: datetime = self.clock.now()
@@ -176,7 +189,14 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if request.remove_recurrence:
                 task.change_recurrence(now, None)
             elif request.recurrence is not None:
-                self._repeat_by(task, request.recurrence, request, prefs, now)
+                self._repeat_by(
+                    task,
+                    request.recurrence,
+                    request,
+                    prefs,
+                    now,
+                    calendar.is_business_day if calendar else weekdays_only,
+                )
 
             after: dict[str, str | None] = _snapshot(task, names)
             task.record_edit(
@@ -224,6 +244,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         request: UpdateTaskInputDTO,
         prefs: UserPrefs,
         now: datetime,
+        is_business_day: Callable[[date], bool],
     ) -> None:
         """Give the task a new rule; its due date stays.
 
@@ -260,6 +281,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             tz=tz,
             today=today,
             week_start=WEEK_STARTS[prefs.week_start],
+            is_business_day=is_business_day,
         )
         if task.due_date is None:
             first: datetime | None = rule.get_next_occurrence()

@@ -1,3 +1,4 @@
+from .calendar_day_repository import CalendarDayRepository
 from .context_repository import ContextRepository
 from .outbox_event_repository import OutboxEventRepository
 from .task_history_repository import TaskHistoryRepository
@@ -9,6 +10,7 @@ from .user_behavior_profile_repository import UserBehaviorProfileRepository
 from .user_repository import UserRepository
 
 __all__ = [
+    "CalendarDayRepository",
     "ContextRepository",
     "OutboxEventRepository",
     "TaskHistoryRepository",

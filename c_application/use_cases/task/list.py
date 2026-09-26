@@ -31,6 +31,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.work_calendar import use_work_calendar
 
 
 class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
@@ -180,6 +181,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
 
             # 3. Query repository
             tasks: list[Task] = await uow.tasks.list(filters)
+            await use_work_calendar(uow, f_user_id, prefs, tasks)
 
             # 4. Centralized mapping
             by_id: dict[ContextId, Context] = {c.id: c for c in contexts}

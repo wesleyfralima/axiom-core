@@ -7,6 +7,7 @@ from b_domain.ports.providers.calendar_provider import (
     CalendarProvider,
 )
 from b_domain.ports.unit_of_work import UnitOfWork
+from c_application.utils.work_calendar import use_work_calendar
 
 
 class ExportTaskToCalendarHandler:
@@ -66,6 +67,9 @@ class ExportTaskToCalendarHandler:
             # 3. Business rule: only export if due date OR recurrence exists
             if not (task.due_date or task.recurrence):
                 return
+
+            # "The Nth business day": the user's business days
+            await use_work_calendar(self.uow, user.id, user.preferences, [task])
 
             # Build calendar event input from task
             event_input: CalendarEventInput = CalendarEventInput.from_task(task)

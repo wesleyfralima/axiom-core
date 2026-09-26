@@ -1,9 +1,11 @@
 """A ``RecurrenceInputDTO`` made into a rule — the same way on create and edit."""
 
+from collections.abc import Callable
 from datetime import date, datetime, time
 
 from b_domain.value_objects.dates import build_axiom_date
 from b_domain.value_objects.recurrences import RecurrenceFactory, RecurrenceRule
+from b_domain.value_objects.work_calendar import weekdays_only
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.utils.date_input import at_time, resolve_date_input
 
@@ -19,6 +21,7 @@ def build_recurrence(
     tz: str,
     today: date,
     week_start: int = 0,
+    is_business_day: Callable[[date], bool] = weekdays_only,
 ) -> RecurrenceRule:
     """The rule for ``dto``, starting at ``start``.
 
@@ -31,6 +34,8 @@ def build_recurrence(
         today (date): The user's today, for an end date typed as a word.
         week_start (int): The user's first day of the week (0 = Monday,
             6 = Sunday), for "the Nth day of the week".
+        is_business_day (Callable[[date], bool]): The user's business days,
+            for "the Nth business day" (``WorkCalendar.is_business_day``).
 
     Returns:
         RecurrenceRule: The rule.
@@ -59,7 +64,7 @@ def build_recurrence(
         days_of_month=set(dto.by_month_days) if dto.by_month_days else None,
         set_pos=dto.by_set_pos,
         nth_business_day=dto.nth_business_day,
-        is_business_day_checker=lambda dt: dt.weekday() < 5,  # TODO: holidays
+        is_business_day_checker=is_business_day,
         window_start=dto.window_start,
         window_end=dto.window_end,
         week_start=week_start,

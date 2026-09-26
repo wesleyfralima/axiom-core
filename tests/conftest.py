@@ -1,6 +1,6 @@
 import builtins
-from collections.abc import Iterable
-from datetime import UTC, datetime
+from collections.abc import Iterable, Mapping
+from datetime import UTC, date, datetime
 from typing import Any, Protocol
 from uuid import UUID
 
@@ -11,6 +11,7 @@ from b_domain.entities import Context, Task, TimeEntry, User
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.repositories import (
+    CalendarDayRepository,
     ContextRepository,
     OutboxEventRepository,
     TaskHistoryRepository,
@@ -37,6 +38,7 @@ from b_domain.value_objects import (
 from b_domain.value_objects.identifiers import TimeEntryId
 from b_domain.value_objects.task_history import TaskHistoryEntry
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
+from b_domain.value_objects.work_calendar import CalendarDay
 
 
 class FakeClock(ClockProvider):
@@ -485,6 +487,50 @@ class FakeTaskHistoryRepository(TaskHistoryRepository):
         ]
 
 
+class FakeCalendarDayRepository(CalendarDayRepository):
+    def __init__(self, days: dict[str, list[CalendarDay]] | None = None) -> None:
+        self.days: dict[str, list[CalendarDay]] = days if days is not None else {}
+
+    async def list_by_user(self, user_id: UserId) -> list[CalendarDay]:
+        return sorted(self.days.get(str(user_id), []), key=lambda d: d.day)
+
+    async def save(self, user_id: UserId, day: CalendarDay) -> None:
+        await self.remove(user_id, day.day, day.yearly)
+        self.days.setdefault(str(user_id), []).append(day)
+
+    async def remove(self, user_id: UserId, day: date, yearly: bool) -> None:
+        mine: list[CalendarDay] = self.days.get(str(user_id), [])
+        mine[:] = [d for d in mine if (d.day, d.yearly) != (day, yearly)]
+
+
+class FakeHolidayProvider:
+    """Holidays by region, set by the test: ``{"BR": {date: "name"}}``.
+
+    A holiday counts in its year only; ``region_for_timezone`` knows
+    ``America/Sao_Paulo`` (BR) when BR is a region.
+    """
+
+    def __init__(self, regions: dict[str, dict[date, str]] | None = None) -> None:
+        self.regions: dict[str, dict[date, str]] = (
+            regions if regions is not None else {}
+        )
+
+    def supports(self, region: str) -> bool:
+        return region in self.regions
+
+    def holidays(self, region: str, year: int) -> Mapping[date, str]:
+        return {
+            d: name
+            for d, name in self.regions.get(region, {}).items()
+            if d.year == year
+        }
+
+    def region_for_timezone(self, timezone: str) -> str | None:
+        if timezone == "America/Sao_Paulo" and "BR" in self.regions:
+            return "BR"
+        return None
+
+
 class FakeUnitOfWork(UnitOfWork):
     def __init__(
         self,
@@ -493,6 +539,8 @@ class FakeUnitOfWork(UnitOfWork):
         contexts_dict: dict[str, Context] | None = None,
         history: list[TaskHistoryEntry] | None = None,
         time_entries: list[TimeEntry] | None = None,
+        calendar_days: dict[str, list[CalendarDay]] | None = None,
+        holidays: FakeHolidayProvider | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
@@ -515,6 +563,11 @@ class FakeUnitOfWork(UnitOfWork):
         self.user_behavior_profiles: FakeUserBehaviorProfileRepository = (
             FakeUserBehaviorProfileRepository()
         )
+
+        self.calendar_days: FakeCalendarDayRepository = FakeCalendarDayRepository(
+            calendar_days
+        )
+        self.holidays: FakeHolidayProvider = holidays or FakeHolidayProvider()
 
         self._seen_entities: set[Entity] = set()
         self._trigger_relay: bool = False
@@ -562,6 +615,8 @@ def fake_uow_factory() -> FakeUowFactory:
     shared_contexts: dict[str, Context] = {}
     shared_history: list[TaskHistoryEntry] = []
     shared_time_entries: list[TimeEntry] = []
+    shared_calendar_days: dict[str, list[CalendarDay]] = {}
+    shared_holidays: FakeHolidayProvider = FakeHolidayProvider()
 
     # add others as needed
 
@@ -573,6 +628,8 @@ def fake_uow_factory() -> FakeUowFactory:
             contexts_dict=shared_contexts,
             history=shared_history,
             time_entries=shared_time_entries,
+            calendar_days=shared_calendar_days,
+            holidays=shared_holidays,
         )
 
     return factory

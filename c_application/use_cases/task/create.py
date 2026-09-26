@@ -12,6 +12,7 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.enums import EnergyLevel, Priority
+from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
@@ -23,6 +24,7 @@ from c_application.utils.date_input import (
     resolve_horizon,
 )
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
+from c_application.utils.work_calendar import load_work_calendar
 
 
 # TODO: better system of id prefix when needed, because
@@ -149,6 +151,12 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     else due_date or today,
                     due_clock,
                 )
+                # "The Nth business day": the user's own business days
+                calendar: WorkCalendar | None = (
+                    await load_work_calendar(uow, user_id_vo, user.preferences)
+                    if dto.recurrence.nth_business_day is not None
+                    else None
+                )
                 recurrence_vo = build_recurrence(
                     dto.recurrence,
                     start=start,
@@ -156,6 +164,9 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                     tz=tz_to_use,
                     today=today,
                     week_start=WEEK_STARTS[user.preferences.week_start],
+                    is_business_day=(
+                        calendar.is_business_day if calendar else weekdays_only
+                    ),
                 )
 
                 # First occurrence becomes the due date

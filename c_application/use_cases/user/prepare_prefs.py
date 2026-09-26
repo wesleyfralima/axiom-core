@@ -14,9 +14,12 @@ class PrepareUserPreferencesInputDTO(DTO):
 
     Attributes:
         username (str): The username whose preferences will be prepared.
+        timezone (str | None): The time zone the user is about to choose, for
+            the holiday region suggestion (default: their current one).
     """
 
     username: str
+    timezone: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -28,11 +31,14 @@ class PrepareUserPreferencesOutputDTO(DTO):
 
     Attributes:
         preferences (UserPrefsOutputDTO): Fully resolved user preferences.
+        suggested_holiday_region (str | None): With no holiday region set, the
+            country the time zone points to, for the user to confirm.
         message (str): Status message confirming preparation.
             Defaults to "preferences_prepared".
     """
 
     preferences: UserPrefsOutputDTO
+    suggested_holiday_region: str | None = None
     message: str = "preferences_prepared"
 
 
@@ -56,7 +62,15 @@ class PrepareUserPreferencesUseCase(
                 raise UserNotFoundError(request.username)
 
             prefs_dto: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)
+            suggested: str | None = (
+                None
+                if prefs_dto.holiday_region
+                else uow.holidays.region_for_timezone(
+                    request.timezone or prefs_dto.timezone
+                )
+            )
 
         return PrepareUserPreferencesOutputDTO(
             preferences=prefs_dto,
+            suggested_holiday_region=suggested,
         )

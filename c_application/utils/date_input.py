@@ -1,4 +1,4 @@
-"""Dates as people type them: "2026-10-01", "tomorrow 14:00", "today".
+"""Dates as people type them: "2026-10-01", "tomorrow 14:00", "today", "12-25".
 
 Every use case that receives a date from the user takes a ``DateInput`` and
 resolves it here, relative to the user's "today" (their time zone, the
@@ -25,9 +25,14 @@ _DAY_OFFSETS: dict[str, int] = {
 }
 """Words for a day, as an offset from today."""
 
-_ACCEPTED: str = "YYYY-MM-DD, YYYY-MM-DD HH:MM, today, tomorrow or yesterday (+ HH:MM)"
+_ACCEPTED: str = (
+    "YYYY-MM-DD, MM-DD (the next one), YYYY-MM-DD HH:MM, "
+    "today, tomorrow or yesterday (+ HH:MM)"
+)
 
 _TIME_RE: re.Pattern[str] = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+_MONTH_DAY_RE: re.Pattern[str] = re.compile(r"^(\d{1,2})-(\d{1,2})$")
 
 
 def local_today(now: datetime, tz_name: str) -> date:
@@ -53,9 +58,10 @@ def resolve_date_input(value: DateInput, *, today: date) -> date | datetime:
     Args:
         value (DateInput): A datetime (kept as it is), a date (kept: no time
             was given) or a text: an ISO date (``2026-10-01``), an ISO date
-            and time (``2026-10-01 14:00`` or with ``T``), or a day word
-            (``today``, ``tomorrow``, ``yesterday``) optionally followed by
-            ``HH:MM``.
+            and time (``2026-10-01 14:00`` or with ``T``), a month and day
+            (``12-25``: the next one, today included), or a day word
+            (``today``, ``tomorrow``, ``yesterday``); a month and day or a
+            day word can be followed by ``HH:MM``.
         today (date): The user's today, which the words are relative to.
 
     Returns:
@@ -72,8 +78,14 @@ def resolve_date_input(value: DateInput, *, today: date) -> date | datetime:
     parts: list[str] = text.split(" ")
     day_word, clock = parts[0], parts[1:]
 
-    if day_word in _DAY_OFFSETS and len(clock) <= 1:
-        day: date = today + timedelta(days=_DAY_OFFSETS[day_word])
+    day: date | None = None
+    if day_word in _DAY_OFFSETS:
+        day = today + timedelta(days=_DAY_OFFSETS[day_word])
+    elif match := _MONTH_DAY_RE.match(day_word):
+        day = _next_month_day(int(match.group(1)), int(match.group(2)), today, value)
+    if day is not None:
+        if len(clock) > 1:
+            raise _invalid(value)
         return datetime.combine(day, _parse_clock(clock[0], value)) if clock else day
 
     try:
@@ -131,6 +143,20 @@ def end_of_day(day: date, tz_name: str) -> datetime:
     except (ZoneInfoNotFoundError, ValueError):
         zone = ZoneInfo("UTC")
     return datetime.combine(day, time(23, 59, 59), tzinfo=zone)
+
+
+def _next_month_day(month: int, day: int, today: date, original: str) -> date:
+    """The next ``month``/``day`` from ``today`` on (29 February: a leap year)."""
+    for year in range(today.year, today.year + 9):
+        try:
+            candidate: date = date(year, month, day)
+        except ValueError:
+            if (month, day) == (2, 29):
+                continue
+            raise _invalid(original) from None
+        if candidate >= today:
+            return candidate
+    raise _invalid(original)
 
 
 def _parse_clock(text: str, original: str) -> time:
