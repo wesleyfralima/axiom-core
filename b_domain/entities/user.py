@@ -1,5 +1,6 @@
 """User entity and preferences definitions for the domain."""
 
+import re
 from dataclasses import dataclass, field, fields, replace
 from datetime import datetime, time
 from typing import Any, ClassVar, Literal
@@ -15,6 +16,11 @@ from b_domain.events.other_events import ContextSwitchedEvent
 from b_domain.value_objects import UserId
 from b_domain.value_objects.enums import Priority
 from b_domain.value_objects.identifiers import ContextId
+from b_domain.value_objects.work_calendar import (
+    DEFAULT_WORK_DAYS,
+    parse_work_days,
+    work_days_text,
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,7 +41,10 @@ class UserPrefs(ValueObject):
     week_start: Literal["monday", "sunday"] = "monday"
     working_hours_start: int = 9  # 09:00
     working_hours_end: int = 18  # 18:00
-    skip_weekends: bool = True
+    # The days of the week the user works (mon,tue,…): business days
+    work_days: str = DEFAULT_WORK_DAYS
+    # Whose public holidays are not business days ("BR", "BR-SP"; "": none)
+    holiday_region: str = ""
     external_calendar_name: str = "Axiom Pro"
     external_calendar_id: str | None = None
     external_calendar_autosync: bool = True
@@ -88,6 +97,11 @@ class UserPrefs(ValueObject):
         """``default_due_time`` as a time of day."""
         hours, minutes = (int(part) for part in self.default_due_time.split(":"))
         return time(hours, minutes)
+
+    @property
+    def work_weekdays(self) -> frozenset[int]:
+        """``work_days`` as ``date.weekday()`` numbers (0 = Monday)."""
+        return parse_work_days(self.work_days)
 
     def update(self, **changes: Any) -> "UserPrefs":
         """Creates a new UserPrefs instance with the updated values.
@@ -161,6 +175,14 @@ class UserPrefs(ValueObject):
                 concept="days ahead (0 to 366)", invalid_value=str(result["days_ahead"])
             )
 
+        if "work_days" in result:
+            result["work_days"] = work_days_text(
+                parse_work_days(str(result["work_days"]))
+            )
+
+        if "holiday_region" in result:
+            result["holiday_region"] = _region_text(str(result["holiday_region"]))
+
         for key in ("working_hours_start", "working_hours_end"):
             if key in result and not 0 <= int(result[key]) <= 23:
                 raise InvalidValueError(
@@ -181,6 +203,31 @@ def _clock_time_text(concept: str, text: str) -> str:
         return time(hours, minutes).strftime("%H:%M")
     except ValueError as e:
         raise InvalidValueError(concept=concept, invalid_value=text) from e
+
+
+_REGION_RE: re.Pattern[str] = re.compile(r"^[A-Z]{2}(-[A-Z0-9]{1,5})?$")
+
+
+def _region_text(text: str) -> str:
+    """A holiday region as ``BR`` or ``BR-SP``; ``none`` or nothing: ``""``.
+
+    Only the shape is checked here; whether a provider knows the region is the
+    use case's to ask.
+
+    Raises:
+        InvalidValueError: If the text is not a country code with an optional
+            subdivision.
+    """
+    region: str = text.strip().upper().replace("_", "-")
+    if region in ("", "NONE", "-"):
+        return ""
+    if not _REGION_RE.match(region):
+        raise InvalidValueError(
+            concept="holiday region",
+            invalid_value=text,
+            valid_options=["a country code (BR, US)", "with a subdivision (BR-SP)"],
+        )
+    return region
 
 
 _CHOICES: dict[str, tuple[str, ...]] = {

@@ -88,7 +88,8 @@ class UpdateUserPreferencesUseCase(
         Raises:
             UserNotFoundError: If the user does not exist.
             ValidationException: If no preferences were provided to update.
-            InvalidValueError: If a provided preference value is invalid.
+            InvalidValueError: If a provided preference value is invalid, or
+                the holiday region is one whose holidays are not known.
         """
 
         async with self.uow as uow:
@@ -115,6 +116,18 @@ class UpdateUserPreferencesUseCase(
                 raise InvalidValueError(
                     concept="Preference Value", invalid_value=str(e)
                 ) from e
+
+            # A region is only good if its holidays are known
+            region: str = user.preferences.holiday_region
+            if (
+                "holiday_region" in changes
+                and region
+                and not uow.holidays.supports(region)
+            ):
+                raise InvalidValueError(
+                    concept="holiday region (no holidays known for it)",
+                    invalid_value=str(changes["holiday_region"]),
+                )
 
             # Snapshot AFTER state
             after: UserPrefsOutputDTO = UserMapper.prefs_from_entity(user)

@@ -1,6 +1,7 @@
-from b_domain.entities import Task
+from b_domain.entities import Task, User, UserPrefs
 from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.ports.unit_of_work import UnitOfWork
+from c_application.utils.work_calendar import use_work_calendar
 
 
 class CreateRecurringTaskHandler:
@@ -44,6 +45,12 @@ class CreateRecurringTaskHandler:
             task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
             if not task or not task.recurrence:
                 return
+
+            # "The Nth business day" counts the user's business days
+            if task.recurrence.uses_business_days:
+                user: User | None = await self.uow.users.get_by_id(task.user_id)
+                prefs: UserPrefs = user.preferences if user else UserPrefs()
+                await use_work_calendar(self.uow, task.user_id, prefs, [task])
 
             # Create the next occurrence based on completion time
             # Linked to the change that made it: undo removes it with that one

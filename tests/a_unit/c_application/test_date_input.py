@@ -27,6 +27,12 @@ TODAY = date(2026, 3, 5)
         ("2026-10-01", date(2026, 10, 1)),
         ("2026-10-01 14:00", datetime(2026, 10, 1, 14, 0)),
         ("2026-10-01T14:00", datetime(2026, 10, 1, 14, 0)),
+        # A month and day: the next one, today included
+        ("12-25", date(2026, 12, 25)),
+        ("03-05", date(2026, 3, 5)),
+        ("3-4", date(2027, 3, 4)),
+        ("02-29", date(2028, 2, 29)),
+        ("12-25 10:00", datetime(2026, 12, 25, 10, 0)),
     ],
 )
 def test_resolve_date_input(typed: str, expected: date | datetime) -> None:
@@ -88,3 +94,9 @@ def test_end_of_day_is_aware_in_the_zone() -> None:
     end = end_of_day(TODAY, "America/Sao_Paulo")
     assert (end.hour, end.minute) == (23, 59)
     assert end.astimezone(UTC) == datetime(2026, 3, 6, 2, 59, 59, tzinfo=UTC)
+
+
+@pytest.mark.parametrize("typed", ["13-01", "02-30", "12-25 10:00 extra", "today 1 2"])
+def test_a_month_and_day_must_exist(typed: str) -> None:
+    with pytest.raises(InvalidValueError, match="MM-DD"):
+        resolve_date_input(typed, today=TODAY)

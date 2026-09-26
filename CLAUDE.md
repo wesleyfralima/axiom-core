@@ -113,6 +113,15 @@ simulator: `python -m d_fake_infra`).
   leaves even the full list. Closing a recurring occurrence (done, or
   cancelled without `end_series`) creates the next one through the event;
   a reopened occurrence becomes a one-off.
+- **Business days:** `b_domain/value_objects/work_calendar.py`
+  (`WorkCalendar`: the `work_days` preference, then the `holiday_region`'s
+  holidays through the `HolidayProvider` port — `uow.holidays` — then the
+  user's own days, `CalendarDay`, in `uow.calendar_days`; each wins over the
+  one before). A rule that counts business days does not store them: code
+  that computes occurrences calls
+  `c_application/utils/work_calendar.use_work_calendar` first (create, edit,
+  list, show, the next occurrence, the calendar export do). Use cases in
+  `c_application/use_cases/work_calendar/`.
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -179,9 +188,9 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-09-25)
+## Current state (2026-09-26)
 
-- Version `0.15.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.16.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -192,9 +201,10 @@ there too.
   (0.8.0); recurrence edit and `count` fixed (0.9.0); weekly `set_pos`
   (0.10.0); time entries tracked by the UoW (0.11.0); the task history
   (0.12.0); undo and tombstones (0.13.0); reports and series (0.14.0);
-  timers and estimates (0.15.0).
+  timers and estimates (0.15.0); business days: work days, a region's
+  holidays and the user's own days (0.16.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 494 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 80.2% over a 80.2% floor.
+- 553 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 82.3% over a 82.3% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

@@ -36,7 +36,7 @@ def rule_to_dict(rule: RecurrenceRule) -> dict[str, Any]:
             continue
         value: Any = getattr(rule, f.name)
         if callable(value):
-            continue  # the business-day checker: rebuilt on the way back
+            continue  # the business-day checker: the user's calendar, not data
         data[f.name] = _plain(value)
     return data
 
@@ -70,8 +70,6 @@ def rule_from_dict(data: dict[str, Any]) -> RecurrenceRule:
             params[f.name] = RecurrenceInterval(value)
         else:
             params[f.name] = value
-    if "is_business_day" in {f.name for f in fields(cls)}:
-        params["is_business_day"] = lambda d: d.weekday() < 5  # as the factory
     rule: RecurrenceRule = cls(**params)
     return rule
 

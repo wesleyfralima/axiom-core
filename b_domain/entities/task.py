@@ -1,5 +1,6 @@
+from collections.abc import Callable
 from dataclasses import dataclass, field, replace
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -611,6 +612,15 @@ class Task(Entity):
         if rule is not None and self.series_id is None:
             self.series_id = self.id
         self._touch(now)
+
+    def use_business_days(self, is_business_day: Callable[[date], bool]) -> None:
+        """Count the rule's business days with the user's calendar.
+
+        Not a change to the task: the rule stays equal (the calendar is not
+        part of it), nothing is recorded and ``updated_at`` stays.
+        """
+        if self.recurrence is not None:
+            self.recurrence = self.recurrence.with_business_days(is_business_day)
 
     def move_to_context(self, now: datetime, context_id: ContextId | None) -> None:
         """Put the task in a context, or in none."""

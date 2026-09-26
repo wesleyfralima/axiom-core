@@ -1,7 +1,6 @@
 from collections.abc import Callable
 from datetime import date, time
 
-from a_core import ValidationException
 from b_domain.exceptions.recurrence import (
     BySetPosRequiresWeeklyOrMonthly,
     BySetPosWithMonthDays,
@@ -27,6 +26,7 @@ from b_domain.value_objects.recurrences.weekly_by_days import WeeklyByDaysRule
 from b_domain.value_objects.recurrences.weekly_by_position import (
     WeeklyPositionalRule,
 )
+from b_domain.value_objects.work_calendar import weekdays_only
 
 
 class RecurrenceFactory:
@@ -73,8 +73,8 @@ class RecurrenceFactory:
             nth_business_day (Optional[int], optional): Nth business day of the
                 month. Defaults to None.
             is_business_day_checker (Optional[Callable[[date], bool]], optional):
-                Function to check if a date is a business day.
-                Required if `nth_business_day` is set.
+                Whether a date is a business day (the user's calendar).
+                Defaults to Monday to Friday.
             window_start (Optional[time], optional): Start time for hourly
                 window rules. Defaults to None.
             window_end (Optional[time], optional): End time for hourly
@@ -102,17 +102,13 @@ class RecurrenceFactory:
 
         # 1. Business Day Rule
         if nth_business_day is not None:
-            if not is_business_day_checker:
-                raise ValidationException(
-                    "is_business_day_checker is required for business day rules."
-                )
             return BusinessDayRule(
                 start_date=start_date,
                 interval=interval,
                 end_date=end_date,
                 count=count,
                 nth_day=nth_business_day,
-                is_business_day=is_business_day_checker,
+                is_business_day=is_business_day_checker or weekdays_only,
             )
 
         # 2. Hourly Window Rule

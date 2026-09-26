@@ -6,6 +6,53 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.16.0] — 2026-09-26
+
+Business days (Part 6 of the product backlog): what a business day is now
+belongs to the user. Enterprise 0.12.0 and CLI 0.18.0 pick it up.
+
+### Added
+- **`WorkCalendar`** (`b_domain/value_objects/work_calendar.py`): work
+  days of the week, a region's holidays, and the user's own days, each
+  above the one before. `CalendarDay` (a day off or a working day, **once
+  or every year**; a one-off wins over a yearly one on the same date) and
+  `CalendarDayKind`.
+- **Preferences `work_days`** (`mon,tue,wed,thu,fri` by default; names or
+  ranges such as `sun-thu`, stored in canonical form) and
+  **`holiday_region`** (`BR`, `BR-SP`, `US-CA`…; empty: no holidays).
+  `UserPrefs.work_weekdays`.
+- **Ports**: `HolidayProvider` (a region's holidays, whether it is known,
+  the country of a time zone) and `CalendarDayRepository`; the unit of work
+  exposes `calendar_days` and `holidays`.
+- **Use cases** `ShowWorkCalendarUseCase` (work days, region, and the
+  holidays and own days from today up to a year ahead, or `ahead`; with no
+  region, the one the time zone suggests), `SetCalendarDayUseCase` (adds or
+  replaces; says when it changes nothing) and `RemoveCalendarDayUseCase`.
+- `PrepareUserPreferencesUseCase` suggests a holiday region from the time
+  zone (`timezone` in, `suggested_holiday_region` out); updating the
+  preferences refuses a region whose holidays are not known.
+- **Dates as `MM-DD`**: the next one, today included (`12-25`, `02-29` on
+  the next leap year), with an optional `HH:MM` — in every date the user
+  types.
+- `RecurrenceRule.uses_business_days` / `with_business_days`,
+  `Task.use_business_days` and `c_application/utils/work_calendar.py`
+  (`load_work_calendar`, `use_work_calendar`: loaded only when a task
+  needs it).
+
+### Changed
+- **"The Nth business day" counts the user's business days** — work days,
+  their region's holidays, their own days — on create, edit, list, show,
+  the next occurrence and the calendar export. It was Monday to Friday,
+  hard-coded in three places (`# TODO: holidays`).
+- `BusinessDayRule.is_business_day` defaults to Monday to Friday (it is
+  the user's calendar, not data: nothing rebuilds it on the way back from
+  storage any more); `RecurrenceFactory` no longer requires it.
+- Coverage floor 80.2% → 82.3% (553 tests).
+
+### Removed
+- **The `skip_weekends` preference**, which nothing read: `work_days`
+  replaces it (enterprise converts what is stored).
+
 ## [0.15.0] — 2026-09-26
 
 Timers and estimates (Part 4 of the product backlog). Enterprise 0.11.0

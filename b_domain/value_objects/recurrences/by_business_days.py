@@ -1,11 +1,13 @@
 import calendar
 from collections.abc import Callable
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from datetime import date, datetime
+from typing import Self
 
 from a_core import ValidationException
 from a_core.text import ordinal_phrase
 from b_domain.value_objects.recurrences import RecurrenceRule
+from b_domain.value_objects.work_calendar import weekdays_only
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -13,17 +15,21 @@ class BusinessDayRule(RecurrenceRule):
     """Rule for occurrences on the N-th business day of the month.
 
     Handles recurrences like "The 5th business day of the month" or
-    "The last business day of the month". Requires an external checker
-    to determine what constitutes a business day (skipping weekends/holidays).
+    "The last business day of the month". What a business day is belongs to
+    the user (``WorkCalendar``): the application hands their calendar over
+    with ``with_business_days``. Until then, Monday to Friday.
 
     Attributes:
         nth_day (int): The business day index (e.g., 5 for 5th, -1 for last).
-        is_business_day (Callable[[date], bool]): Function injected to validate dates.
-            Excluded from equality comparisons to maintain Value Object purity.
+        is_business_day (Callable[[date], bool]): Whether a date is a business
+            day. Not stored and excluded from equality comparisons: it is the
+            user's calendar, not part of the rule.
     """
 
     nth_day: int
-    is_business_day: Callable[[date], bool] = field(compare=False, repr=False)
+    is_business_day: Callable[[date], bool] = field(
+        default=weekdays_only, compare=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         """Validate the specific invariants for business days.
@@ -47,6 +53,15 @@ class BusinessDayRule(RecurrenceRule):
 
         if self.is_business_day is None:
             raise ValidationException("Callback is_business_day missing.")
+
+    @property
+    def uses_business_days(self) -> bool:
+        """It counts business days."""
+        return True
+
+    def with_business_days(self, is_business_day: Callable[[date], bool]) -> Self:
+        """This rule counting business days with ``is_business_day``."""
+        return replace(self, is_business_day=is_business_day)
 
     def supports_native_sync(self) -> bool:
         """Business day rules are not natively supported by RFC 5545 RRULEs.

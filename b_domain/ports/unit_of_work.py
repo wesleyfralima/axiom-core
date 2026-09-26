@@ -7,7 +7,9 @@ from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.events.history import history_entry
 from b_domain.ports.event_bus import EventBus
+from b_domain.ports.providers.holiday_provider import HolidayProvider
 from b_domain.ports.repositories import (
+    CalendarDayRepository,
     ContextRepository,
     TaskRepository,
     UserRepository,
@@ -70,6 +72,10 @@ class UnitOfWork(ABC):
     outbox_repo: OutboxEventRepository
     user_behavior_metrics: UserBehaviorMetricsRepository
     user_behavior_profiles: UserBehaviorProfileRepository
+    calendar_days: CalendarDayRepository
+    # Not a repository: what the region's holidays are (read-only, no
+    # transaction), here so every use case and handler reaches it
+    holidays: HolidayProvider
 
     def __init__(
         self,

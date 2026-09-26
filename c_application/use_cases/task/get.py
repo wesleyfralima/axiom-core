@@ -11,6 +11,7 @@ from c_application.dtos.task_dtos import GetTaskRequest
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.use_cases.task.timer import time_of
 from c_application.utils.date_input import end_of_day, local_today, resolve_horizon
+from c_application.utils.work_calendar import use_work_calendar
 
 
 class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
@@ -84,6 +85,7 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
             # (or the user's days_ahead)
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
+            await use_work_calendar(uow, user_id, prefs, [task])
             now: datetime = self.clock.now()
             horizon: date = resolve_horizon(
                 request.ahead if request.ahead is not None else prefs.days_ahead,
