@@ -206,7 +206,7 @@ there too.
   holidays and the user's own days (0.16.0); the regions to choose from
   (0.17.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 563 tests passing; **`make check` green**: mypy at zero (packages and
+- 564 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 82.6% over a 82.6% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
