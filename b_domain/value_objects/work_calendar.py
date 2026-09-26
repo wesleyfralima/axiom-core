@@ -132,6 +132,26 @@ class CalendarDay(ValueObject):
         )
 
 
+@dataclass(frozen=True)
+class HolidayRegion(ValueObject):
+    """A region whose holidays are known: ``BR`` Brazil, ``BR-SP`` São Paulo.
+
+    Attributes:
+        code (str): The country's ISO 3166 code, or the country and one of
+            its subdivisions (``BR-SP``).
+        name (str): Its name (a country's in English; a subdivision's as the
+            holidays provider has it).
+    """
+
+    code: str
+    name: str
+
+    @property
+    def is_country(self) -> bool:
+        """A whole country (no subdivision)."""
+        return "-" not in self.code
+
+
 type HolidayLookup = Callable[[int], Mapping[date, str]]
 """A year → that year's holidays (date → name) in the user's region."""
 

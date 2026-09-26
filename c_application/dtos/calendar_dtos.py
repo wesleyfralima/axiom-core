@@ -69,3 +69,36 @@ class CalendarDayChangedOutputDTO(DTO):
     action: str
     day: CalendarDayOutputDTO
     changes_nothing: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class HolidayRegionOutputDTO(DTO):
+    """A region whose holidays are known.
+
+    Attributes:
+        code (str): What ``holiday_region`` takes: ``BR``, ``BR-SP``.
+        name (str): Its name: "Brazil", "São Paulo".
+    """
+
+    code: str
+    name: str
+
+
+@dataclass(frozen=True, kw_only=True)
+class HolidayRegionsOutputDTO(DTO):
+    """The regions to choose from: every country, a search, or a country's
+    subdivisions.
+
+    Attributes:
+        query (str | None): What was searched (None: every country).
+        country (HolidayRegionOutputDTO | None): When the query is a
+            country's code, that country (its subdivisions follow).
+        regions (list[HolidayRegionOutputDTO]): The countries or
+            subdivisions found, best match first (a country's, by code).
+        current_region (str): The user's region now ("" when none).
+    """
+
+    query: str | None
+    regions: list[HolidayRegionOutputDTO] = field(default_factory=list)
+    country: HolidayRegionOutputDTO | None = None
+    current_region: str = ""

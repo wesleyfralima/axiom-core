@@ -6,6 +6,27 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.17.0] — 2026-09-26
+
+Choosing the holiday region (Part 6 of the product backlog). Enterprise
+0.13.0 and CLI 0.19.0 pick it up.
+
+### Added
+- **`ListHolidayRegionsUseCase`**: every country, a country's subdivisions
+  (the query is its code: `BR`), or a search by code or name (`bra`,
+  `Brasil`, `br-paulo`) — case and accents never matter, and when nothing
+  contains the text, a name a typo away from it or from its start (`bras`;
+  one letter up to five, two beyond) is found. Names are the provider's
+  (English for countries). Marks the user's region.
+- `HolidayRegion` (code and name); `HolidayProvider.regions(country)`.
+- `c_application/utils/holiday_regions.find_regions`.
+- **`UnknownHolidayRegionError`**: an unknown region — or one that is not
+  even shaped like a code, such as "Brazil" — now says which ones are
+  close ("Did you mean BR (Brazil)?").
+
+### Changed
+- Coverage floor 82.3% → 82.6% (565 tests).
+
 ## [0.16.0] — 2026-09-26
 
 Business days (Part 6 of the product backlog): what a business day is now
