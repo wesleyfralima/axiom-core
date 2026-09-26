@@ -173,9 +173,9 @@ there too.
   archive and cancel a task (0.6.0, Backlog 02, Part 1); dates as typed,
   `default_due_time` and the projection of recurring tasks (0.7.0); an
   edit changes context and energy and can remove the due date or context
-  (0.8.0).
+  (0.8.0); recurrence edit and `count` fixed (0.9.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 415 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 74.6% over a 74.6% floor.
+- 423 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 75.1% over a 75.1% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
