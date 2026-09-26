@@ -11,6 +11,7 @@ from b_domain.ports.providers.holiday_provider import HolidayProvider
 from b_domain.ports.repositories import (
     CalendarDayRepository,
     ContextRepository,
+    SyncStore,
     TaskRepository,
     UserRepository,
 )
@@ -73,6 +74,8 @@ class UnitOfWork(ABC):
     user_behavior_metrics: UserBehaviorMetricsRepository
     user_behavior_profiles: UserBehaviorProfileRepository
     calendar_days: CalendarDayRepository
+    # The device's side of sync (its state, operations to push, clocks)
+    sync: SyncStore
     # Not a repository: what the region's holidays are (read-only, no
     # transaction), here so every use case and handler reaches it
     holidays: HolidayProvider

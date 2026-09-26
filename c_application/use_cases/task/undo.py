@@ -7,6 +7,7 @@ its own (the next occurrence of a completed recurring task) goes with it.
 
 from dataclasses import dataclass, field
 from datetime import datetime
+from uuid import UUID
 
 from a_core import DTO, DomainException, UniqueId
 from a_core.exceptions import ValidationException
@@ -16,6 +17,7 @@ from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
 from b_domain.value_objects.identifiers import TimeEntryId
+from b_domain.value_objects.sync import SyncState
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos.task_dtos import TaskHistoryEntryDTO
 from c_application.mappers.history_mapper import history_entry_to_dto
@@ -74,7 +76,7 @@ class UndoPreviewUseCase(UseCase[UndoRequest, UndoPreviewOutputDTO]):
         )
         async with self.uow as uow:
             target: TaskHistoryEntry | None = _last_undoable(
-                await uow.task_history.recent(user_id)
+                await uow.task_history.recent(user_id), await _this_device(uow)
             )
             if target is None:
                 return UndoPreviewOutputDTO()
@@ -109,7 +111,7 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
 
         async with self.uow as uow:
             target: TaskHistoryEntry | None = _last_undoable(
-                await uow.task_history.recent(user_id)
+                await uow.task_history.recent(user_id), await _this_device(uow)
             )
             if target is None:
                 raise ValidationException("Nothing to undo.")
@@ -186,14 +188,25 @@ async def _resume_session(uow: UnitOfWork, task: Task, pause: TaskHistoryEntry) 
         await uow.time_entries.update(session)
 
 
-def _last_undoable(recent: list[TaskHistoryEntry]) -> TaskHistoryEntry | None:
-    """The newest change that is the user's own and not undone yet."""
+async def _this_device(uow: UnitOfWork) -> UUID | None:
+    """This device, once it syncs (None before)."""
+    state: SyncState | None = await uow.sync.state()
+    return state.device_id if state else None
+
+
+def _last_undoable(
+    recent: list[TaskHistoryEntry], device: UUID | None = None
+) -> TaskHistoryEntry | None:
+    """The newest change that is the user's own, made on this device, and not
+    undone yet (a change another device made and sync brought is theirs to
+    undo)."""
     undone = {e.undoes for e in recent if e.undoes is not None}
     for entry in recent:
         if (
             entry.action == TaskAction.UNDONE
             or entry.entry_id in undone
             or entry.caused_by is not None
+            or entry.device_id not in (None, device)
         ):
             continue
         return entry

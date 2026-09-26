@@ -1,5 +1,6 @@
 import builtins
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
+from dataclasses import dataclass, field, replace
 from datetime import UTC, date, datetime
 from typing import Any, Protocol
 from uuid import UUID
@@ -14,6 +15,7 @@ from b_domain.ports.repositories import (
     CalendarDayRepository,
     ContextRepository,
     OutboxEventRepository,
+    SyncStore,
     TaskHistoryRepository,
     TaskRepository,
     UserBehaviorMetricsRepository,
@@ -28,6 +30,7 @@ from b_domain.ports.repositories.filters import (
 )
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
 from b_domain.ports.unit_of_work import UnitOfWork
+from b_domain.services.sync_merge import MergePlan
 from b_domain.value_objects import (
     ContextId,
     EnergyLevel,
@@ -36,6 +39,14 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.identifiers import TimeEntryId
+from b_domain.value_objects.sync import (
+    CREATED,
+    FieldKey,
+    Hlc,
+    SyncEntity,
+    SyncOperation,
+    SyncState,
+)
 from b_domain.value_objects.task_history import TaskHistoryEntry
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 from b_domain.value_objects.work_calendar import CalendarDay, HolidayRegion
@@ -564,6 +575,126 @@ class FakeHolidayProvider:
         return None
 
 
+@dataclass
+class FakeSyncStore(SyncStore):
+    """A device's sync side in memory, with its data as plain rows.
+
+    ``rows`` stands for the device's data: ``(entity, id) → fields``.
+    ``change`` is a local change as the real store captures it: the row
+    changes, an operation waits to be pushed and the field keeps its clock.
+    ``apply`` changes the rows the way a database would.
+    """
+
+    sync_state: SyncState | None = None
+    outbox: list[SyncOperation] = field(default_factory=list)
+    kept: dict[FieldKey, Hlc] = field(default_factory=dict)
+    rows: dict[tuple[SyncEntity, UUID], dict[str, Any]] = field(default_factory=dict)
+    account_row: tuple[SyncEntity, UUID] | None = None
+    adopted: list[tuple[UserId, UserId]] = field(default_factory=list)
+    plans: list[MergePlan] = field(default_factory=list)
+    # The device's users, for ``adopt_account`` to move one
+    users: dict[str, User] = field(default_factory=dict)
+
+    async def state(self) -> SyncState | None:
+        return self.sync_state
+
+    async def save_state(self, state: SyncState) -> None:
+        self.sync_state = state
+
+    async def pending(self, limit: int) -> list[SyncOperation]:
+        return self.outbox[:limit]
+
+    async def count_pending(self) -> int:
+        return len(self.outbox)
+
+    async def forget(self, op_ids: Collection[UUID]) -> None:
+        self.outbox = [op for op in self.outbox if op.op_id not in op_ids]
+
+    async def clocks(self, operations: Iterable[SyncOperation]) -> dict[FieldKey, Hlc]:
+        rows = {(op.entity, op.entity_id) for op in operations}
+        return {
+            key: hlc
+            for key, hlc in self.kept.items()
+            if (key.entity, key.entity_id) in rows
+        }
+
+    async def apply(self, plan: MergePlan) -> None:
+        self.plans.append(plan)
+        for row in plan.rows:
+            key = (row.entity, row.entity_id)
+            if row.delete:
+                self.rows.pop(key, None)
+            elif row.create is not None:
+                self.rows[key] = dict(row.create)
+            elif key in self.rows:
+                self.rows[key].update(row.fields)
+        self.kept.update(plan.clocks)
+
+    async def snapshot(self, clock: Hlc, include_account: bool) -> Hlc:
+        for (entity, entity_id), fields in self.rows.items():
+            if (entity, entity_id) == self.account_row and not include_account:
+                continue
+            clock = clock.tick(clock_time(clock))
+            op = SyncOperation.created(clock, entity, entity_id, dict(fields))
+            self.outbox.append(op)
+            self.kept[FieldKey(entity=entity, entity_id=entity_id, field=CREATED)] = (
+                clock
+            )
+            for name in fields:
+                self.kept[FieldKey(entity=entity, entity_id=entity_id, field=name)] = (
+                    clock
+                )
+        return clock
+
+    async def adopt_account(self, local: UserId, account: UserId) -> None:
+        self.adopted.append((local, account))
+        user = self.users.pop(str(local), None)
+        if user is not None:
+            user.id = account
+            self.users[str(account)] = user
+
+    def change(
+        self, now: datetime, entity: SyncEntity, entity_id: UUID, **fields: Any
+    ) -> None:
+        """A local change after joining, as the real store captures it."""
+        assert self.sync_state is not None
+        clock = self.sync_state.clock
+        key = (entity, entity_id)
+        if key not in self.rows:
+            clock = clock.tick(now)
+            self.rows[key] = dict(fields)
+            self.outbox.append(SyncOperation.created(clock, entity, entity_id, fields))
+            self.kept[FieldKey(entity=entity, entity_id=entity_id, field=CREATED)] = (
+                clock
+            )
+            for name in fields:
+                self.kept[FieldKey(entity=entity, entity_id=entity_id, field=name)] = (
+                    clock
+                )
+        else:
+            for name, value in fields.items():
+                clock = clock.tick(now)
+                self.rows[key][name] = value
+                self.outbox.append(
+                    SyncOperation(
+                        entity=entity,
+                        entity_id=entity_id,
+                        field=name,
+                        value=value,
+                        hlc=clock,
+                    )
+                )
+                self.kept[FieldKey(entity=entity, entity_id=entity_id, field=name)] = (
+                    clock
+                )
+        self.sync_state = replace(self.sync_state, clock=clock)
+
+
+def clock_time(clock: Hlc) -> datetime:
+    """The time a clock was written at (for a snapshot: it does not move)."""
+    return datetime.fromtimestamp(clock.wall_ms / 1000, UTC)
+
+
 class FakeUnitOfWork(UnitOfWork):
     def __init__(
         self,
@@ -574,6 +705,7 @@ class FakeUnitOfWork(UnitOfWork):
         time_entries: list[TimeEntry] | None = None,
         calendar_days: dict[str, list[CalendarDay]] | None = None,
         holidays: FakeHolidayProvider | None = None,
+        sync: FakeSyncStore | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
@@ -601,6 +733,7 @@ class FakeUnitOfWork(UnitOfWork):
             calendar_days
         )
         self.holidays: FakeHolidayProvider = holidays or FakeHolidayProvider()
+        self.sync: FakeSyncStore = sync if sync is not None else FakeSyncStore()
 
         self._seen_entities: set[Entity] = set()
         self._trigger_relay: bool = False
@@ -650,6 +783,7 @@ def fake_uow_factory() -> FakeUowFactory:
     shared_time_entries: list[TimeEntry] = []
     shared_calendar_days: dict[str, list[CalendarDay]] = {}
     shared_holidays: FakeHolidayProvider = FakeHolidayProvider()
+    shared_sync: FakeSyncStore = FakeSyncStore()
 
     # add others as needed
 
@@ -663,6 +797,7 @@ def fake_uow_factory() -> FakeUowFactory:
             time_entries=shared_time_entries,
             calendar_days=shared_calendar_days,
             holidays=shared_holidays,
+            sync=shared_sync,
         )
 
     return factory

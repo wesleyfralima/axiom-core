@@ -1,11 +1,16 @@
 """Undo, restore and deleted tasks as tombstones."""
 
+from dataclasses import replace
+from datetime import timedelta
+from uuid import uuid4
+
 import pytest
 
 from a_core import DomainException
 from a_core.exceptions import EntityNotFound, ValidationException
 from b_domain.entities import User
 from b_domain.value_objects import RecurrenceInterval, TaskId, TaskStatus, UserId
+from b_domain.value_objects.sync import Hlc, SyncState
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import (
@@ -301,3 +306,41 @@ async def test_another_users_changes_are_not_undone(
         UndoRequest(user_id=str(UserId()))
     )
     assert preview.entry is None
+
+
+# --------------------------------------------------------------------- sync
+
+
+async def test_undo_leaves_the_changes_other_devices_made(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory, user: User
+) -> None:
+    mine, other = uuid4(), uuid4()
+    uow = fake_uow_factory()
+    uow.sync.sync_state = SyncState(
+        server_url="https://example.com",
+        account_id=user.id.value,
+        device_id=mine,
+        device_name="mint",
+        clock=Hlc.start(mine),
+    )
+    task = await _create(use_case_context, user, title="Mine")
+    # The history's storage stamps each change with its device
+    history = uow.task_history.entries
+    history[:] = [replace(e, device_id=mine) for e in history]
+    history.append(
+        replace(
+            history[-1],
+            entry_id=uuid4(),
+            action=TaskAction.EDITED,
+            occurred_at=history[-1].occurred_at + timedelta(minutes=1),
+            device_id=other,
+        )
+    )
+
+    preview = await UndoPreviewUseCase(**use_case_context).execute(
+        UndoRequest(user_id=str(user.id))
+    )
+
+    assert preview.task_id == task.id
+    assert preview.entry is not None
+    assert preview.entry.action == str(TaskAction.CREATED)
