@@ -130,6 +130,12 @@ simulator: `python -m d_fake_infra`).
   but a view — open tasks with no due date and no context
   (`ListTasksRequest.inbox`); `use_active_context=False` on create sends a
   task there.
+- **Sync between devices:** `b_domain/value_objects/sync.py` (`Hlc`,
+  `SyncOperation`, `FieldKey`) and `b_domain/services/sync_merge.py`
+  (`plan_merge`: last writer per field, final deletions). Sync carries
+  results, not commands: a device applies the plan straight to its data —
+  no use case, no event, no history entry. The design is in the product
+  backlog (`../docs/backlog/todo/backlog-01.md`, Part 5).
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -198,7 +204,7 @@ there too.
 
 ## Current state (2026-09-26)
 
-- Version `0.18.1`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.19.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -211,9 +217,10 @@ there too.
   (0.12.0); undo and tombstones (0.13.0); reports and series (0.14.0);
   timers and estimates (0.15.0); business days: work days, a region's
   holidays and the user's own days (0.16.0); the regions to choose from
-  (0.17.0); tags, the inbox, skipping a holiday by name (0.18.0).
+  (0.17.0); tags, the inbox, skipping a holiday by name (0.18.0); the
+  sync rule: clock, operation, merge (0.19.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 589 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 83.1% over a 83.0% floor.
+- 663 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 83.7% over a 83.6% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.
