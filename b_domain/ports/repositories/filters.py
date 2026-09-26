@@ -89,6 +89,9 @@ class TaskFilter(BaseFilter):
     only_roots: bool = False
     tags: list[str] = field(default_factory=list)
 
+    # Deleted tasks (tombstones) only; otherwise they are left out
+    deleted: bool = False
+
 
 @dataclass(kw_only=True)
 class UserFilter(BaseFilter):

@@ -3,7 +3,11 @@ from collections.abc import Callable
 from typing import Any
 
 from a_core import DomainEvent
-from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
+from b_domain.events.task_events import (
+    TaskCancelledEvent,
+    TaskCompletedEvent,
+    TaskDeletedEvent,
+)
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.unit_of_work import UnitOfWork, UowFactoryType
@@ -48,7 +52,8 @@ def register_essential_handlers(
     # users can continue progressing. Without this, blocked tasks would
     # remain inaccessible, breaking the GTD workflow and halting productivity.
     # A cancelled blocker will never be done, so it unlocks them too.
-    for closed_event in (TaskCompletedEvent, TaskCancelledEvent):
+    # A deleted one neither (it used to keep its dependents blocked forever).
+    for closed_event in (TaskCompletedEvent, TaskCancelledEvent, TaskDeletedEvent):
         _subscribe(
             bus,
             uow_factory,

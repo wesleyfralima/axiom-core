@@ -1,9 +1,9 @@
 from dataclasses import dataclass, field, replace
 from datetime import UTC, datetime
-from typing import Optional
+from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
-from a_core import Entity
+from a_core import Entity, UniqueId
 from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.events.task_events import (
     TaskArchivedEvent,
@@ -13,6 +13,8 @@ from b_domain.events.task_events import (
     TaskDeletedEvent,
     TaskEditedEvent,
     TaskReopenedEvent,
+    TaskRestoredEvent,
+    TaskUndoneEvent,
 )
 from b_domain.exceptions.recurrence import NotRecurringTaskError
 from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
@@ -20,6 +22,12 @@ from b_domain.value_objects.dates import DueDate, build_axiom_date
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 from b_domain.value_objects.identifiers import ContextId, UserId
 from b_domain.value_objects.recurrences import RecurrenceRule
+from b_domain.value_objects.recurrences._serial import (
+    axiom_date_from_dict,
+    axiom_date_to_dict,
+    rule_from_dict,
+    rule_to_dict,
+)
 
 
 @dataclass(kw_only=True, eq=False)
@@ -59,6 +67,8 @@ class Task(Entity):
     last_skipped_at: datetime | None = None
     # When it was last completed (cleared on reopen)
     completed_at: datetime | None = None
+    # When it was deleted: a tombstone, restorable until it is purged
+    deleted_at: datetime | None = None
 
     is_system_generated: bool = False
 
@@ -93,6 +103,7 @@ class Task(Entity):
         success_count: int = 0,
         attempt_count: int = 0,
         average_duration_minutes: int = 0,
+        caused_by: UniqueId | None = None,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -177,6 +188,7 @@ class Task(Entity):
                 task_id=created.id,
                 due_date=created.due_date.materialize() if created.due_date else None,
                 user_id=created.user_id,
+                caused_by=caused_by,
             )
         )
 
@@ -292,7 +304,10 @@ class Task(Entity):
         return moment.astimezone(UTC)
 
     def create_next_occurrence(
-        self, now: datetime, catch_up: bool = True
+        self,
+        now: datetime,
+        catch_up: bool = True,
+        caused_by: UniqueId | None = None,
     ) -> Optional["Task"]:
         """Generate the next occurrence of this task.
 
@@ -333,7 +348,7 @@ class Task(Entity):
                 last_occurrence=last_reference
             )
             if next_dt:
-                return self._recreate_task_with_date(now, next_dt)
+                return self._recreate_task_with_date(now, next_dt, caused_by)
             else:
                 return None
 
@@ -352,12 +367,14 @@ class Task(Entity):
             # Normalize timezone for comparison
             comparison_now: datetime = self.recurrence.normalize_comparison_date(now)
             if next_dt > comparison_now:
-                return self._recreate_task_with_date(now, next_dt)
+                return self._recreate_task_with_date(now, next_dt, caused_by)
 
             # Otherwise, continue iterating
             last_reference = next_dt
 
-    def _recreate_task_with_date(self, now: datetime, new_date: datetime) -> "Task":
+    def _recreate_task_with_date(
+        self, now: datetime, new_date: datetime, caused_by: UniqueId | None = None
+    ) -> "Task":
         """Private helper to clone the task with a new due date.
 
         Preserves floating vs fixed semantics when reconstructing the DueDate
@@ -428,6 +445,7 @@ class Task(Entity):
             complexity=self.complexity,
             estimated_duration_minutes=self.estimated_duration_minutes,
             average_duration_minutes=self.average_duration_minutes,
+            caused_by=caused_by,
         )
 
     def next_occurrence_due_date(self) -> Optional["DueDate"]:
@@ -559,10 +577,12 @@ class Task(Entity):
 
     def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:
         """Mark the task as completed."""
+        previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.completed_at = now
         self.add_event(
             TaskCompletedEvent(
+                previous=previous,
                 occurred_at=now,
                 task_id=self.id,
                 user_id=self.user_id,
@@ -594,9 +614,11 @@ class Task(Entity):
             raise NotRecurringTaskError()
         if self.status.is_closed:
             raise InvalidStateTransition(f"The task is already {self.status}.")
+        previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.CANCELLED, allow_same=False)
         self.add_event(
             TaskCancelledEvent(
+                previous=previous,
                 occurred_at=now,
                 task_id=self.id,
                 user_id=self.user_id,
@@ -622,11 +644,17 @@ class Task(Entity):
                 "The task is already open: only a done or cancelled task can be "
                 "reopened."
             )
+        previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.REOPENED, allow_same=False)
         self.recurrence = None
         self.completed_at = None
         self.add_event(
-            TaskReopenedEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+            TaskReopenedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                previous=previous,
+            )
         )
 
     def archive(self, now: datetime) -> None:
@@ -641,13 +669,22 @@ class Task(Entity):
             raise InvalidStateTransition(
                 "The task is still open: only a done or cancelled task can be archived."
             )
+        previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.ARCHIVED, allow_same=False)
         self.add_event(
-            TaskArchivedEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+            TaskArchivedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                previous=previous,
+            )
         )
 
     def record_edit(
-        self, now: datetime, changes: dict[str, tuple[str | None, str | None]]
+        self,
+        now: datetime,
+        changes: dict[str, tuple[str | None, str | None]],
+        previous: dict[str, Any] | None = None,
     ) -> None:
         """Record what an edit changed, for the history.
 
@@ -659,6 +696,8 @@ class Task(Entity):
             now (datetime): When the edit happened.
             changes (dict): Field → ``(before, after)``; nothing is recorded
                 when it is empty.
+            previous (dict | None): ``snapshot()`` taken before the edit, so
+                it can be undone.
         """
         if not changes:
             return
@@ -668,17 +707,114 @@ class Task(Entity):
                 task_id=self.id,
                 user_id=self.user_id,
                 changes={name: [old, new] for name, (old, new) in changes.items()},
+                previous=previous,
             )
         )
 
     def mark_deleted(self, now: datetime) -> None:
-        """Record that the task is being deleted (its history stays)."""
+        """Delete the task: a tombstone, restorable until it is purged.
+
+        Raises:
+            InvalidStateTransition: If it is already deleted.
+        """
+        if self.deleted_at is not None:
+            raise InvalidStateTransition("The task is already deleted.")
+        previous: dict[str, Any] = self.snapshot()
+        self.deleted_at = now
+        self._touch(now)
         self.add_event(
             TaskDeletedEvent(
                 occurred_at=now,
                 task_id=self.id,
                 user_id=self.user_id,
                 title=str(self.title),
+                previous=previous,
+            )
+        )
+
+    def restore(self, now: datetime) -> None:
+        """Bring a deleted task back, as it was.
+
+        Raises:
+            InvalidStateTransition: If it is not deleted.
+        """
+        if self.deleted_at is None:
+            raise InvalidStateTransition("The task is not deleted.")
+        self.deleted_at = None
+        self._touch(now)
+        self.add_event(
+            TaskRestoredEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+        )
+
+    def snapshot(self) -> dict[str, Any]:
+        """What the user can change, as JSON-safe data — to undo a change."""
+        return {
+            "status": str(self.status),
+            "completed_at": (
+                self.completed_at.isoformat() if self.completed_at else None
+            ),
+            "deleted_at": self.deleted_at.isoformat() if self.deleted_at else None,
+            "title": str(self.title),
+            "description": str(self.description),
+            "priority": self.priority.value,
+            "energy": self.required_energy_level.value,
+            "context_id": str(self.context_id) if self.context_id else None,
+            "due": axiom_date_to_dict(self.due_date) if self.due_date else None,
+            "recurrence": rule_to_dict(self.recurrence) if self.recurrence else None,
+        }
+
+    def revert_to(
+        self,
+        now: datetime,
+        snapshot: dict[str, Any] | None,
+        undoes: UniqueId,
+        action: str,
+    ) -> None:
+        """Undo a change: the task goes back to ``snapshot``.
+
+        Undo is not a transition: the task simply is what it was (the state
+        machine does not apply). Without a snapshot — undoing its creation —
+        the task is taken away (a tombstone, like a delete).
+
+        Args:
+            now (datetime): When the undo happens.
+            snapshot (dict | None): ``snapshot()`` from before the change.
+            undoes (UniqueId): The history entry undone (its event's id).
+            action (str): What is undone ("completed", "edited"…).
+        """
+        if snapshot is None:
+            self.deleted_at = now
+        else:
+            self.status = TaskStatus(snapshot["status"])
+            self.completed_at = _instant(snapshot.get("completed_at"))
+            self.deleted_at = _instant(snapshot.get("deleted_at"))
+            self.title = Title(snapshot["title"])
+            self.description = Description(snapshot["description"])
+            self.priority = Priority(snapshot["priority"])
+            self.required_energy_level = EnergyLevel(snapshot["energy"])
+            self.context_id = (
+                ContextId.from_string(snapshot["context_id"])
+                if snapshot.get("context_id")
+                else None
+            )
+            self.due_date = (
+                axiom_date_from_dict(snapshot["due"], DueDate)
+                if snapshot.get("due")
+                else None
+            )
+            self.recurrence = (
+                rule_from_dict(snapshot["recurrence"])
+                if snapshot.get("recurrence")
+                else None
+            )
+        self._touch(now)
+        self.add_event(
+            TaskUndoneEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                undoes=undoes,
+                action=action,
             )
         )
 
@@ -755,3 +891,7 @@ class Task(Entity):
             False otherwise.
         """
         return self.calendar_event_id is not None
+
+
+def _instant(value: str | None) -> datetime | None:
+    return datetime.fromisoformat(value) if value else None

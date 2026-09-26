@@ -1,4 +1,5 @@
 from datetime import date, datetime
+from typing import Any
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
@@ -107,6 +108,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 c.id: c.name for c in await uow.contexts.list_by_user(user_id)
             }
             before: dict[str, str | None] = _snapshot(task, names)
+            previous: dict[str, Any] = task.snapshot()
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
 
@@ -181,6 +183,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     for name in before
                     if before[name] != after[name]
                 },
+                previous=previous,
             )
 
             # 4. Persistence

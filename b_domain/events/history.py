@@ -9,6 +9,8 @@ from b_domain.events.task_events import (
     TaskDeletedEvent,
     TaskEditedEvent,
     TaskReopenedEvent,
+    TaskRestoredEvent,
+    TaskUndoneEvent,
 )
 from b_domain.value_objects.task_history import (
     FieldChange,
@@ -24,6 +26,8 @@ _ACTIONS: dict[type[DomainEvent], TaskAction] = {
     TaskReopenedEvent: TaskAction.REOPENED,
     TaskArchivedEvent: TaskAction.ARCHIVED,
     TaskDeletedEvent: TaskAction.DELETED,
+    TaskRestoredEvent: TaskAction.RESTORED,
+    TaskUndoneEvent: TaskAction.UNDONE,
 }
 
 
@@ -54,6 +58,11 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
         note = "The series ends here."
     if isinstance(event, TaskDeletedEvent):
         note = event.title
+    if isinstance(event, TaskUndoneEvent):
+        note = event.action
+
+    caused_by = getattr(event, "caused_by", None)
+    undoes = getattr(event, "undoes", None)
 
     return TaskHistoryEntry(
         task_id=task_id,
@@ -62,4 +71,8 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
         action=action,
         changes=changes,
         note=note,
+        entry_id=event.id.value,
+        previous=getattr(event, "previous", None),
+        caused_by=caused_by.value if caused_by is not None else None,
+        undoes=undoes.value if undoes is not None else None,
     )

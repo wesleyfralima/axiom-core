@@ -257,6 +257,9 @@ class ListTasksRequest(DTO):
     # date (None: the user's days_ahead preference; 0: only today)
     ahead: int | DateInput | None = None
 
+    # The deleted tasks instead (restorable until purged); nothing projected
+    deleted: bool = False
+
     # Pagination (from BaseFilter)
     limit: int = 100
     offset: int = 0

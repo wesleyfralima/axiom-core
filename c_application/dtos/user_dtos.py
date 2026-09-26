@@ -46,6 +46,7 @@ class UserPrefsInputDTO(DTO):
     default_due_time: str | None = None  # HH:MM
     auto_schedule_tasks: bool | None = None
     allow_overdue_tasks: bool | None = None
+    keep_deleted_days: int | None = None
 
     # ------------------------------------------------------------------
     # Notifications
@@ -99,6 +100,7 @@ class UserPrefsOutputDTO(DTO):
     default_due_time: str  # HH:MM
     auto_schedule_tasks: bool
     allow_overdue_tasks: bool
+    keep_deleted_days: int
 
     # ------------------------------------------------------------------
     # Notifications
