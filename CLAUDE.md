@@ -97,6 +97,11 @@ simulator: `python -m d_fake_infra`).
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
   the rule starts at it (`build_recurrence`, shared with create), the next
   occurrences follow it. `count` = occurrences left, this one included.
+- **History:** a change to a task raises an event; the UoW turns task
+  events into `TaskHistoryEntry` (`b_domain/events/history.py`) and writes
+  them with the outbox, same transaction. A new kind of change needs its
+  event (with `task_id` and `user_id`) and a line in `_ACTIONS`. New events
+  of any kind are picked up by `b_domain/events/registry.py` on their own.
 - **Task lifecycle:** the state machine is `TaskStatus._get_transitions`
   (`b_domain/value_objects/enums.py`). Closed = done, cancelled, archived;
   only done/cancelled can be reopened or archived; archived is terminal and
@@ -171,7 +176,7 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.11.1`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.12.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -180,9 +185,10 @@ there too.
   `default_due_time` and the projection of recurring tasks (0.7.0); an
   edit changes context and energy and can remove the due date or context
   (0.8.0); recurrence edit and `count` fixed (0.9.0); weekly `set_pos`
-  (0.10.0); time entries tracked by the UoW (0.11.0).
+  (0.10.0); time entries tracked by the UoW (0.11.0); the task history
+  (0.12.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 451 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 75.5% over a 75.5% floor.
+- 457 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 75.9% over a 75.9% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

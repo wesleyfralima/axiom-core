@@ -13,11 +13,39 @@ class TaskCreatedEvent(DomainEvent):
     title: str
     task_id: TaskId
     due_date: datetime | None = None
+    user_id: UserId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
 class TaskEditedEvent(DomainEvent):
-    """Triggered when an existing task is edited."""
+    """Triggered when an existing task is edited.
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        changes (dict[str, list[str | None]]): Field → ``[before, after]``, as
+            text (dates in ISO 8601, None for "none").
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    changes: dict[str, list[str | None]]
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskReopenedEvent(DomainEvent):
+    """Triggered when a done or cancelled task is reopened."""
+
+    task_id: TaskId
+    user_id: UserId
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskArchivedEvent(DomainEvent):
+    """Triggered when a closed task is archived."""
+
+    task_id: TaskId
+    user_id: UserId
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -94,4 +122,14 @@ class TaskAbandonedEvent(DomainEvent):
 
 @dataclass(frozen=True, kw_only=True)
 class TaskDeletedEvent(DomainEvent):
-    """Triggered when a task is deleted."""
+    """Triggered when a task is deleted (its history stays).
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        title (str): The title it had, for the history.
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    title: str

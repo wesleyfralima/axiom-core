@@ -5,13 +5,13 @@ from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
 from b_domain.entities.user import UserPrefs
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import Priority, UserId
+from b_domain.value_objects import ContextId, Priority, UserId
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.recurrences import RecurrenceRule
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
-from c_application.utils import find_context
+from c_application.utils import find_context, format_task_recurrence
 from c_application.utils.date_input import (
     at_time,
     end_of_day,
@@ -102,6 +102,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 )
 
             task: Task = tasks_found[0]
+            # What the task looks like before, for the history
+            names: dict[ContextId, str] = {
+                c.id: c.name for c in await uow.contexts.list_by_user(user_id)
+            }
+            before: dict[str, str | None] = _snapshot(task, names)
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
 
@@ -167,6 +172,16 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 task.change_recurrence(now, None)
             elif request.recurrence is not None:
                 self._repeat_by(task, request.recurrence, request, prefs, now)
+
+            after: dict[str, str | None] = _snapshot(task, names)
+            task.record_edit(
+                now,
+                {
+                    name: (before[name], after[name])
+                    for name in before
+                    if before[name] != after[name]
+                },
+            )
 
             # 4. Persistence
             await uow.tasks.update(task)
@@ -245,3 +260,21 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if first is not None:
                 task.update_due_date(now, first, is_floating=is_floating, tz_name=tz)
         task.change_recurrence(now, rule)
+
+
+def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str | None]:
+    """The editable fields as text, to compare before and after an edit."""
+    return {
+        "title": str(task.title),
+        "description": str(task.description) or None,
+        "priority": task.priority.name.lower(),
+        "energy": task.required_energy_level.name.lower(),
+        "context": context_names.get(task.context_id) if task.context_id else None,
+        "due": task.due_date.value.isoformat() if task.due_date else None,
+        "kind": (
+            ("floating" if task.due_date.is_floating else "fixed")
+            if task.due_date
+            else None
+        ),
+        "recurrence": format_task_recurrence(task.recurrence),
+    }

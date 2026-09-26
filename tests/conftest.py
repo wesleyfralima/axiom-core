@@ -7,15 +7,19 @@ import pytest
 
 from a_core import Entity, IdPrefix, tracks_entity
 from b_domain.entities import Context, Task, TimeEntry, User
+from b_domain.entities.outbox_event import OutboxEvent
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.repositories import (
     ContextRepository,
+    OutboxEventRepository,
+    TaskHistoryRepository,
     TaskRepository,
     UserBehaviorMetricsRepository,
     UserBehaviorProfileRepository,
     UserRepository,
 )
 from b_domain.ports.repositories.filters import (
+    OutboxEventFilter,
     TaskFilter,
     TimeEntryFilter,
     UserFilter,
@@ -30,6 +34,7 @@ from b_domain.value_objects import (
     UserId,
 )
 from b_domain.value_objects.identifiers import TimeEntryId
+from b_domain.value_objects.task_history import TaskHistoryEntry
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 
 
@@ -376,12 +381,50 @@ class FakeUserBehaviorProfileRepository(UserBehaviorProfileRepository):
             del self.profiles[str(user_id)]
 
 
+class FakeOutboxEventRepository(OutboxEventRepository):
+    """The outbox as a list: what the unit of work wrote."""
+
+    def __init__(self) -> None:
+        self.events: list[OutboxEvent] = []
+
+    async def add_many(self, events: list[OutboxEvent]) -> None:
+        self.events.extend(events)
+
+    async def get_unprocessed(self, limit: int = 50) -> list[OutboxEvent]:
+        return [e for e in self.events if e.processed_at is None][:limit]
+
+    async def update(self, event: OutboxEvent) -> None:
+        return None
+
+    async def delete_processed_before(self, cutoff: datetime) -> int:
+        return 0
+
+    async def search(self, filters: OutboxEventFilter) -> list[OutboxEvent]:
+        return list(self.events)
+
+
+class FakeTaskHistoryRepository(TaskHistoryRepository):
+    def __init__(self, entries: list[TaskHistoryEntry] | None = None) -> None:
+        self.entries: list[TaskHistoryEntry] = entries if entries is not None else []
+
+    async def add_many(self, entries: list[TaskHistoryEntry]) -> None:
+        self.entries.extend(entries)
+
+    async def list_for_task(
+        self, task_id: TaskId, user_id: UserId
+    ) -> list[TaskHistoryEntry]:
+        return [
+            e for e in self.entries if e.task_id == task_id and e.user_id == user_id
+        ]
+
+
 class FakeUnitOfWork(UnitOfWork):
     def __init__(
         self,
         users_dict: dict[str, User] | None = None,
         tasks_dict: dict[str, Task] | None = None,
         contexts_dict: dict[str, Context] | None = None,
+        history: list[TaskHistoryEntry] | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
@@ -392,6 +435,9 @@ class FakeUnitOfWork(UnitOfWork):
         )
 
         self.time_entries: FakeTimeEntryRepository = FakeTimeEntryRepository()
+        self.task_history: FakeTaskHistoryRepository = FakeTaskHistoryRepository(
+            history
+        )
 
         self.user_behavior_metrics: FakeUserBehaviorMetricsRepository = (
             FakeUserBehaviorMetricsRepository()
@@ -402,6 +448,12 @@ class FakeUnitOfWork(UnitOfWork):
 
         self._seen_entities: set[Entity] = set()
         self._trigger_relay: bool = False
+        self.outbox_repo: FakeOutboxEventRepository = FakeOutboxEventRepository()
+
+        # Like the real one: every repository tracks into the UoW's set, so
+        # the events entities record are processed on exit (history, outbox)
+        for repo in (self.tasks, self.users, self.contexts, self.time_entries):
+            repo._seen_entities = self._seen_entities
 
         self.committed: bool = False
         self.rolled_back: bool = False
@@ -438,6 +490,7 @@ def fake_uow_factory() -> FakeUowFactory:
     shared_users: dict[str, User] = {}
     shared_tasks: dict[str, Task] = {}
     shared_contexts: dict[str, Context] = {}
+    shared_history: list[TaskHistoryEntry] = []
 
     # add others as needed
 
@@ -447,6 +500,7 @@ def fake_uow_factory() -> FakeUowFactory:
             users_dict=shared_users,
             tasks_dict=shared_tasks,
             contexts_dict=shared_contexts,
+            history=shared_history,
         )
 
     return factory

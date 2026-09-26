@@ -6,9 +6,13 @@ from zoneinfo import ZoneInfo
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.events.task_events import (
+    TaskArchivedEvent,
     TaskCancelledEvent,
     TaskCompletedEvent,
     TaskCreatedEvent,
+    TaskDeletedEvent,
+    TaskEditedEvent,
+    TaskReopenedEvent,
 )
 from b_domain.exceptions.recurrence import NotRecurringTaskError
 from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
@@ -53,6 +57,8 @@ class Task(Entity):
     attempt_count: int = 0
     average_duration_minutes: int = 0
     last_skipped_at: datetime | None = None
+    # When it was last completed (cleared on reopen)
+    completed_at: datetime | None = None
 
     is_system_generated: bool = False
 
@@ -170,6 +176,7 @@ class Task(Entity):
                 title=str(created.title),
                 task_id=created.id,
                 due_date=created.due_date.materialize() if created.due_date else None,
+                user_id=created.user_id,
             )
         )
 
@@ -553,6 +560,7 @@ class Task(Entity):
     def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:
         """Mark the task as completed."""
         self.change_status(now, TaskStatus.DONE, allow_same=False)
+        self.completed_at = now
         self.add_event(
             TaskCompletedEvent(
                 occurred_at=now,
@@ -616,6 +624,10 @@ class Task(Entity):
             )
         self.change_status(now, TaskStatus.REOPENED, allow_same=False)
         self.recurrence = None
+        self.completed_at = None
+        self.add_event(
+            TaskReopenedEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+        )
 
     def archive(self, now: datetime) -> None:
         """Put a closed task away for good (no way back).
@@ -630,6 +642,45 @@ class Task(Entity):
                 "The task is still open: only a done or cancelled task can be archived."
             )
         self.change_status(now, TaskStatus.ARCHIVED, allow_same=False)
+        self.add_event(
+            TaskArchivedEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+        )
+
+    def record_edit(
+        self, now: datetime, changes: dict[str, tuple[str | None, str | None]]
+    ) -> None:
+        """Record what an edit changed, for the history.
+
+        The edit itself is made by the other methods (``rename``,
+        ``update_due_date``…); the use case knows which of them it called and
+        says what changed, as text, once per edit.
+
+        Args:
+            now (datetime): When the edit happened.
+            changes (dict): Field → ``(before, after)``; nothing is recorded
+                when it is empty.
+        """
+        if not changes:
+            return
+        self.add_event(
+            TaskEditedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                changes={name: [old, new] for name, (old, new) in changes.items()},
+            )
+        )
+
+    def mark_deleted(self, now: datetime) -> None:
+        """Record that the task is being deleted (its history stays)."""
+        self.add_event(
+            TaskDeletedEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                title=str(self.title),
+            )
+        )
 
     def add_subtask(self, subtask: "Task") -> None:
         """Add a subtask in memory.
