@@ -1,5 +1,6 @@
 from .context_repository import ContextRepository
 from .outbox_event_repository import OutboxEventRepository
+from .task_history_repository import TaskHistoryRepository
 from .task_repository import TaskRepository
 from .time_entry_repository import TimeEntryRepository
 from .token_repository import TokenRepository
@@ -10,6 +11,7 @@ from .user_repository import UserRepository
 __all__ = [
     "ContextRepository",
     "OutboxEventRepository",
+    "TaskHistoryRepository",
     "TaskRepository",
     "TimeEntryRepository",
     "TokenRepository",

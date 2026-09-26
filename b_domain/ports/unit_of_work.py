@@ -5,6 +5,7 @@ from typing import Protocol, Self
 
 from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
+from b_domain.events.history import history_entry
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.repositories import (
     ContextRepository,
@@ -14,6 +15,9 @@ from b_domain.ports.repositories import (
 from b_domain.ports.repositories.outbox_event_repository import (
     OutboxEventRepository,
 )
+from b_domain.ports.repositories.task_history_repository import (
+    TaskHistoryRepository,
+)
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
 from b_domain.ports.repositories.user_behavior_metrics_repository import (
     UserBehaviorMetricsRepository,
@@ -21,6 +25,7 @@ from b_domain.ports.repositories.user_behavior_metrics_repository import (
 from b_domain.ports.repositories.user_behavior_profile_repository import (
     UserBehaviorProfileRepository,
 )
+from b_domain.value_objects.task_history import TaskHistoryEntry
 
 logger: logging.Logger = logging.getLogger(__name__)
 
@@ -58,6 +63,7 @@ class UnitOfWork(ABC):
     """
 
     tasks: TaskRepository
+    task_history: TaskHistoryRepository
     users: UserRepository
     contexts: ContextRepository
     time_entries: TimeEntryRepository
@@ -136,13 +142,21 @@ class UnitOfWork(ABC):
         """
 
         outbox_entries: list[OutboxEvent] = []
+        history: list[TaskHistoryEntry] = []
 
         for entity in self._seen_entities:
             for event in entity.pull_events():
                 outbox_entries.append(self._to_outbox(event))
+                # The same transaction keeps the history true to the data
+                entry: TaskHistoryEntry | None = history_entry(event)
+                if entry is not None:
+                    history.append(entry)
 
         if outbox_entries:
             await self.outbox_repo.add_many(outbox_entries)
+        if history:
+            history.sort(key=lambda e: e.occurred_at)
+            await self.task_history.add_many(history)
 
         # Clear tracked entities after processing
         self._seen_entities.clear()

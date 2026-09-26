@@ -13,6 +13,7 @@ from .task.complete import CompleteTaskUseCase
 from .task.create import CreateTaskUseCase
 from .task.delete import DeleteTaskUseCase
 from .task.get import GetTaskUseCase
+from .task.history import GetTaskHistoryUseCase
 from .task.list import ListTasksUseCase
 from .task.reopen import ReopenTaskUseCase
 from .task.update import UpdateTaskUseCase
@@ -28,6 +29,7 @@ __all__ = [
     "DeleteContextUseCase",
     "DeleteTaskUseCase",
     "GetCurrentUserUseCase",
+    "GetTaskHistoryUseCase",
     "GetTaskUseCase",
     "ListContextsUseCase",
     "ListTasksUseCase",

@@ -132,6 +132,15 @@ class DomainEvent:
                 expected_type = non_none[0]
 
         # -------------------------
+        # 2b. Containers (dict[...], list[...]): JSON already gave them back
+        # -------------------------
+        container = get_origin(expected_type)
+        if container in (dict, list) and isinstance(value, container):
+            return value
+        if container in (tuple, set, frozenset) and isinstance(value, list):
+            return container(value)
+
+        # -------------------------
         # 3. Already correct type
         # -------------------------
         try:

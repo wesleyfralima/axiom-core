@@ -123,6 +123,9 @@ class TaskOutputDTO(DTO):
     # yet (``id`` is the current occurrence's)
     is_projected: bool = False
 
+    # When it was completed (None while open, and again after a reopen)
+    completed_at: datetime | None = None
+
 
 @dataclass(frozen=True, kw_only=True)
 class CreateTaskOutputDTO(TaskOutputDTO):
@@ -284,3 +287,39 @@ class TaskListOutputDTO(DTO):
     # Future occurrences of the listed recurring tasks, not created yet
     # (``is_projected``), up to the horizon; sorted by due date
     projected: list[TaskOutputDTO] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class FieldChangeDTO(DTO):
+    """One field of an edit: before and after, as text (dates in ISO 8601)."""
+
+    field: str
+    before: str | None
+    after: str | None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskHistoryEntryDTO(DTO):
+    """One change to a task.
+
+    Attributes:
+        occurred_at (datetime): When it happened.
+        action (str): created, edited, completed, cancelled, reopened,
+            archived or deleted.
+        changes (list[FieldChangeDTO]): For an edit, what changed.
+        note (str | None): Anything else worth saying.
+    """
+
+    occurred_at: datetime
+    action: str
+    changes: list[FieldChangeDTO] = field(default_factory=list)
+    note: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskHistoryOutputDTO(DTO):
+    """A task's history, oldest first."""
+
+    task_id: str
+    title: str
+    entries: list[TaskHistoryEntryDTO] = field(default_factory=list)

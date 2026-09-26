@@ -6,6 +6,40 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.12.0] — 2026-09-26
+
+The task history (Part 1 of the product backlog). Enterprise 0.8.0 stores
+it; the CLI 0.14.0 shows it (`axpro task log`).
+
+### Added
+- **Every change to a task is an event**: `TaskEditedEvent` (with the
+  changed fields, before → after, as text) is now raised — once per edit,
+  from a snapshot the use case takes before and after — and so are
+  `TaskReopenedEvent`, `TaskArchivedEvent` and `TaskDeletedEvent` (the last
+  two existed and were never raised). `TaskCreatedEvent` carries `user_id`.
+- **The unit of work writes the history** (`TaskHistoryEntry`: action,
+  when, changes, note) in the same transaction as the change and the
+  outbox, through the new port `TaskHistoryRepository`
+  (`uow.task_history`); `b_domain/events/history.history_entry` maps
+  events to entries. The history of a deleted task stays.
+- `GetTaskHistoryUseCase` → `TaskHistoryOutputDTO` (oldest first).
+- `Task.completed_at` (set on done, cleared on reopen) and
+  `TaskOutputDTO.completed_at`.
+- **`b_domain/events/registry.EVENT_REGISTRY`**: every event by name, for
+  the outbox relay — interfaces use it instead of their own list (an event
+  missing from theirs failed on every relay, forever).
+
+### Fixed
+- **Rebuilding an event from the outbox turned a `dict`/`list` field into
+  text** (`DomainEvent._deserialize_value` fell back to `str`): containers
+  now come back as they were.
+- The test fakes behave like the real unit of work: the repositories track
+  into the UoW's set, and there is an in-memory outbox — events recorded in
+  use case tests used to go nowhere.
+
+### Changed
+- Coverage floor 75.5% → 75.9% (457 tests).
+
 ## [0.11.1] — 2026-09-26
 
 ### Fixed

@@ -86,7 +86,8 @@ class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
 
             task_to_delete: Task = tasks_found[0]
 
-            # 3. Safe deletion
+            # 3. Safe deletion (the history keeps a record of it)
+            task_to_delete.mark_deleted(self.clock.now())
             await uow.tasks.delete(task_to_delete.id)
 
             return DeleteTaskOutputDTO(success=True, task_id=str(task_to_delete.id))
