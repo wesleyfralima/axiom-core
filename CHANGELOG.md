@@ -6,6 +6,24 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.8.0] — 2026-09-25
+
+What an edit can change, for the CLI's editor mode.
+
+### Added
+- `UpdateTaskInputDTO.remove_due_date` and `remove_context`; asking to set
+  and to remove the same thing is refused.
+- `Task.move_to_context` and `Task.update_energy`.
+
+### Changed
+- Coverage floor 74.4% → 74.6% (415 tests).
+
+### Fixed
+- `UpdateTaskUseCase` **ignored `context_id` and `energy_level`**: they
+  were in the DTO and never applied. The context is found by name or ID
+  prefix (`find_context`); the energy takes a name or a number
+  (`energy_level: str | int`).
+
 ## [0.7.0] — 2026-09-25
 
 Due dates as people type them, a default due time and the projection of

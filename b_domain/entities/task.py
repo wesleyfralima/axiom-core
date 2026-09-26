@@ -454,6 +454,16 @@ class Task(Entity):
         self.status = new_status
         self._touch(now)
 
+    def move_to_context(self, now: datetime, context_id: ContextId | None) -> None:
+        """Put the task in a context, or in none."""
+        self.context_id = context_id
+        self._touch(now)
+
+    def update_energy(self, now: datetime, level: EnergyLevel) -> None:
+        """Change the energy the task asks for."""
+        self.required_energy_level = level
+        self._touch(now)
+
     def update_priority(self, now: datetime, new_priority: Priority) -> None:
         """Update the task priority.
 

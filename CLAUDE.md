@@ -162,15 +162,17 @@ there too.
 
 ## Current state (2026-09-25)
 
-- Version `0.7.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.8.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
   formatter; the active context can limit the task list (0.5.0); reopen,
   archive and cancel a task (0.6.0, Backlog 02, Part 1); dates as typed,
-  `default_due_time` and the projection of recurring tasks (0.7.0).
+  `default_due_time` and the projection of recurring tasks (0.7.0); an
+  edit changes context and energy and can remove the due date or context
+  (0.8.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 412 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 74.4% over a 74.4% floor.
+- 415 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 74.6% over a 74.6% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   it has not really run yet because the repository does not exist on GitHub.

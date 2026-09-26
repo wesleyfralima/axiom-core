@@ -59,12 +59,15 @@ class UpdateTaskInputDTO(DTO):
     description: str | None = None
     priority: str | None = None
 
-    # Contextual grouping and energy requirements
+    # Context: its name or ID prefix; remove_context takes it out of any
     context_id: str | None = None
-    energy_level: int | None = None
+    remove_context: bool = False
+    # Energy: a level name or number ("high", 4)
+    energy_level: str | int | None = None
 
-    # Due date: as in CreateTaskInputDTO
+    # Due date: as in CreateTaskInputDTO; remove_due_date clears it
     due_date: DateInput | None = None
+    remove_due_date: bool = False
     is_floating: bool | None = None
     timezone: str | None = None
 
