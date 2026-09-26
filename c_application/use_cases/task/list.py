@@ -1,7 +1,10 @@
-from datetime import datetime
+from dataclasses import replace
+from datetime import date, datetime, time
+from zoneinfo import ZoneInfo
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
+from b_domain.entities.user import UserPrefs
 from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import (
@@ -13,10 +16,21 @@ from b_domain.value_objects import (
 )
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 from c_application.dtos.context_dtos import ContextOutputDTO
-from c_application.dtos.task_dtos import ListTasksRequest, TaskListOutputDTO
+from c_application.dtos.task_dtos import (
+    ListTasksRequest,
+    TaskListOutputDTO,
+    TaskOutputDTO,
+)
 from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils import find_context
+from c_application.utils.date_input import (
+    at_time,
+    end_of_day,
+    local_today,
+    resolve_date_input,
+    resolve_horizon,
+)
 
 
 class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
@@ -85,10 +99,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             # and to show each task's context
             contexts: list[Context] = await uow.contexts.list_by_user(f_user_id)
             scope: Context | None = None
-            active_id: ContextId | None = None
-            if request.context_id or request.use_active_context:
-                user: User | None = await uow.users.get_by_id(f_user_id)
-                active_id = user.preferences.active_context_id if user else None
+            user: User | None = await uow.users.get_by_id(f_user_id)
+            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            active_id: ContextId | None = prefs.active_context_id
             if request.context_id:
                 scope = find_context(contexts, request.context_id)
             elif request.use_active_context and active_id:
@@ -106,6 +119,24 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
 
             energy_level: EnergyLevel | None = (
                 EnergyLevel.parse(request.max_energy) if request.max_energy else None
+            )
+
+            # Dates as typed, in the user's today
+            now: datetime = self.clock.now()
+            today: date = local_today(now, prefs.timezone)
+            due_before: datetime | None = (
+                at_time(resolve_date_input(request.due_before, today=today), time())
+                if request.due_before is not None
+                else None
+            )
+            due_after: datetime | None = (
+                at_time(resolve_date_input(request.due_after, today=today), time())
+                if request.due_after is not None
+                else None
+            )
+            horizon: date = resolve_horizon(
+                request.ahead if request.ahead is not None else prefs.days_ahead,
+                today=today,
             )
 
             # 2. Build complete domain filter (Mapping DTO -> TaskFilter)
@@ -137,9 +168,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 is_blocked=None if request.include_blocked else False,
                 is_recurring=request.is_recurring,
                 only_roots=request.only_roots,
-                # Temporal filters
-                due_before=request.due_before,
-                due_after=request.due_after,
+                # Temporal filters ("tomorrow", a date alone: its midnight)
+                due_before=due_before,
+                due_after=due_after,
                 created_before=request.created_before,
                 created_after=request.created_after,
                 updated_before=request.updated_before,
@@ -150,20 +181,53 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             tasks: list[Task] = await uow.tasks.list(filters)
 
             # 4. Centralized mapping
-            now: datetime = self.clock.now()
             by_id: dict[ContextId, Context] = {c.id: c for c in contexts}
-            return TaskListOutputDTO(
-                tasks=[
-                    TaskMapper.to_output(
-                        task,
-                        now,
-                        context=by_id.get(task.context_id) if task.context_id else None,
+            outputs: list[TaskOutputDTO] = []
+            projected: list[tuple[datetime, TaskOutputDTO]] = []
+            until: datetime = end_of_day(horizon, prefs.timezone)
+            for task in tasks:
+                output: TaskOutputDTO = TaskMapper.to_output(
+                    task,
+                    now,
+                    context=by_id.get(task.context_id) if task.context_id else None,
+                )
+                outputs.append(output)
+
+                # 5. The occurrences to come, which do not exist yet
+                if task.status.is_closed:
+                    continue
+                for occurrence in task.upcoming_occurrences(now, until):
+                    wall: datetime = _wall_clock(occurrence, prefs.timezone)
+                    if (due_before and wall > due_before) or (
+                        due_after and wall < due_after
+                    ):
+                        continue
+                    projected.append(
+                        (
+                            wall,
+                            replace(
+                                output,
+                                due_date=occurrence,
+                                is_overdue=False,
+                                is_projected=True,
+                            ),
+                        )
                     )
-                    for task in tasks
-                ],
+
+            projected.sort(key=lambda pair: pair[0])
+            return TaskListOutputDTO(
+                tasks=outputs,
                 context=(
                     ContextMapper.to_output(scope, ContextOutputDTO, active_id)
                     if scope
                     else None
                 ),
+                projected=[dto for _, dto in projected],
             )
+
+
+def _wall_clock(dt: datetime, tz_name: str) -> datetime:
+    """A due date as wall-clock time where the user is (naive)."""
+    if dt.tzinfo is None:
+        return dt
+    return dt.astimezone(ZoneInfo(tz_name)).replace(tzinfo=None)

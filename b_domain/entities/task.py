@@ -1,6 +1,7 @@
 from dataclasses import dataclass, field, replace
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Optional
+from zoneinfo import ZoneInfo
 
 from a_core import Entity
 from a_core.exceptions import InvalidStateTransition, ValidationException
@@ -210,6 +211,64 @@ class Task(Entity):
     def is_blocked(self) -> bool:
         """A task is blocked if any of its dependencies is still pending."""
         return len(self.depends_on) > 0
+
+    def upcoming_occurrences(
+        self, now: datetime, until: datetime, limit: int = 400
+    ) -> list[datetime]:
+        """The occurrences that will follow this one, up to ``until``.
+
+        They do not exist yet: each is created when the previous one closes.
+        Only occurrences still ahead (after ``now``) are projected — a past
+        one would be skipped on completion anyway — and rules that repeat
+        within the day (hourly) are not projected.
+
+        Args:
+            now (datetime): The current instant (aware).
+            until (datetime): The last instant to include (aware).
+            limit (int): Safety cap on the number of occurrences.
+
+        Returns:
+            list[datetime]: The occurrences, in the rule's own kind (naive
+            wall-clock time for a floating task, aware for a fixed one).
+        """
+        if not self.recurrence or not self.due_date or self.recurrence.is_sub_daily:
+            return []
+
+        start: datetime = self._in_due_kind(now)
+        end: datetime = self._in_due_kind(until)
+        occurrences: list[datetime] = []
+        # The rule is fed its own values; comparisons use the due date's kind
+        last: datetime = self.due_date.value
+        previous: datetime = self._in_due_kind(last)
+
+        while len(occurrences) < limit:
+            upcoming: datetime | None = self.recurrence.get_next_occurrence(last)
+            if upcoming is None:
+                break
+            current: datetime = self._in_due_kind(upcoming)
+            if current <= previous or current > end:
+                break
+            if current > start:
+                occurrences.append(current)
+            last, previous = upcoming, current
+
+        return occurrences
+
+    def _in_due_kind(self, moment: datetime) -> datetime:
+        """A datetime as the due date compares: wall-clock time or UTC.
+
+        Aware values are converted; a naive one is already wall-clock time
+        (in the due date's zone).
+        """
+        assert self.due_date is not None
+        zone: ZoneInfo = ZoneInfo(self.due_date.timezone or "UTC")
+        if self.due_date.is_floating:
+            if moment.tzinfo is None:
+                return moment
+            return moment.astimezone(zone).replace(tzinfo=None)
+        if moment.tzinfo is None:
+            moment = moment.replace(tzinfo=zone)
+        return moment.astimezone(UTC)
 
     def create_next_occurrence(
         self, now: datetime, catch_up: bool = True

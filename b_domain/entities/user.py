@@ -1,7 +1,7 @@
 """User entity and preferences definitions for the domain."""
 
 from dataclasses import dataclass, field, fields, replace
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any, ClassVar, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
@@ -46,6 +46,8 @@ class UserPrefs(ValueObject):
     default_task_duration_minutes: int = 60
     default_task_priority: str = "medium"
     default_task_status: str = "pending"
+    # The time a due date typed without one gets ("HH:MM")
+    default_due_time: str = "23:59"
     auto_schedule_tasks: bool = False
     allow_overdue_tasks: bool = True
 
@@ -64,7 +66,8 @@ class UserPrefs(ValueObject):
     # ------------------------------------------------------------------
     theme: Literal["light", "dark", "system"] = "system"
     auto_create_next_recurrence: bool = True
-    recurring_tasks_visible_ahead_days: int = 14
+    # How far ahead lists project the recurring tasks not created yet
+    days_ahead: int = 7
     language: str = "en"
     date_format: str = "YYYY-MM-DD"
     time_format_24h: bool = True
@@ -77,6 +80,12 @@ class UserPrefs(ValueObject):
     def __post_init__(self) -> None:
         if not UserPrefs._ALLOWED_KEYS:
             UserPrefs._ALLOWED_KEYS = {f.name for f in fields(self)}
+
+    @property
+    def default_due_clock(self) -> time:
+        """``default_due_time`` as a time of day."""
+        hours, minutes = (int(part) for part in self.default_due_time.split(":"))
+        return time(hours, minutes)
 
     def update(self, **changes: Any) -> "UserPrefs":
         """Creates a new UserPrefs instance with the updated values.
@@ -132,6 +141,16 @@ class UserPrefs(ValueObject):
                     )
                 result[key] = value
 
+        if "default_due_time" in result:
+            result["default_due_time"] = _clock_time_text(
+                "default due time", str(result["default_due_time"])
+            )
+
+        if "days_ahead" in result and not 0 <= int(result["days_ahead"]) <= 366:
+            raise InvalidValueError(
+                concept="days ahead (0 to 366)", invalid_value=str(result["days_ahead"])
+            )
+
         for key in ("working_hours_start", "working_hours_end"):
             if key in result and not 0 <= int(result[key]) <= 23:
                 raise InvalidValueError(
@@ -139,6 +158,19 @@ class UserPrefs(ValueObject):
                 )
 
         return result
+
+
+def _clock_time_text(concept: str, text: str) -> str:
+    """A time of day as "HH:MM" ("9:5" → "09:05").
+
+    Raises:
+        InvalidValueError: If the text is not a valid time of day.
+    """
+    try:
+        hours, minutes = (int(part) for part in text.strip().split(":"))
+        return time(hours, minutes).strftime("%H:%M")
+    except ValueError as e:
+        raise InvalidValueError(concept=concept, invalid_value=text) from e
 
 
 _CHOICES: dict[str, tuple[str, ...]] = {

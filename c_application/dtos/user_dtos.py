@@ -43,6 +43,7 @@ class UserPrefsInputDTO(DTO):
     # ------------------------------------------------------------------
     default_task_priority: str | None = None
     default_task_status: str | None = None
+    default_due_time: str | None = None  # HH:MM
     auto_schedule_tasks: bool | None = None
     allow_overdue_tasks: bool | None = None
 
@@ -60,7 +61,7 @@ class UserPrefsInputDTO(DTO):
     # Recurrence & automation
     # ------------------------------------------------------------------
     auto_create_next_recurrence: bool | None = None
-    recurring_tasks_visible_ahead_days: int | None = None
+    days_ahead: int | None = None
 
     # ------------------------------------------------------------------
     # Localization
@@ -95,6 +96,7 @@ class UserPrefsOutputDTO(DTO):
     # ------------------------------------------------------------------
     default_task_priority: str
     default_task_status: str
+    default_due_time: str  # HH:MM
     auto_schedule_tasks: bool
     allow_overdue_tasks: bool
 
@@ -112,7 +114,7 @@ class UserPrefsOutputDTO(DTO):
     # Recurrence & automation
     # ------------------------------------------------------------------
     auto_create_next_recurrence: bool
-    recurring_tasks_visible_ahead_days: int
+    days_ahead: int
 
     # ------------------------------------------------------------------
     # Localization

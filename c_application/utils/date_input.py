@@ -1,0 +1,149 @@
+"""Dates as people type them: "2026-10-01", "tomorrow 14:00", "today".
+
+Every use case that receives a date from the user takes a ``DateInput`` and
+resolves it here, relative to the user's "today" (their time zone, the
+injected clock). A value without a time of day stays a ``date``: the caller
+decides which time it gets (the user's default due time, the end of the day…).
+
+New expressions ("next friday", "in 3 days", other languages) belong in
+``_DAY_OFFSETS`` or next to it — the callers do not change.
+"""
+
+import re
+from datetime import UTC, date, datetime, time, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+from a_core.exceptions import InvalidValueError
+
+type DateInput = datetime | date | str
+"""A datetime, a date without time, or a text expression to resolve."""
+
+_DAY_OFFSETS: dict[str, int] = {
+    "yesterday": -1,
+    "today": 0,
+    "tomorrow": 1,
+}
+"""Words for a day, as an offset from today."""
+
+_ACCEPTED: str = "YYYY-MM-DD, YYYY-MM-DD HH:MM, today, tomorrow or yesterday (+ HH:MM)"
+
+_TIME_RE: re.Pattern[str] = re.compile(r"^(\d{1,2}):(\d{2})$")
+
+
+def local_today(now: datetime, tz_name: str) -> date:
+    """The user's calendar day at ``now``.
+
+    Args:
+        now (datetime): The current instant (naive values are read as UTC).
+        tz_name (str): The user's IANA time zone.
+
+    Returns:
+        date: Today, where the user is.
+    """
+    aware: datetime = now if now.tzinfo else now.replace(tzinfo=UTC)
+    try:
+        return aware.astimezone(ZoneInfo(tz_name)).date()
+    except (ZoneInfoNotFoundError, ValueError):
+        return aware.astimezone(UTC).date()
+
+
+def resolve_date_input(value: DateInput, *, today: date) -> date | datetime:
+    """Turn what the user typed into a date or a datetime.
+
+    Args:
+        value (DateInput): A datetime (kept as it is), a date (kept: no time
+            was given) or a text: an ISO date (``2026-10-01``), an ISO date
+            and time (``2026-10-01 14:00`` or with ``T``), or a day word
+            (``today``, ``tomorrow``, ``yesterday``) optionally followed by
+            ``HH:MM``.
+        today (date): The user's today, which the words are relative to.
+
+    Returns:
+        date | datetime: A ``date`` when no time was given, else a naive
+        ``datetime`` (wall-clock time; the caller knows the time zone).
+
+    Raises:
+        InvalidValueError: If the text is none of the accepted forms.
+    """
+    if isinstance(value, datetime | date):
+        return value
+
+    text: str = " ".join(value.strip().lower().split())
+    parts: list[str] = text.split(" ")
+    day_word, clock = parts[0], parts[1:]
+
+    if day_word in _DAY_OFFSETS and len(clock) <= 1:
+        day: date = today + timedelta(days=_DAY_OFFSETS[day_word])
+        return datetime.combine(day, _parse_clock(clock[0], value)) if clock else day
+
+    try:
+        if len(text) == 10:
+            return date.fromisoformat(text)
+        parsed: datetime = datetime.fromisoformat(text)
+    except ValueError:
+        raise _invalid(value) from None
+    return parsed
+
+
+def at_time(value: date | datetime, clock: time) -> datetime:
+    """A date with no time of day gets ``clock``; a datetime stays as it is."""
+    if isinstance(value, datetime):
+        return value
+    return datetime.combine(value, clock)
+
+
+def resolve_horizon(ahead: int | DateInput, *, today: date) -> date:
+    """The last day a list looks ahead to.
+
+    Args:
+        ahead (int | DateInput): A number of days from today, or a date
+            (a text is resolved like any date; its time, if any, is ignored).
+        today (date): The user's today.
+
+    Returns:
+        date: The last day included.
+
+    Raises:
+        InvalidValueError: If the number is negative or the text is not a date.
+    """
+    if isinstance(ahead, int):
+        if ahead < 0:
+            raise InvalidValueError(concept="days ahead", invalid_value=str(ahead))
+        return today + timedelta(days=ahead)
+    if isinstance(ahead, str) and ahead.strip().isdigit():
+        return today + timedelta(days=int(ahead))
+
+    try:
+        resolved: date | datetime = resolve_date_input(ahead, today=today)
+    except InvalidValueError:
+        raise InvalidValueError(
+            concept="days ahead",
+            invalid_value=str(ahead),
+            valid_options=[f"a number of days, or a date ({_ACCEPTED})"],
+        ) from None
+    return resolved.date() if isinstance(resolved, datetime) else resolved
+
+
+def end_of_day(day: date, tz_name: str) -> datetime:
+    """The last instant of ``day`` where the user is (aware)."""
+    try:
+        zone: ZoneInfo = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    return datetime.combine(day, time(23, 59, 59), tzinfo=zone)
+
+
+def _parse_clock(text: str, original: str) -> time:
+    match: re.Match[str] | None = _TIME_RE.match(text)
+    if not match:
+        raise _invalid(original)
+    try:
+        return time(int(match.group(1)), int(match.group(2)))
+    except ValueError:
+        raise _invalid(original) from None
+
+
+def _invalid(value: str) -> InvalidValueError:
+    return InvalidValueError(
+        concept="date", invalid_value=value, valid_options=[_ACCEPTED]
+    )

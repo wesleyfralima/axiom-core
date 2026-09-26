@@ -1,12 +1,20 @@
-from datetime import datetime
+from datetime import date, datetime
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Task, User
+from b_domain.entities.user import UserPrefs
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import Priority, UserId
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.utils.date_input import (
+    at_time,
+    end_of_day,
+    local_today,
+    resolve_date_input,
+    resolve_horizon,
+)
 
 
 class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
@@ -75,6 +83,8 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 )
 
             task: Task = tasks_found[0]
+            user: User | None = await uow.users.get_by_id(user_id)
+            prefs: UserPrefs = user.preferences if user else UserPrefs()
 
             # 3. Apply partial updates
             now: datetime = self.clock.now()
@@ -107,11 +117,17 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 ):
                     tz_name = task.due_date.timezone
                 if tz_name is None:
-                    user: User | None = await uow.users.get_by_id(user_id)
-                    tz_name = user.preferences.timezone if user else None
+                    tz_name = prefs.timezone
 
+                # "tomorrow", a date alone (the default due time)…
+                new_due: datetime = at_time(
+                    resolve_date_input(
+                        request.due_date, today=local_today(now, prefs.timezone)
+                    ),
+                    prefs.default_due_clock,
+                )
                 task.update_due_date(
-                    now, request.due_date, is_floating=is_floating, tz_name=tz_name
+                    now, new_due, is_floating=is_floating, tz_name=tz_name
                 )
 
             # 4. Persistence
@@ -123,5 +139,13 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 else None
             )
 
-        # 5. Return mapped output DTO
-        return TaskMapper.to_output(task, now, context=context)
+        # 5. Return mapped output DTO (recurring: the occurrences ahead)
+        horizon: date = resolve_horizon(
+            prefs.days_ahead, today=local_today(now, prefs.timezone)
+        )
+        return TaskMapper.to_output(
+            task,
+            now,
+            occurrences_until=end_of_day(horizon, prefs.timezone),
+            context=context,
+        )
