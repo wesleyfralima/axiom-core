@@ -6,6 +6,16 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.18.1] — 2026-09-26
+
+### Fixed
+- **A new task's dependencies and parent took only a full UUID**
+  (`'depends_on' parameter contains invalid UUIDs` for `071d7f23`): they
+  are found by ID or ID prefix among the user's own tasks, like every other
+  task reference (`find_task`). A dependency that does not exist is now
+  refused — a full UUID of nothing was accepted, and blocked the task
+  forever. `task ls --parent` takes a prefix too (it listed nothing).
+
 ## [0.18.0] — 2026-09-26
 
 Quick wins (Part 7 of the product backlog). Enterprise 0.14.0 and CLI

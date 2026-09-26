@@ -32,6 +32,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import use_work_calendar
 
 
@@ -87,15 +88,12 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 TaskComplexity.parse(request.complexity) if request.complexity else None
             )
 
-            f_parent_id: TaskId | None = None
-            if request.parent_id:
-                try:
-                    f_parent_id = TaskId.from_string(
-                        request.parent_id, error_msg="Invalid parent ID."
-                    )
-                except ValidationException:
-                    # Safe behavior: return empty list if parent ID is invalid
-                    return TaskListOutputDTO(tasks=[])
+            # The parent: its ID or an ID prefix, among the user's tasks
+            f_parent_id: TaskId | None = (
+                (await find_task(uow, request.parent_id, f_user_id)).id
+                if request.parent_id
+                else None
+            )
 
             # The user's contexts: to resolve the filter (name or ID prefix)
             # and to show each task's context
