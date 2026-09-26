@@ -89,8 +89,12 @@ class TaskFilter(BaseFilter):
     only_roots: bool = False
     tags: list[str] = field(default_factory=list)
 
-    # Deleted tasks (tombstones) only; otherwise they are left out
-    deleted: bool = False
+    # Deleted tasks: False leaves them out, True only them, None both
+    deleted: bool | None = False
+
+    # Series: the occurrences of one, or (in_series) any task in a series
+    series_id: TaskId | None = None
+    in_series: bool | None = None
 
 
 @dataclass(kw_only=True)

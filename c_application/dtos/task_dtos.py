@@ -126,6 +126,9 @@ class TaskOutputDTO(DTO):
     # When it was completed (None while open, and again after a reopen)
     completed_at: datetime | None = None
 
+    # The series of a recurring task (the first occurrence's ID)
+    series_id: str | None = None
+
 
 @dataclass(frozen=True, kw_only=True)
 class CreateTaskOutputDTO(TaskOutputDTO):
@@ -317,12 +320,27 @@ class TaskHistoryEntryDTO(DTO):
     action: str
     changes: list[FieldChangeDTO] = field(default_factory=list)
     note: str | None = None
+    task_id: str | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskHistoryRequest(DTO):
+    """Whose history: a task, or (``series``) its whole series."""
+
+    task_id_prefix: str
+    user_id: str
+    series: bool = False
 
 
 @dataclass(frozen=True, kw_only=True)
 class TaskHistoryOutputDTO(DTO):
-    """A task's history, oldest first."""
+    """A task's history — or its series' — oldest first.
+
+    ``series_size`` is how many occurrences the history spans (1 for a
+    task alone).
+    """
 
     task_id: str
     title: str
     entries: list[TaskHistoryEntryDTO] = field(default_factory=list)
+    series_size: int = 1

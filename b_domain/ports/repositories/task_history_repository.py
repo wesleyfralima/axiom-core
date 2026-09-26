@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod
+from datetime import datetime
 from uuid import UUID
 
 from b_domain.value_objects.identifiers import TaskId, UserId
@@ -24,6 +25,19 @@ class TaskHistoryRepository(ABC):
     @abstractmethod
     async def caused_by(self, entry_id: UUID) -> list[TaskHistoryEntry]:
         """The entries another entry's change made on its own."""
+
+    @abstractmethod
+    async def between(
+        self, user_id: UserId, start: datetime, end: datetime
+    ) -> list[TaskHistoryEntry]:
+        """The user's entries from ``start`` (included) to ``end`` (excluded),
+        oldest first — what a report counts."""
+
+    @abstractmethod
+    async def list_for_tasks(
+        self, task_ids: list[TaskId], user_id: UserId
+    ) -> list[TaskHistoryEntry]:
+        """Several tasks' history together (a series), oldest first."""
 
     @abstractmethod
     async def list_for_task(

@@ -1,20 +1,23 @@
 from b_domain.entities import Task
+from b_domain.ports.repositories.filters import TaskFilter
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import UserId
+from b_domain.value_objects import TaskId, UserId
 from b_domain.value_objects.task_history import TaskHistoryEntry
-from c_application.dtos.task_dtos import TaskByUserRequest, TaskHistoryOutputDTO
+from c_application.dtos.task_dtos import TaskHistoryOutputDTO, TaskHistoryRequest
 from c_application.mappers.history_mapper import history_entry_to_dto
 from c_application.utils.task_utils import find_task
 
 
-class GetTaskHistoryUseCase(UseCase[TaskByUserRequest, TaskHistoryOutputDTO]):
-    """What happened to a task, oldest first (``axpro task log``)."""
+class GetTaskHistoryUseCase(UseCase[TaskHistoryRequest, TaskHistoryOutputDTO]):
+    """What happened to a task — or to its whole series — oldest first."""
 
-    async def execute(self, request: TaskByUserRequest) -> TaskHistoryOutputDTO:
-        """Read one of the user's tasks' history.
+    async def execute(self, request: TaskHistoryRequest) -> TaskHistoryOutputDTO:
+        """Read one of the user's tasks' history (or its series').
 
         Args:
-            request (TaskByUserRequest): The task's ID prefix and its owner.
+            request (TaskHistoryRequest): The task's ID prefix, its owner and
+                whether to span the series (every occurrence, deleted ones
+                included).
 
         Returns:
             TaskHistoryOutputDTO: The entries, oldest first.
@@ -29,12 +32,24 @@ class GetTaskHistoryUseCase(UseCase[TaskByUserRequest, TaskHistoryOutputDTO]):
         )
         async with self.uow as uow:
             task: Task = await find_task(uow, request.task_id_prefix, user_id)
-            entries: list[TaskHistoryEntry] = await uow.task_history.list_for_task(
-                task.id, user_id
+            ids: list[TaskId] = [task.id]
+            if request.series and task.series_id is not None:
+                members: list[Task] = await uow.tasks.list(
+                    TaskFilter(
+                        user_id=user_id,
+                        series_id=task.series_id,
+                        deleted=None,
+                        limit=10_000,
+                    )
+                )
+                ids = [m.id for m in members] or ids
+            entries: list[TaskHistoryEntry] = await uow.task_history.list_for_tasks(
+                ids, user_id
             )
 
         return TaskHistoryOutputDTO(
             task_id=str(task.id),
             title=str(task.title),
             entries=[history_entry_to_dto(entry) for entry in entries],
+            series_size=len(ids),
         )

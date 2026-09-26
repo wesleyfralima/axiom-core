@@ -12,4 +12,5 @@ def history_entry_to_dto(entry: TaskHistoryEntry) -> TaskHistoryEntryDTO:
             for c in entry.changes
         ],
         note=entry.note,
+        task_id=str(entry.task_id),
     )

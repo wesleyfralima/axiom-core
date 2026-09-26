@@ -14,6 +14,7 @@ from c_application.dtos.task_dtos import (
     CreateTaskInputDTO,
     TaskByUserRequest,
     TaskHistoryOutputDTO,
+    TaskHistoryRequest,
     TaskOutputDTO,
     UpdateTaskInputDTO,
 )
@@ -53,7 +54,9 @@ def _by(user: User, task: TaskOutputDTO) -> TaskByUserRequest:
 async def _history(
     deps: UseCaseDeps, user: User, task: TaskOutputDTO
 ) -> TaskHistoryOutputDTO:
-    return await GetTaskHistoryUseCase(**deps).execute(_by(user, task))
+    return await GetTaskHistoryUseCase(**deps).execute(
+        TaskHistoryRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+    )
 
 
 async def test_the_life_of_a_task(use_case_context: UseCaseDeps, user: User) -> None:
