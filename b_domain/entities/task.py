@@ -137,6 +137,7 @@ class Task(Entity):
         series_id: TaskId | None = None,
         tags: frozenset[str] | None = None,
         task_id: TaskId | None = None,
+        waiting: bool | None = None,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -166,6 +167,8 @@ class Task(Entity):
             tags (frozenset[str] | None): Its tags, already normalized.
             task_id (TaskId | None): Its ID, when it must be a known one (the
                 next occurrence, ``occurrence_id``); a new one otherwise.
+            waiting (bool | None): Whether a task in ``depends_on`` is still
+                open (the use case knows); None: any dependency counts.
 
         Returns:
             Task: A new Task instance.
@@ -200,7 +203,11 @@ class Task(Entity):
             user_id=user_id,
             title=title,
             description=description,
-            status=TaskStatus.BLOCKED if depends_on else TaskStatus.PENDING,
+            status=(
+                TaskStatus.BLOCKED
+                if (bool(depends_on) if waiting is None else waiting)
+                else TaskStatus.PENDING
+            ),
             priority=Priority(priority),
             required_energy_level=EnergyLevel(required_energy_level),
             context_id=context_id,
@@ -256,21 +263,61 @@ class Task(Entity):
         """Check whether the task fits the user's current energy level."""
         return self.required_energy_level <= current_energy
 
-    def add_dependency(self, target_id: TaskId, now: datetime) -> None:
-        if target_id == self.id:
-            raise ValidationException("A task cannot depend on itself.")
-        self.depends_on.add(target_id)
-        self.change_status(now=now, new_status=TaskStatus.BLOCKED)
+    def set_dependencies(
+        self, now: datetime, depends_on: set[TaskId], waiting: bool
+    ) -> None:
+        """The tasks this one depends on — kept once they are done, so it
+        shows them and waits again if one is reopened.
 
-    def remove_dependency(self, target_id: TaskId, now: datetime) -> None:
-        self.depends_on.discard(target_id)
-        if not self.depends_on:
+        Args:
+            now (datetime): When it changes.
+            depends_on (set[TaskId]): All of them.
+            waiting (bool): Whether one of them is still open (the use case
+                knows them).
+
+        Raises:
+            ValidationException: If the task is among them.
+        """
+        if self.id in depends_on:
+            raise ValidationException("A task cannot depend on itself.")
+        self.depends_on = set(depends_on)
+        self._touch(now)
+        self.follow_blockers(now, waiting)
+
+    def follow_blockers(self, now: datetime, waiting: bool) -> None:
+        """Wait (blocked) while a task it depends on is open; be free once
+        none is.
+
+        Only a task not started yet moves: one in progress or paused is left
+        alone (it is being worked on), and so is a closed one.
+
+        Args:
+            now (datetime): When it changes.
+            waiting (bool): Whether one of its dependencies is still open.
+        """
+        if waiting and self.status == TaskStatus.PENDING:
+            self.change_status(now, TaskStatus.BLOCKED)
+        elif not waiting and self.status == TaskStatus.BLOCKED:
             self.change_status(now, TaskStatus.PENDING)
+
+    def move_under(self, now: datetime, parent_id: TaskId | None) -> None:
+        """Make it a subtask of ``parent_id`` (None: a task on its own).
+
+        The use case checks the parent exists and is not one of its own
+        subtasks.
+
+        Raises:
+            ValidationException: If the parent is the task itself.
+        """
+        if parent_id == self.id:
+            raise ValidationException("A task cannot be its own parent.")
+        self.parent_id = parent_id
+        self._touch(now)
 
     @property
     def is_blocked(self) -> bool:
-        """A task is blocked if any of its dependencies is still pending."""
-        return len(self.depends_on) > 0
+        """Whether it waits on another task still open."""
+        return self.status == TaskStatus.BLOCKED
 
     def upcoming_occurrences(
         self,
@@ -722,8 +769,14 @@ class Task(Entity):
         self.due_date = DueDate.from_params(new_dt, is_floating, effective_tz)
         self._touch(now)
 
-    def mark_as_done(self, now: datetime, actual_minutes: int = 0) -> None:
-        """Mark the task as completed."""
+    def mark_as_done(
+        self,
+        now: datetime,
+        actual_minutes: int = 0,
+        caused_by: UniqueId | None = None,
+    ) -> None:
+        """Mark the task as completed (``caused_by``: its parent's
+        completion, when it closes along with it)."""
         previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.completed_at = now
@@ -737,6 +790,7 @@ class Task(Entity):
                 actual_minutes=actual_minutes,
                 energy_level_used=self.required_energy_level,
                 task_complexity=self.complexity,
+                caused_by=caused_by,
             )
         )
 
@@ -858,8 +912,9 @@ class Task(Entity):
             )
         )
 
-    def mark_deleted(self, now: datetime) -> None:
-        """Delete the task: a tombstone, restorable until it is purged.
+    def mark_deleted(self, now: datetime, caused_by: UniqueId | None = None) -> None:
+        """Delete the task: a tombstone, restorable until it is purged
+        (``caused_by``: its parent's delete, when it goes along).
 
         Raises:
             InvalidStateTransition: If it is already deleted.
@@ -876,11 +931,13 @@ class Task(Entity):
                 user_id=self.user_id,
                 title=str(self.title),
                 previous=previous,
+                caused_by=caused_by,
             )
         )
 
-    def restore(self, now: datetime) -> None:
-        """Bring a deleted task back, as it was.
+    def restore(self, now: datetime, caused_by: UniqueId | None = None) -> None:
+        """Bring a deleted task back, as it was (``caused_by``: its parent's
+        restore).
 
         Raises:
             InvalidStateTransition: If it is not deleted.
@@ -890,7 +947,12 @@ class Task(Entity):
         self.deleted_at = None
         self._touch(now)
         self.add_event(
-            TaskRestoredEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
+            TaskRestoredEvent(
+                occurred_at=now,
+                task_id=self.id,
+                user_id=self.user_id,
+                caused_by=caused_by,
+            )
         )
 
     def come_back_as(self, fresh: "Task") -> None:
@@ -933,6 +995,8 @@ class Task(Entity):
             "series_id": str(self.series_id) if self.series_id else None,
             "estimate": self.estimated_duration_minutes,
             "tags": sorted(self.tags),
+            "parent_id": str(self.parent_id) if self.parent_id else None,
+            "depends_on": sorted(str(t) for t in self.depends_on),
         }
 
     def revert_to(
@@ -998,6 +1062,16 @@ class Task(Entity):
                     if snapshot["series_id"]
                     else None
                 )
+            if "parent_id" in snapshot:
+                self.parent_id = (
+                    TaskId.from_string(snapshot["parent_id"])
+                    if snapshot["parent_id"]
+                    else None
+                )
+            if "depends_on" in snapshot:
+                self.depends_on = {
+                    TaskId.from_string(ref) for ref in snapshot["depends_on"]
+                }
         self._touch(now)
         self.add_event(
             TaskUndoneEvent(

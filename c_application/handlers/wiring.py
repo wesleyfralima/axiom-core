@@ -7,6 +7,9 @@ from b_domain.events.task_events import (
     TaskCancelledEvent,
     TaskCompletedEvent,
     TaskDeletedEvent,
+    TaskReopenedEvent,
+    TaskRestoredEvent,
+    TaskUndoneEvent,
 )
 from b_domain.ports.event_bus import EventBus
 from b_domain.ports.providers import ClockProvider
@@ -18,8 +21,8 @@ from b_domain.services.user_behavior_metrics_aggregator import (
 from c_application.handlers.task_handlers.create_recurring_task_handler import (
     CreateRecurringTaskHandler,
 )
-from c_application.handlers.task_handlers.unlock_task_dependencies_handler import (
-    UnlockTaskDependenciesHandler,
+from c_application.handlers.task_handlers.follow_blockers_handler import (
+    FollowBlockersHandler,
 )
 from c_application.handlers.user_handlers.update_user_behavior_handler import (
     UpdateUserBehaviorHandler,
@@ -47,18 +50,24 @@ def register_essential_handlers(
         clock (Clock): Clock instance to manage transactional consistency.
     """
 
-    # Unlocking task dependencies is vital for task flow:
-    # When a task is completed, dependent tasks must be unlocked so that
-    # users can continue progressing. Without this, blocked tasks would
-    # remain inaccessible, breaking the GTD workflow and halting productivity.
-    # A cancelled blocker will never be done, so it unlocks them too.
-    # A deleted one neither (it used to keep its dependents blocked forever).
-    for closed_event in (TaskCompletedEvent, TaskCancelledEvent, TaskDeletedEvent):
+    # Dependencies are vital for task flow: when a task closes (done,
+    # cancelled — it will never be done —, deleted) the tasks waiting on it
+    # are free once nothing else they depend on is open; when it opens
+    # again (reopened, restored, undone) they wait again. The dependencies
+    # themselves stay recorded.
+    for changed_event in (
+        TaskCompletedEvent,
+        TaskCancelledEvent,
+        TaskDeletedEvent,
+        TaskReopenedEvent,
+        TaskRestoredEvent,
+        TaskUndoneEvent,
+    ):
         _subscribe(
             bus,
             uow_factory,
-            closed_event,
-            UnlockTaskDependenciesHandler,
+            changed_event,
+            FollowBlockersHandler,
             clock=clock,
         )
 

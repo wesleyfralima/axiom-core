@@ -24,6 +24,8 @@ from c_application.mappers.history_mapper import history_entry_to_dto
 
 # Undone by taking the task away (a tombstone), not by a snapshot
 _TAKE_AWAY: frozenset[TaskAction] = frozenset({TaskAction.CREATED, TaskAction.RESTORED})
+# Made along with another change (a parent's subtasks): back to the snapshot
+_ALONG: frozenset[TaskAction] = frozenset({TaskAction.COMPLETED, TaskAction.DELETED})
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -125,28 +127,7 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
                 raise DomainException(reason or "The task is gone.")
 
             # What the change made on its own goes first
-            caused: list[Task] = await _made_by(uow, target, user_id)
-            for other in caused:
-                other.revert_to(
-                    now, None, UniqueId(target.entry_id), str(TaskAction.CREATED)
-                )
-                await uow.tasks.update(other)
-            # …and what it paused on its own runs again
-            for entry in await uow.task_history.caused_by(target.entry_id):
-                if entry.action == TaskAction.PAUSED:
-                    paused: Task | None = await uow.tasks.get_by_id(
-                        entry.task_id, user_id
-                    )
-                    if paused is not None:
-                        await _resume_session(uow, paused, entry)
-                        paused.revert_to(
-                            now,
-                            entry.previous,
-                            UniqueId(entry.entry_id),
-                            str(TaskAction.PAUSED),
-                            running=True,
-                        )
-                        await uow.tasks.update(paused)
+            also: int = await _undo_along(uow, target.entry_id, user_id, now)
 
             # Timers: a start's session is discarded; a pause's runs again
             if target.action == TaskAction.STARTED:
@@ -169,7 +150,7 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
                 task_id=str(task.id),
                 title=str(task.title),
                 action=str(target.action),
-                also_removed=len(caused),
+                also_removed=also,
             )
 
 
@@ -216,15 +197,58 @@ def _last_undoable(
 async def _made_by(
     uow: UnitOfWork, target: TaskHistoryEntry, user_id: UserId
 ) -> list[Task]:
-    """The tasks ``target``'s change created on its own, still there."""
+    """The tasks ``target``'s change changed on its own: created or brought
+    back (still there), or closed or deleted along with it (subtasks)."""
     tasks: list[Task] = []
     for entry in await uow.task_history.caused_by(target.entry_id):
-        if entry.action != TaskAction.CREATED:
-            continue
         task: Task | None = await uow.tasks.get_by_id(entry.task_id, user_id)
-        if task is not None and task.deleted_at is None:
+        if task is None:
+            continue
+        if (entry.action in _TAKE_AWAY and task.deleted_at is None) or (
+            entry.action in _ALONG
+        ):
             tasks.append(task)
     return tasks
+
+
+async def _undo_along(
+    uow: UnitOfWork, entry_id: UUID, user_id: UserId, now: datetime
+) -> int:
+    """Undo what the change ``entry_id`` made on its own; how many tasks.
+
+    What it created or brought back goes; what it closed or deleted along
+    with it (a parent's subtasks) comes back as it was — and what those made
+    in turn (a recurring subtask's next occurrence) goes; what it paused runs
+    again.
+    """
+    count: int = 0
+    for entry in await uow.task_history.caused_by(entry_id):
+        task: Task | None = await uow.tasks.get_by_id(entry.task_id, user_id)
+        if task is None:
+            continue
+        if entry.action in _TAKE_AWAY:
+            if task.deleted_at is None:
+                task.revert_to(now, None, UniqueId(entry_id), str(TaskAction.CREATED))
+                await uow.tasks.update(task)
+                count += 1
+        elif entry.action in _ALONG and entry.previous is not None:
+            count += await _undo_along(uow, entry.entry_id, user_id, now)
+            task.revert_to(
+                now, entry.previous, UniqueId(entry.entry_id), str(entry.action)
+            )
+            await uow.tasks.update(task)
+            count += 1
+        elif entry.action == TaskAction.PAUSED:
+            await _resume_session(uow, task, entry)
+            task.revert_to(
+                now,
+                entry.previous,
+                UniqueId(entry.entry_id),
+                str(TaskAction.PAUSED),
+                running=True,
+            )
+            await uow.tasks.update(task)
+    return count
 
 
 def _why_not(target: TaskHistoryEntry, task: Task | None) -> str | None:

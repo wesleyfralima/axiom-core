@@ -6,6 +6,43 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.23.0] — 2026-09-27
+
+A task's relations, seen and edited (owner's decisions, 2026-09-27):
+parents and subtasks at any depth, and dependencies kept once done.
+
+### Added
+- **Editing the parent and the dependencies** (`UpdateTaskInputDTO`):
+  `parent_id` / `remove_parent`, `add_dependencies` / `remove_dependencies`
+  (ID prefixes). Never a loop: a task under its own subtask, or two tasks
+  waiting on each other however indirectly, is refused
+  (`c_application/use_cases/task/relations.py`). The history records the
+  parent and the dependencies by title; undo brings them back (they are in
+  `Task.snapshot`).
+- **Relations in `TaskOutputDTO`**, where a task is shown on its own (get,
+  create, update): `parent`, `subtasks` (direct), `open_subtasks` and
+  `all_subtasks` (any depth), `waits_on` (done ones kept) and `blocks`, as
+  `TaskLinkDTO`; lists carry `parent_title`.
+- **Completing a parent with its subtasks**: `CompleteTaskRequest.with_subtasks`
+  closes its open subtasks at any depth (one waiting on another task stays:
+  `subtasks_waiting`), linked to its completion — one undo takes them all
+  back, a recurring subtask's next occurrence included.
+- **Deleting a parent takes its subtasks along** (`subtasks_deleted`);
+  `task restore` and undo bring them back with it.
+
+### Changed
+- **Dependencies are kept once done.** `depends_on` holds every task a task
+  depends on; it waits (blocked) while one of them is open, and waits again
+  if one is reopened, restored or its change undone. `FollowBlockersHandler`
+  (was `UnlockTaskDependenciesHandler`) looks again on completed, cancelled,
+  deleted, reopened, restored and undone. `Task.is_blocked` is the status;
+  `add_dependency`/`remove_dependency` gave way to `set_dependencies`,
+  `follow_blockers` and `move_under`. A task started or paused is never
+  put back to waiting.
+- `TaskCompletedEvent`, `TaskDeletedEvent`, `TaskRestoredEvent` carry
+  `caused_by` (a parent's change made them); undo reverts what a change made
+  along, recursively.
+
 ## [0.22.2] — 2026-09-27
 
 ### Fixed

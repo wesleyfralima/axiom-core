@@ -6,8 +6,9 @@ from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
 from b_domain.entities.user import UserPrefs
+from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
-from b_domain.value_objects import ContextId, Priority, UserId
+from b_domain.value_objects import ContextId, Priority, TaskId, UserId
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.recurrences import RecurrenceRule
 from b_domain.value_objects.texts import normalize_tags
@@ -15,6 +16,12 @@ from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.relations import (
+    check_dependency,
+    check_parent,
+    relations_of,
+    waits_on_open,
+)
 from c_application.utils import find_context, format_task_recurrence
 from c_application.utils.date_input import (
     at_time,
@@ -24,6 +31,7 @@ from c_application.utils.date_input import (
     resolve_horizon,
 )
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
+from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import load_work_calendar, use_work_calendar
 
 PREVIEW_MAX: int = 10
@@ -86,6 +94,8 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             raise ValidationException("Pick a context or remove it, not both.")
         if request.remove_recurrence and request.recurrence is not None:
             raise ValidationException("Set a new rule or stop repeating, not both.")
+        if request.remove_parent and request.parent_id is not None:
+            raise ValidationException("Pick a parent or remove it, not both.")
 
         async with self.uow as uow:
             # 2. Search by prefix scoped to user
@@ -111,7 +121,10 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             names: dict[ContextId, str] = {
                 c.id: c.name for c in await uow.contexts.list_by_user(user_id)
             }
-            before: dict[str, str | None] = _snapshot(task, names)
+            before: dict[str, str | None] = {
+                **_snapshot(task, names),
+                **await _relations_text(uow, task, user_id),
+            }
             previous: dict[str, Any] = task.snapshot()
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
@@ -211,7 +224,40 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     calendar.is_business_day if calendar else weekdays_only,
                 )
 
-            after: dict[str, str | None] = _snapshot(task, names)
+            # Parent and dependencies: never a loop (a task under its own
+            # subtask, two tasks waiting on each other)
+            if request.parent_id is not None:
+                parent: Task = await find_task(uow, request.parent_id, user_id)
+                await check_parent(uow, task, parent, user_id)
+                task.move_under(now, parent.id)
+            elif request.remove_parent:
+                task.move_under(now, None)
+
+            if request.add_dependencies or request.remove_dependencies:
+                depends_on: set[TaskId] = set(task.depends_on)
+                for ref in request.add_dependencies:
+                    blocker: Task = await find_task(uow, ref, user_id)
+                    await check_dependency(uow, task, blocker, user_id)
+                    depends_on.add(blocker.id)
+                for ref in request.remove_dependencies:
+                    # Among its own dependencies (a deleted one included)
+                    prefix: IdPrefix = IdPrefix(ref)
+                    matched: set[TaskId] = {d for d in depends_on if prefix.matches(d)}
+                    if not matched:
+                        raise ValidationException(
+                            f"'{task.title}' does not depend on a task '{ref}'."
+                        )
+                    depends_on -= matched
+                task.set_dependencies(
+                    now,
+                    depends_on,
+                    waiting=await waits_on_open(uow, depends_on, user_id),
+                )
+
+            after: dict[str, str | None] = {
+                **_snapshot(task, names),
+                **await _relations_text(uow, task, user_id),
+            }
             task.record_edit(
                 now,
                 {
@@ -224,6 +270,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
             # 4. Persistence
             await uow.tasks.update(task)
+            relations: dict[str, Any] = await relations_of(uow, task, user_id)
 
             context = (
                 await uow.contexts.get_by_id(task.context_id, user_id)
@@ -248,6 +295,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 at_least=1,
             ),
             context=context,
+            relations=relations,
         )
 
     @staticmethod
@@ -301,6 +349,24 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if first is not None:
                 task.update_due_date(now, first, is_floating=is_floating, tz_name=tz)
         task.change_recurrence(now, rule)
+
+
+async def _relations_text(
+    uow: UnitOfWork, task: Task, user_id: UserId
+) -> dict[str, str | None]:
+    """The parent and the dependencies as text, for the history."""
+    parent: Task | None = (
+        await uow.tasks.get_by_id(task.parent_id, user_id) if task.parent_id else None
+    )
+    waits_on: list[str] = [
+        str(found.title)
+        for ref in sorted(task.depends_on, key=str)
+        if (found := await uow.tasks.get_by_id(ref, user_id)) is not None
+    ]
+    return {
+        "parent": str(parent.title) if parent else None,
+        "depends on": ", ".join(waits_on) or None,
+    }
 
 
 def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str | None]:

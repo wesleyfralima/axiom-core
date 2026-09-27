@@ -94,6 +94,25 @@ class UpdateTaskInputDTO(DTO):
     recurrence: RecurrenceInputDTO | None = None
     remove_recurrence: bool = False
 
+    # Parent: another task's ID prefix (it becomes a subtask of it), or
+    # remove_parent to make it a task on its own
+    parent_id: str | None = None
+    remove_parent: bool = False
+    # Dependencies (ID prefixes): tasks it waits on, added or removed
+    add_dependencies: list[str] = field(default_factory=list)
+    remove_dependencies: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class TaskLinkDTO(DTO):
+    """A related task — a parent, a subtask, a dependency — in a few words."""
+
+    id: str
+    title: str
+    status: str
+    due_date: datetime | None = None
+    deleted: bool = False
+
 
 @dataclass(frozen=True, kw_only=True)
 class TaskOutputDTO(DTO):
@@ -125,6 +144,17 @@ class TaskOutputDTO(DTO):
 
     # Hierarchy and deadlines
     parent_id: str | None = None
+    # The parent's title (lists show it when the parent is not listed)
+    parent_title: str | None = None
+    # Relations, filled where a task is shown on its own (show, edit):
+    # the parent, the direct subtasks, how many subtasks at any depth are
+    # open and exist, what it waits on (done ones kept) and what waits on it
+    parent: TaskLinkDTO | None = None
+    subtasks: list[TaskLinkDTO] = field(default_factory=list)
+    open_subtasks: int = 0
+    all_subtasks: int = 0
+    waits_on: list[TaskLinkDTO] = field(default_factory=list)
+    blocks: list[TaskLinkDTO] = field(default_factory=list)
     due_date: datetime | None = None
     is_overdue: bool = False
 
@@ -180,6 +210,14 @@ class TaskByUserRequest(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
+class CompleteTaskRequest(TaskByUserRequest):
+    """Complete a task; ``with_subtasks`` closes its open subtasks too (at
+    any depth — the ones waiting on other tasks stay open)."""
+
+    with_subtasks: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
 class CancelTaskInputDTO(DTO):
     """Request DTO for cancelling one of the user's tasks.
 
@@ -222,6 +260,11 @@ class CompleteTaskOutputDTO(DTO):
 
     # The next occurrence of the task, if recurrence rules apply
     next_occurrence: TaskOutputDTO | None = None
+
+    # Subtasks closed along with it, and the open ones left (waiting on
+    # other tasks)
+    subtasks_done: int = 0
+    subtasks_waiting: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)
