@@ -6,6 +6,19 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.22.1] — 2026-09-26
+
+### Fixed
+- **The same occurrence completed on two devices made two next ones.** The
+  next occurrence's ID is now known ahead — `occurrence_id(series_id, due)`,
+  a UUID5 of the series and the due date (`b_domain/entities/task.py`) — so
+  both devices make the same row and sync merges it. `Task.create` takes a
+  `task_id` for it.
+- **Reopening and completing again made a second next occurrence.** The
+  handler (`CreateRecurringTaskHandler`) skips an occurrence that is already
+  there, and brings back one an undo took away (`Task.come_back_as`: the
+  tombstoned row takes the new one's fields and its creation, so a second
+  undo takes it away again).
 ## [0.22.0] — 2026-09-26
 
 ### Changed

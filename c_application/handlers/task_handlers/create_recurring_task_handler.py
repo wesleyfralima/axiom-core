@@ -28,9 +28,11 @@ class CreateRecurringTaskHandler:
             1. Load the full task entity to access recurrence rules.
             2. If no recurrence is defined, exit early.
             3. Create the next occurrence based on the completion date.
-            4. Estimate duration using the average of past occurrences, when
+            4. Skip it if that occurrence is already there (its ID is the
+               same on every device); bring it back if an undo took it away.
+            5. Estimate duration using the average of past occurrences, when
                there is one.
-            5. Persist the new task.
+            6. Persist the new task.
 
         Args:
             event (TaskCompletedEvent | TaskCancelledEvent): The domain event
@@ -60,10 +62,22 @@ class CreateRecurringTaskHandler:
             if not next_task:
                 return
 
+            # Its ID comes from the series and the date, so the row may be
+            # there already: made by another device, or before a reopen —
+            # then there is nothing to add; or taken away by an undo of
+            # this completion — then it comes back, as new
+            existing: Task | None = await self.uow.tasks.get_by_id(next_task.id)
+            if existing is not None and existing.deleted_at is None:
+                return
+
             # Once past occurrences have a measured average, it becomes the
             # estimate; until then the user's own estimate carries over.
             if task.average_duration_minutes > 0:
                 next_task.estimated_duration_minutes = task.average_duration_minutes
 
             # Persist the new recurring task
-            await self.uow.tasks.add(next_task)
+            if existing is None:
+                await self.uow.tasks.add(next_task)
+            else:
+                existing.come_back_as(next_task)
+                await self.uow.tasks.update(existing)

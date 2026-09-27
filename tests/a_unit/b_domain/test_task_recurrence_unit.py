@@ -1,10 +1,11 @@
 from dataclasses import replace
 from datetime import UTC, datetime
 from uuid import uuid4
+from zoneinfo import ZoneInfo
 
 import pytest
 
-from a_core.exceptions import ValidationException
+from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.entities import Task
 from b_domain.value_objects import (
     ContextId,
@@ -267,3 +268,90 @@ def test_a_rule_of_another_kind_is_refused() -> None:
 
     with pytest.raises(ValidationException, match="fixed or both floating"):
         floating.change_recurrence(datetime(2026, 3, 9), fixed_rule)
+
+
+# ============================================================
+# The next occurrence's ID
+# ============================================================
+
+
+def test_the_next_occurrence_has_the_same_id_on_every_device() -> None:
+    task = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    now = datetime(2026, 1, 1, 10, 0)
+
+    # Two devices complete the same occurrence, at different moments
+    here = task.create_next_occurrence(now)
+    there = task.create_next_occurrence(now.replace(minute=30))
+
+    assert here is not None and there is not None
+    assert here.id == there.id
+    assert here.series_id == task.series_id
+    # …and the one after it follows the series, not the first ID
+    after = here.create_next_occurrence(now)
+    assert after is not None
+    assert after.id != here.id
+    assert after.series_id == task.series_id
+
+
+def test_another_series_or_date_is_another_occurrence() -> None:
+    first = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    other = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    now = datetime(2026, 1, 1, 10, 0)
+
+    one = first.create_next_occurrence(now)
+    two = other.create_next_occurrence(now)
+    later = first.create_next_occurrence(datetime(2026, 1, 5, 10, 0))
+
+    assert one is not None and two is not None and later is not None
+    assert one.id != two.id
+    assert one.id != later.id  # catch-up: a later date
+
+
+def test_a_fixed_occurrence_id_does_not_depend_on_the_offset() -> None:
+    task = create_task_with_recurrence(
+        datetime(2026, 1, 1, 12, 0, tzinfo=UTC), is_floating=False
+    )
+    ahead = replace(
+        task,
+        due_date=DueDate.fixed(
+            datetime(2026, 1, 1, 9, 0, tzinfo=ZoneInfo("America/Sao_Paulo"))
+        ),
+    )
+    now = datetime(2026, 1, 1, 13, 0, tzinfo=UTC)
+
+    one = task.create_next_occurrence(now)
+    two = ahead.create_next_occurrence(now)
+
+    assert one is not None and two is not None
+    assert one.id == two.id
+
+
+def test_a_task_from_before_series_starts_its_own() -> None:
+    task = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    task.series_id = None
+
+    following = task.create_next_occurrence(datetime(2026, 1, 1, 10, 0))
+
+    assert following is not None
+    assert following.series_id == task.id
+
+
+def test_only_a_deleted_occurrence_comes_back() -> None:
+    task = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    now = datetime(2026, 1, 1, 10, 0)
+    kept = task.create_next_occurrence(now)
+    fresh = task.create_next_occurrence(now)
+    assert kept is not None and fresh is not None
+
+    with pytest.raises(InvalidStateTransition):
+        kept.come_back_as(fresh)
+
+    kept.mark_deleted(now)
+    with pytest.raises(ValidationException):
+        kept.come_back_as(task)
+
+    kept.pull_events()
+    kept.come_back_as(fresh)
+    assert kept.deleted_at is None
+    assert [type(e).__name__ for e in kept.pull_events()] == ["TaskCreatedEvent"]
+    assert fresh.peek_events() == []
