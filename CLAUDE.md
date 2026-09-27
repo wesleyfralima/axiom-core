@@ -220,7 +220,7 @@ there too.
 
 ## Current state (2026-09-27)
 
-- Version `0.22.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.23.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
