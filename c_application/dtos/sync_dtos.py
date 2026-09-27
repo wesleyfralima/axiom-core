@@ -142,3 +142,10 @@ class SyncDeviceOutputDTO(DTO):
     last_seen_at: str | None
     revoked: bool
     this_device: bool
+
+
+@dataclass(frozen=True, kw_only=True)
+class SyncDevicesOutputDTO(DTO):
+    """The account's devices, in the order they joined."""
+
+    devices: list[SyncDeviceOutputDTO]

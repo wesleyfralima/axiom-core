@@ -8,6 +8,7 @@ from b_domain.value_objects.sync import SyncState
 from c_application.dtos.sync_dtos import (
     RevokeSyncDeviceInputDTO,
     SyncDeviceOutputDTO,
+    SyncDevicesOutputDTO,
     SyncTokenInputDTO,
 )
 from c_application.use_cases.sync._common import joined_state
@@ -31,12 +32,10 @@ class _DevicesUseCase[TReq, TResp](UseCase[TReq, TResp]):
         return state, await self.transport.devices(state.server_url, token)
 
 
-class ListSyncDevicesUseCase(
-    _DevicesUseCase[SyncTokenInputDTO, list[SyncDeviceOutputDTO]]
-):
+class ListSyncDevicesUseCase(_DevicesUseCase[SyncTokenInputDTO, SyncDevicesOutputDTO]):
     """The account's devices, this one marked."""
 
-    async def execute(self, request: SyncTokenInputDTO) -> list[SyncDeviceOutputDTO]:
+    async def execute(self, request: SyncTokenInputDTO) -> SyncDevicesOutputDTO:
         """Ask the server.
 
         Raises:
@@ -45,7 +44,7 @@ class ListSyncDevicesUseCase(
             SyncRefusedError: If the server refuses the device.
         """
         state, devices = await self._devices(request.token)
-        return [_output(d, state) for d in devices]
+        return SyncDevicesOutputDTO(devices=[_output(d, state) for d in devices])
 
 
 class RevokeSyncDeviceUseCase(
