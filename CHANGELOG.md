@@ -41,7 +41,9 @@ parents and subtasks at any depth, and dependencies kept once done.
   put back to waiting.
 - `TaskCompletedEvent`, `TaskDeletedEvent`, `TaskRestoredEvent` carry
   `caused_by` (a parent's change made them); undo reverts what a change made
-  along, recursively.
+  along, recursively. The undo preview tells them apart: `also` (tasks the
+  change made, taken away) and `along` (tasks it closed or deleted with it,
+  back as they were).
 
 ## [0.22.2] — 2026-09-27
 
