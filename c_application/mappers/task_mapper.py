@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from b_domain.entities.context import Context
 from b_domain.entities.task import Task
@@ -24,13 +25,16 @@ class TaskMapper:
         running_since: datetime | None = None,
         active_context_id: ContextId | None = None,
         context: Context | None = None,
+        parent_title: str | None = None,
+        relations: dict[str, Any] | None = None,
     ) -> TaskOutputDTO:
         """Maps a Domain Task entity to a TaskOutputDTO for the outside world.
 
         ``context`` is the task's context entity, when the caller loaded it,
         so the DTO carries its name and icon. ``occurrences_until`` (aware)
         fills ``next_occurrences`` with the occurrences projected up to it;
-        ``occurrences`` gives them ready (they win).
+        ``occurrences`` gives them ready (they win). ``relations`` are the
+        fields ``relations_of`` fills (parent, subtasks, dependencies).
         """
         return TaskOutputDTO(
             id=str(task.id),
@@ -45,6 +49,7 @@ class TaskMapper:
             due_date=task.due_date.value if task.due_date else None,
             is_overdue=task.due_date.is_overdue(now) if task.due_date else False,
             parent_id=str(task.parent_id) if task.parent_id else None,
+            parent_title=parent_title,
             is_blocked=task.is_blocked,
             created_at=task.created_at,
             completed_at=task.completed_at,
@@ -70,4 +75,5 @@ class TaskMapper:
             is_in_focus=(
                 (task.context_id == active_context_id) if active_context_id else True
             ),
+            **(relations or {}),
         )

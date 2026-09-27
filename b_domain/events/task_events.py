@@ -98,6 +98,8 @@ class TaskCompletedEvent(DomainEvent):
     task_complexity: TaskComplexity
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's completion)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -151,6 +153,8 @@ class TaskDeletedEvent(DomainEvent):
     title: str
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's delete)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -159,6 +163,8 @@ class TaskRestoredEvent(DomainEvent):
 
     task_id: TaskId
     user_id: UserId
+    # The change that made this one on its own (a parent's restore)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

@@ -22,7 +22,7 @@
 5. **Side effects become events.** The use case changes the entity; the
    entity records the `DomainEvent`; the `UnitOfWork` writes it to the Outbox;
    a handler (`c_application/handlers/`) reacts. E.g. completing a task →
-   unblock dependents and create the next occurrence.
+   free its dependents and create the next occurrence.
 6. **An API change used by enterprise/CLI only closes once they are adapted.**
 7. **Everything in English** — code, names, comments, docstrings, messages,
    tests, docs and commit messages. Multi-language support is a future
@@ -145,6 +145,13 @@ simulator: `python -m d_fake_infra`).
   (`SyncServerStore`) and `c_application/use_cases/sync_server/` (invite,
   account, device, push, pull, devices). They take the store and the clock
   (`SyncServerUseCase`), not a unit of work: the server has no task schema.
+- **Relations:** `c_application/use_cases/task/relations.py` — a parent's
+  subtasks at any depth (`subtasks_of`), no loops (`check_parent`,
+  `check_dependency`), what `show` tells (`relations_of`). Dependencies are
+  kept once done: a task waits (`TaskStatus.BLOCKED`) while one is open;
+  `FollowBlockersHandler` keeps that true. Completing a parent can close its
+  subtasks (`with_subtasks`); deleting it takes them along — both linked by
+  `caused_by`, so undo and restore bring them back together.
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -211,9 +218,9 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-09-26)
+## Current state (2026-09-27)
 
-- Version `0.22.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.23.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -228,9 +235,12 @@ there too.
   holidays and the user's own days (0.16.0); the regions to choose from
   (0.17.0); tags, the inbox, skipping a holiday by name (0.18.0); the
   sync rule: clock, operation, merge (0.19.0); the sync ports and use
-  cases (0.20.0); the sync server's side (0.21.0); the device list as a DTO (0.22.0).
+  cases (0.20.0); the sync server's side (0.21.0); the device list as a DTO (0.22.0);
+  the next occurrence's ID known ahead (0.22.1); annotations for the native
+  build (0.22.2); a task's relations: parent and subtasks, dependencies kept
+  once done, edited, cascades (0.23.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 709 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 85.1% over a 85.0% floor.
+- 730 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 85.6% over a 85.5% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

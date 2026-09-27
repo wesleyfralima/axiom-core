@@ -9,6 +9,7 @@ from b_domain.value_objects import UserId
 from c_application.dtos import TaskOutputDTO
 from c_application.dtos.task_dtos import GetTaskRequest
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.relations import relations_of
 from c_application.use_cases.task.timer import time_of
 from c_application.utils.date_input import end_of_day, local_today, resolve_horizon
 from c_application.utils.work_calendar import use_work_calendar
@@ -99,4 +100,5 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
                 context=context,
                 time_spent_minutes=spent,
                 running_since=since,
+                relations=await relations_of(uow, task, user_id),
             )

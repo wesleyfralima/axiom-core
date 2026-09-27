@@ -185,11 +185,11 @@ async def test_deleting_a_blocker_unblocks_its_dependents(
     # The fake bus runs no handlers: what the wiring subscribes is checked in
     # enterprise; here, the handler itself
     from b_domain.events.task_events import TaskDeletedEvent
-    from c_application.handlers.task_handlers.unlock_task_dependencies_handler import (
-        UnlockTaskDependenciesHandler,
+    from c_application.handlers.task_handlers.follow_blockers_handler import (
+        FollowBlockersHandler,
     )
 
-    await UnlockTaskDependenciesHandler(fake_uow_factory(), FakeClock()).handle(
+    await FollowBlockersHandler(fake_uow_factory(), FakeClock()).handle(
         TaskDeletedEvent(
             task_id=TaskId.from_string(blocker.id), user_id=user.id, title="Before"
         )

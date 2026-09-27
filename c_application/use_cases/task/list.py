@@ -186,8 +186,14 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             tasks: list[Task] = await uow.tasks.list(filters)
             await use_work_calendar(uow, f_user_id, prefs, tasks)
 
-            # 4. Centralized mapping
+            # 4. Centralized mapping; each parent's title, for a subtask
+            # whose parent is not in the list
             by_id: dict[ContextId, Context] = {c.id: c for c in contexts}
+            parent_titles: dict[TaskId, str] = {}
+            for ref in {t.parent_id for t in tasks if t.parent_id is not None}:
+                parent: Task | None = await uow.tasks.get_by_id(ref, f_user_id)
+                if parent is not None:
+                    parent_titles[ref] = str(parent.title)
             outputs: list[TaskOutputDTO] = []
             projected: list[tuple[datetime, TaskOutputDTO]] = []
             until: datetime = end_of_day(horizon, prefs.timezone)
@@ -196,6 +202,9 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                     task,
                     now,
                     context=by_id.get(task.context_id) if task.context_id else None,
+                    parent_title=(
+                        parent_titles.get(task.parent_id) if task.parent_id else None
+                    ),
                 )
                 outputs.append(output)
 

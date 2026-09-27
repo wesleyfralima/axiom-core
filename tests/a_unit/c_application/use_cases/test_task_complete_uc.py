@@ -141,7 +141,7 @@ async def test_complete_task_fails_if_task_is_blocked(
     task_a = Task.create(title=Title("Task A"), user_id=user.id, now=now)
     task_b = Task.create(title=Title("Task B"), user_id=user.id, now=now)
 
-    task_b.add_dependency(task_a.id, now)  # B depende de A
+    task_b.set_dependencies(now, {task_a.id}, waiting=True)  # B depends on A
 
     async with fake_uow_factory() as uow:
         await uow.tasks.add(task_a)

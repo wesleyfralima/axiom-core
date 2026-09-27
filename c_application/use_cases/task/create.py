@@ -1,4 +1,5 @@
 from datetime import date, datetime, time
+from typing import Any
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
@@ -16,6 +17,7 @@ from b_domain.value_objects.texts import normalize_tags
 from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.relations import relations_of, waits_on_open
 from c_application.utils import find_context
 from c_application.utils.date_input import (
     at_time,
@@ -175,6 +177,8 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 priority=priority,
                 parent_id=parent_id_vo,
                 depends_on=depends_on_vo,
+                # It waits only while one of them is open (a done one stays)
+                waiting=await waits_on_open(uow, depends_on_vo, user_id_vo),
                 context_id=context_id_vo,
                 recurrence=recurrence_vo,
                 due_date=due_date,
@@ -189,6 +193,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             )
 
             await uow.tasks.add(task)
+            relations: dict[str, Any] = await relations_of(uow, task, user_id_vo)
 
         # 9. Return mapped output DTO (recurring: the occurrences ahead)
         horizon: date = resolve_horizon(user.preferences.days_ahead, today=today)
@@ -197,4 +202,5 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             now_system,
             occurrences_until=end_of_day(horizon, user.preferences.timezone),
             context=context,
+            relations=relations,
         )
