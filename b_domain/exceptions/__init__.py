@@ -24,10 +24,13 @@ from .security import (
 )
 from .sync import (
     AlreadyJoinedError,
+    DeviceNotAllowedError,
     NotJoinedError,
+    SyncConflictError,
     SyncException,
     SyncRefusedError,
     SyncUnavailableError,
+    WrongCredentialsError,
 )
 
 __all__ = [
@@ -37,6 +40,7 @@ __all__ = [
     "BySetPosWithWeekdaysInAWeek",
     "BySetPosWithoutDaySet",
     "ContextNameTakenError",
+    "DeviceNotAllowedError",
     "EndDateBeforeStartDate",
     "ExpiredTokenError",
     "InvalidIntervalValue",
@@ -52,8 +56,10 @@ __all__ = [
     "NthBusinessDayWithOtherDayRules",
     "RecurrenceRuleException",
     "SecurityException",
+    "SyncConflictError",
     "SyncException",
     "SyncRefusedError",
     "SyncUnavailableError",
     "UnknownHolidayRegionError",
+    "WrongCredentialsError",
 ]

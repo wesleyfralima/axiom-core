@@ -27,3 +27,18 @@ class SyncUnavailableError(SyncException):
 class SyncRefusedError(SyncException):
     """The server said no: a wrong invite or password, a revoked device, a
     clock far ahead."""
+
+
+class DeviceNotAllowedError(SyncRefusedError):
+    """The server does not know the device's token, or it was revoked."""
+
+    def __init__(self) -> None:
+        super().__init__("This device is not allowed to sync: join again.")
+
+
+class WrongCredentialsError(SyncRefusedError):
+    """A wrong invite, username or password."""
+
+
+class SyncConflictError(SyncRefusedError):
+    """Something that must be unique already exists (a username, a device)."""
