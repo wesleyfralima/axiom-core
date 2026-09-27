@@ -233,4 +233,4 @@ there too.
 - 709 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 85.1% over a 85.0% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
-  it has not really run yet because the repository does not exist on GitHub.
+  the repository is on GitHub since 2026-09-26.
