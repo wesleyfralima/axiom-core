@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from a_core import EntityNotFound
 from a_core.exceptions import AmbiguousIdentifierError, InvalidValueError
 from a_core.text import fold

@@ -6,6 +6,19 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.22.2] — 2026-09-27
+
+### Fixed
+- **A native build (Nuitka) failed on start** with `NameError` on a type
+  parameter: on Python 3.12 and 3.13, Nuitka 4.2 evaluates the annotations
+  of a function nested in a PEP 695 generic (`class Registry[K, T]`,
+  `def tracks_entity[**P, R]`) outside the type parameters' scope. The
+  modules with PEP 695 generics now start with
+  `from __future__ import annotations` (annotations are not evaluated):
+  `a_core/persistence/repository.py`, `b_domain/ports/use_case.py`,
+  `c_application/use_cases/sync/devices.py`,
+  `c_application/use_cases/sync_server/_common.py`. Nothing changes when running from the code.
+
 ## [0.22.1] — 2026-09-26
 
 ### Fixed
