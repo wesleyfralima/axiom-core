@@ -6,6 +6,32 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.21.0] — 2026-09-26
+
+The sync server's side (Part 5 of the product backlog): the server keeps the
+log and nothing else — it never applies an operation, never needs the task
+schema and never knows the merge rule. Enterprise 0.16.0 stores it; axiom-web
+serves it.
+
+### Added
+- **`SyncServerStore`** (`b_domain/ports/sync_server_store.py`): invites,
+  accounts, devices and the log (one increasing sequence for the server; an
+  account's cursor is the last sequence it pulled).
+- `SyncAccount`, `SyncDevice`, `new_secret`, `secret_hash`
+  (`b_domain/value_objects/sync_server.py`): a device's token and an invite
+  code are shown once and kept only as a SHA-256 hash.
+- **Use cases** (`c_application/use_cases/sync_server/`): `CreateInvite`,
+  `CreateSyncAccount` (uses the invite up; username of 3 to 32 letters,
+  digits, `._-`; password of 8 or more), `RegisterSyncDevice` (a token of
+  its own), `AcceptPush` (up to 1000 operations, each from the device that
+  pushes, with a clock at most a day ahead of the server's; the ones it
+  already has are ignored), `ServePull` (pages of up to 1000),
+  `ListServerDevices`, `RevokeServerDevice`.
+- `DeviceNotAllowedError`, `WrongCredentialsError`, `SyncConflictError`
+  (all `SyncRefusedError`), so an interface can answer each its own way.
+- A test joins and syncs two devices through the server's use cases in the
+  same process.
+
 ## [0.20.0] — 2026-09-26
 
 Sync reaches the application (Part 5 of the product backlog): the ports a
