@@ -1,7 +1,8 @@
 from collections.abc import Callable
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, field, fields, replace
 from datetime import UTC, date, datetime
 from typing import Any, Optional
+from uuid import NAMESPACE_URL, uuid5
 from zoneinfo import ZoneInfo
 
 from a_core import Entity, UniqueId
@@ -31,6 +32,26 @@ from b_domain.value_objects.recurrences._serial import (
     rule_from_dict,
     rule_to_dict,
 )
+
+# The namespace of the occurrence IDs: never change it, or the next
+# occurrences made before and after the change stop matching
+_OCCURRENCE_NAMESPACE = uuid5(
+    NAMESPACE_URL, "https://github.com/wesleyfralima/axiom-core#occurrence"
+)
+
+
+def occurrence_id(series_id: TaskId, due: DueDate) -> TaskId:
+    """The ID of a series' occurrence due at ``due``, the same on every device.
+
+    Two devices that complete the same occurrence offline both create the
+    next one; with this ID it is one row, and sync merges it.
+    """
+    moment: datetime = due.value if due.is_floating else due.value.astimezone(UTC)
+    return TaskId(
+        uuid5(
+            _OCCURRENCE_NAMESPACE, f"{series_id}|{due.kind.value}|{moment.isoformat()}"
+        )
+    )
 
 
 @dataclass(kw_only=True, eq=False)
@@ -115,6 +136,7 @@ class Task(Entity):
         caused_by: UniqueId | None = None,
         series_id: TaskId | None = None,
         tags: frozenset[str] | None = None,
+        task_id: TaskId | None = None,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -142,6 +164,8 @@ class Task(Entity):
             average_duration_minutes (int): Task average (real) duration minutes.
                 Defaults to 0.
             tags (frozenset[str] | None): Its tags, already normalized.
+            task_id (TaskId | None): Its ID, when it must be a known one (the
+                next occurrence, ``occurrence_id``); a new one otherwise.
 
         Returns:
             Task: A new Task instance.
@@ -172,7 +196,7 @@ class Task(Entity):
             depends_on = set()
 
         created: Task = cls(
-            id=TaskId(),
+            id=task_id or TaskId(),
             user_id=user_id,
             title=title,
             description=description,
@@ -445,7 +469,10 @@ class Task(Entity):
         # 4. Call Task.create with the dynamically extracted parameters.
         # Everything the user defined for the series carries over; whatever
         # belongs to this occurrence (status, counters, calendar) starts over.
+        # Its ID comes from the series and the date: the same on every device.
+        series_id: TaskId = self.series_id or self.id
         return Task.create(
+            task_id=occurrence_id(series_id, new_dd),
             now=now,
             user_id=self.user_id,
             title=self.title,
@@ -463,7 +490,7 @@ class Task(Entity):
             estimated_duration_minutes=self.estimated_duration_minutes,
             average_duration_minutes=self.average_duration_minutes,
             caused_by=caused_by,
-            series_id=self.series_id,
+            series_id=series_id,
             tags=self.tags,
         )
 
@@ -865,6 +892,28 @@ class Task(Entity):
         self.add_event(
             TaskRestoredEvent(occurred_at=now, task_id=self.id, user_id=self.user_id)
         )
+
+    def come_back_as(self, fresh: "Task") -> None:
+        """A deleted occurrence comes back, made again as ``fresh``.
+
+        The next occurrence's ID is known ahead (``occurrence_id``): an undo
+        of a completion takes it away, and completing again makes the same
+        row. It takes all of ``fresh`` — its fields and its events (its
+        creation) — so the history and an undo see it as new.
+
+        Raises:
+            InvalidStateTransition: If it is not deleted.
+            ValidationException: If ``fresh`` is another task.
+        """
+        if self.deleted_at is None:
+            raise InvalidStateTransition("The task is not deleted.")
+        if fresh.id != self.id:
+            raise ValidationException("Only the same task can come back.")
+        for name in (f.name for f in fields(self)):
+            if name != "_domain_events":
+                setattr(self, name, getattr(fresh, name))
+        for event in fresh.pull_events():
+            self.add_event(event)
 
     def snapshot(self) -> dict[str, Any]:
         """What the user can change, as JSON-safe data — to undo a change."""

@@ -6,9 +6,10 @@ from uuid import uuid4
 
 import pytest
 
-from a_core import DomainException
+from a_core import DomainException, UniqueId
 from a_core.exceptions import EntityNotFound, ValidationException
-from b_domain.entities import User
+from b_domain.entities import Task, User
+from b_domain.events.task_events import TaskCompletedEvent
 from b_domain.value_objects import RecurrenceInterval, TaskId, TaskStatus, UserId
 from b_domain.value_objects.sync import Hlc, SyncState
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
@@ -20,11 +21,15 @@ from c_application.dtos.task_dtos import (
     TaskOutputDTO,
     UpdateTaskInputDTO,
 )
+from c_application.handlers.task_handlers.create_recurring_task_handler import (
+    CreateRecurringTaskHandler,
+)
 from c_application.use_cases import (
     CompleteTaskUseCase,
     CreateTaskUseCase,
     DeleteTaskUseCase,
     ListTasksUseCase,
+    ReopenTaskUseCase,
     RestoreTaskUseCase,
     UndoPreviewUseCase,
     UndoUseCase,
@@ -75,6 +80,52 @@ async def _undo(deps: UseCaseDeps, user: User) -> str:
 async def _task(fake_uow_factory: FakeUowFactory, task: TaskOutputDTO):  # type: ignore[no-untyped-def]
     async with fake_uow_factory() as uow:
         return await uow.tasks.get_by_id(TaskId.from_string(task.id))
+
+
+async def _complete_following(
+    deps: UseCaseDeps, user: User, task: TaskOutputDTO, uow_factory: FakeUowFactory
+) -> None:
+    """Complete ``task``, then what the handler does after it, linked to it."""
+    await CompleteTaskUseCase(**deps).execute(_by(user, task))
+    async with uow_factory() as uow:
+        completion = next(
+            e
+            for e in await uow.task_history.recent(user.id)
+            if e.action == TaskAction.COMPLETED
+        )
+        done = await uow.tasks.get_by_id(TaskId.from_string(task.id))
+    assert done is not None
+    event = TaskCompletedEvent(
+        id=UniqueId(completion.entry_id),
+        occurred_at=completion.occurred_at,
+        task_id=done.id,
+        user_id=user.id,
+        estimated_minutes=30,
+        actual_minutes=0,
+        energy_level_used=done.required_energy_level,
+        task_complexity=done.complexity,
+    )
+    await CreateRecurringTaskHandler(uow_factory()).handle(event)
+
+
+async def _gym(deps: UseCaseDeps, user: User) -> TaskOutputDTO:
+    return await _create(
+        deps,
+        user,
+        title="Gym",
+        recurrence=RecurrenceInputDTO(
+            frequency=RecurrenceInterval.DAILY, start_date="2026-03-06 07:00"
+        ),
+    )
+
+
+async def _open_ones(uow_factory: FakeUowFactory) -> list[Task]:
+    async with uow_factory() as uow:
+        return [
+            t
+            for t in uow.tasks.tasks.values()
+            if t.deleted_at is None and t.status == TaskStatus.PENDING
+        ]
 
 
 # ---------------------------------------------------------------- tombstones
@@ -192,41 +243,8 @@ async def test_undo_walks_back_one_change_at_a_time(
 async def test_undoing_a_completion_takes_away_the_next_occurrence(
     use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
 ) -> None:
-    task = await _create(
-        use_case_context,
-        user,
-        title="Gym",
-        recurrence=RecurrenceInputDTO(
-            frequency=RecurrenceInterval.DAILY, start_date="2026-03-06 07:00"
-        ),
-    )
-    original = await _task(fake_uow_factory, task)
-    assert original is not None
-    # What the handler does after a completion, linked to it
-    await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
-    async with fake_uow_factory() as uow:
-        [completion] = [
-            e
-            for e in await uow.task_history.recent(user.id)
-            if e.action == TaskAction.COMPLETED
-        ]
-    from a_core import UniqueId
-    from b_domain.events.task_events import TaskCompletedEvent
-    from c_application.handlers.task_handlers.create_recurring_task_handler import (
-        CreateRecurringTaskHandler,
-    )
-
-    event = TaskCompletedEvent(
-        id=UniqueId(completion.entry_id),
-        occurred_at=completion.occurred_at,
-        task_id=TaskId.from_string(task.id),
-        user_id=user.id,
-        estimated_minutes=30,
-        actual_minutes=0,
-        energy_level_used=original.required_energy_level,
-        task_complexity=original.complexity,
-    )
-    await CreateRecurringTaskHandler(fake_uow_factory()).handle(event)
+    task = await _gym(use_case_context, user)
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
     # The done one and the next one
     assert await _titles(use_case_context, user, include_closed=False) == ["Gym"]
 
@@ -242,6 +260,41 @@ async def test_undoing_a_completion_takes_away_the_next_occurrence(
     assert back.recurrence is not None  # the rule came back too
     # Only the original, open again: the next one is gone
     assert await _titles(use_case_context, user) == ["Gym"]
+
+
+async def test_completing_again_after_an_undo_brings_the_same_occurrence_back(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    task = await _gym(use_case_context, user)
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
+    [first] = [t for t in await _open_ones(fake_uow_factory) if str(t.id) != task.id]
+
+    await _undo(use_case_context, user)
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
+
+    # The same row, back — not a second one
+    [again] = await _open_ones(fake_uow_factory)
+    assert again.id == first.id
+    assert again.deleted_at is None
+    # …and made by this completion: undo takes it away again
+    preview = await UndoPreviewUseCase(**use_case_context).execute(
+        UndoRequest(user_id=str(user.id))
+    )
+    assert preview.also == ["Gym"]
+    await _undo(use_case_context, user)
+    assert [str(t.id) for t in await _open_ones(fake_uow_factory)] == [task.id]
+
+
+async def test_reopening_and_completing_again_makes_no_second_occurrence(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    task = await _gym(use_case_context, user)
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
+    await ReopenTaskUseCase(**use_case_context).execute(_by(user, task))
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
+
+    [following] = await _open_ones(fake_uow_factory)
+    assert str(following.id) != task.id
 
 
 async def test_undo_brings_a_deleted_task_back(
