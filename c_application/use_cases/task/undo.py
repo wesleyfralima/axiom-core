@@ -48,6 +48,8 @@ class UndoPreviewOutputDTO(DTO):
         title (str | None): The task's title now.
         also (list[str]): What goes with it (the titles of tasks the change
             made on its own).
+        along (list[str]): What comes back as it was with it (the titles of
+            tasks the change closed or deleted along — a parent's subtasks).
         blocked (str | None): Why it cannot be undone, if it cannot.
     """
 
@@ -56,6 +58,7 @@ class UndoPreviewOutputDTO(DTO):
     task_id: str | None = None
     title: str | None = None
     also: list[str] = field(default_factory=list)
+    along: list[str] = field(default_factory=list)
     blocked: str | None = None
 
 
@@ -83,13 +86,14 @@ class UndoPreviewUseCase(UseCase[UndoRequest, UndoPreviewOutputDTO]):
             if target is None:
                 return UndoPreviewOutputDTO()
             task: Task | None = await uow.tasks.get_by_id(target.task_id, user_id)
-            caused: list[Task] = await _made_by(uow, target, user_id)
+            caused, along = await _made_by(uow, target, user_id)
             return UndoPreviewOutputDTO(
                 entry=history_entry_to_dto(target),
                 entry_id=str(target.entry_id),
                 task_id=str(target.task_id),
                 title=str(task.title) if task else target.note,
                 also=[str(t.title) for t in caused],
+                along=[str(t.title) for t in along],
                 blocked=_why_not(target, task),
             )
 
@@ -196,19 +200,21 @@ def _last_undoable(
 
 async def _made_by(
     uow: UnitOfWork, target: TaskHistoryEntry, user_id: UserId
-) -> list[Task]:
-    """The tasks ``target``'s change changed on its own: created or brought
-    back (still there), or closed or deleted along with it (subtasks)."""
-    tasks: list[Task] = []
+) -> tuple[list[Task], list[Task]]:
+    """The tasks ``target``'s change changed on its own: the ones it created
+    or brought back (still there: undo takes them away), and the ones it
+    closed or deleted along with it (subtasks: undo brings them back)."""
+    made: list[Task] = []
+    along: list[Task] = []
     for entry in await uow.task_history.caused_by(target.entry_id):
         task: Task | None = await uow.tasks.get_by_id(entry.task_id, user_id)
         if task is None:
             continue
-        if (entry.action in _TAKE_AWAY and task.deleted_at is None) or (
-            entry.action in _ALONG
-        ):
-            tasks.append(task)
-    return tasks
+        if entry.action in _TAKE_AWAY and task.deleted_at is None:
+            made.append(task)
+        elif entry.action in _ALONG:
+            along.append(task)
+    return made, along
 
 
 async def _undo_along(

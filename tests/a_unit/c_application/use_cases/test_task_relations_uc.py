@@ -281,7 +281,8 @@ async def test_completing_a_parent_can_close_its_open_subtasks(
     preview = await UndoPreviewUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id))
     )
-    assert sorted(preview.also) == ["Buy a box", "Pack the books"]
+    assert sorted(preview.along) == ["Buy a box", "Pack the books"]
+    assert preview.also == []
     await UndoUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id), entry_id=preview.entry_id)
     )
