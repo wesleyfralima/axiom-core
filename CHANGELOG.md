@@ -6,6 +6,13 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.22.0] — 2026-09-26
+
+### Changed
+- **`ListSyncDevicesUseCase` returns `SyncDevicesOutputDTO`** (its
+  `devices`), not a bare list: an interface presents a DTO by its type (the
+  CLI's registry). axiom-web's tests adapted in the same piece of work.
+
 ## [0.21.0] — 2026-09-26
 
 The sync server's side (Part 5 of the product backlog): the server keeps the

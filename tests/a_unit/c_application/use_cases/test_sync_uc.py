@@ -528,11 +528,11 @@ async def test_the_accounts_devices(mint: Device, phone: Device) -> None:
         SyncTokenInputDTO(token=mint.token)
     )
 
-    assert [(d.name, d.this_device, d.revoked) for d in devices] == [
+    assert [(d.name, d.this_device, d.revoked) for d in devices.devices] == [
         ("mint", True, False),
         ("phone", False, False),
     ]
-    assert devices[0].joined_at == NOW.isoformat()
+    assert devices.devices[0].joined_at == NOW.isoformat()
 
 
 async def test_revoking_a_device_by_its_id_prefix(mint: Device, phone: Device) -> None:
