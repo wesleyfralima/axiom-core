@@ -39,7 +39,7 @@ from c_application.use_cases import (
     UpdateTaskUseCase,
 )
 from c_application.use_cases.task.delete import DeleteTaskInputDTO
-from c_application.use_cases.task.relations import shifted_due
+from c_application.use_cases.task.relations import minutes_text, shifted_due
 from c_application.use_cases.task.undo import UndoRequest
 from tests.conftest import FakeUowFactory, UseCaseDeps
 
@@ -147,7 +147,7 @@ async def test_a_subtask_is_due_no_later_and_no_higher_than_its_parent(
         use_case_context, user, "Trip", due_date="2026-12-10 18:00", priority=2
     )
 
-    with pytest.raises(ValidationException, match="due no later than its parent"):
+    with pytest.raises(ValidationException, match=r"is due 2026-12-10 18:00\."):
         await _add_to(use_case_context, user, trip, "Late", due_date="2026-12-11")
     with pytest.raises(ValidationException, match="no higher than its parent"):
         await _add_to(use_case_context, user, trip, "Urgent", priority=4)
@@ -281,7 +281,7 @@ async def test_a_longer_subtask_raises_its_parent_and_undo_lowers_it(
 
     edited = await _edit(use_case_context, user, car, estimated_minutes=50)
 
-    assert edited.notes == ["'Trip' now takes 70 min: its subtasks take that long."]
+    assert edited.notes == ["'Trip' now takes 1h10: its subtasks take that long."]
     assert (await _entity(fake_uow_factory, trip)).estimated_duration_minutes == 70
 
     await _undo(use_case_context, user)
@@ -295,7 +295,7 @@ async def test_a_parent_takes_no_less_than_its_subtasks_together(
     trip = await _add(use_case_context, user, "Trip", estimated_minutes=30)
     await _add_to(use_case_context, user, trip, "One", "Two", estimated_minutes=30)
 
-    with pytest.raises(ValidationException, match="60 min"):
+    with pytest.raises(ValidationException, match="together: 1h"):
         await _edit(use_case_context, user, trip, estimated_minutes=45)
     assert (await _edit(use_case_context, user, trip, estimated_minutes=90)).notes == []
 
@@ -429,6 +429,7 @@ async def test_a_task_moved_under_a_parent_is_brought_within_it(
         "'Book the car' priority lowered to medium, its parent's.",
         "'Trip' now takes 45 min: its subtasks take that long.",
     ]
+    assert [minutes_text(m) for m in (45, 60, 170)] == ["45 min", "1h", "2h50"]
     no_date = await _edit(use_case_context, user, loose, parent_id=trip.id[:8])
     assert _due(no_date) == "2026-12-10 18:00"
     assert no_date.notes[0] == "'Pack' is now due with its parent."
