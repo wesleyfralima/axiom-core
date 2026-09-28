@@ -33,11 +33,12 @@ class RunSyncUseCase(UseCase[RunSyncInputDTO, RunSyncOutputDTO]):
 
         Raises:
             NotJoinedError: If the device does not sync.
+            NotThisAccountError: If the user is not the account it syncs.
             SyncUnavailableError: If the server cannot be reached.
             SyncRefusedError: If the server refuses the device.
         """
         async with self.uow as uow:
-            state: SyncState = await joined_state(uow)
+            state: SyncState = await joined_state(uow, request.user_id)
 
         try:
             pushed: int = await self._push(state.server_url, request)

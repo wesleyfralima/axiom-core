@@ -28,9 +28,11 @@ class _DevicesUseCase[TReq, TResp](UseCase[TReq, TResp]):
         super().__init__(uow_factory, clock)
         self.transport = transport
 
-    async def _devices(self, token: str) -> tuple[SyncState, list[DeviceInfo]]:
+    async def _devices(
+        self, user_id: str, token: str
+    ) -> tuple[SyncState, list[DeviceInfo]]:
         async with self.uow as uow:
-            state: SyncState = await joined_state(uow)
+            state: SyncState = await joined_state(uow, user_id)
         return state, await self.transport.devices(state.server_url, token)
 
 
@@ -42,10 +44,11 @@ class ListSyncDevicesUseCase(_DevicesUseCase[SyncTokenInputDTO, SyncDevicesOutpu
 
         Raises:
             NotJoinedError: If the device does not sync.
+            NotThisAccountError: If the user is not the account it syncs.
             SyncUnavailableError: If the server cannot be reached.
             SyncRefusedError: If the server refuses the device.
         """
-        state, devices = await self._devices(request.token)
+        state, devices = await self._devices(request.user_id, request.token)
         return SyncDevicesOutputDTO(devices=[_output(d, state) for d in devices])
 
 
@@ -60,13 +63,14 @@ class RevokeSyncDeviceUseCase(
 
         Raises:
             NotJoinedError: If the device does not sync.
+            NotThisAccountError: If the user is not the account it syncs.
             EntityNotFound: If no device matches.
             AmbiguousIdentifierError: If several do.
             InvalidValueError: If it is this device.
             SyncUnavailableError: If the server cannot be reached.
             SyncRefusedError: If the server refuses.
         """
-        state, devices = await self._devices(request.token)
+        state, devices = await self._devices(request.user_id, request.token)
         wanted: str = fold(request.device.strip())
         hex_prefix: str = wanted.replace("-", "")
         matches: list[DeviceInfo] = [d for d in devices if fold(d.name) == wanted] or [

@@ -532,6 +532,7 @@ async def test_the_devices_side_talks_to_the_servers_side(server: Server) -> Non
     invite = await server.invite()
 
     tokens: dict[str, str] = {}
+    accounts: dict[str, str] = {}
     for device, code in ((mint, invite), (phone, None)):
         joined = await JoinSyncUseCase(
             device.uow, device.clock, transport, FakeHasher()
@@ -546,17 +547,20 @@ async def test_the_devices_side_talks_to_the_servers_side(server: Server) -> Non
             )
         )
         tokens[device.name] = joined.token
+        accounts[device.name] = joined.account_id
     for device in (mint, phone, mint):
         await RunSyncUseCase(device.uow, device.clock, transport).execute(
-            RunSyncInputDTO(token=tokens[device.name])
+            RunSyncInputDTO(user_id=accounts[device.name], token=tokens[device.name])
         )
     await RevokeSyncDeviceUseCase(mint.uow, mint.clock, transport).execute(
-        RevokeSyncDeviceInputDTO(token=tokens["mint"], device="phone")
+        RevokeSyncDeviceInputDTO(
+            user_id=accounts["mint"], token=tokens["mint"], device="phone"
+        )
     )
 
     assert phone.store.rows[(SyncEntity.TASK, task)] == {"title": "Across"}
     assert server.store.accounts[mint.user.id.value].username == "wesley"
     with pytest.raises(DeviceNotAllowedError):
         await RunSyncUseCase(phone.uow, phone.clock, transport).execute(
-            RunSyncInputDTO(token=tokens["phone"])
+            RunSyncInputDTO(user_id=accounts["phone"], token=tokens["phone"])
         )
