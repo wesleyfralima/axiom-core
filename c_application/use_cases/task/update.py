@@ -1,14 +1,17 @@
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import date, datetime
 from typing import Any
 
-from a_core import IdPrefix
+from a_core import IdPrefix, UniqueId
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, User
 from b_domain.entities.user import UserPrefs
+from b_domain.events.task_events import TaskEditedEvent
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, Priority, TaskId, UserId
+from b_domain.value_objects.dates import DueDate
 from b_domain.value_objects.enums import EnergyLevel
 from b_domain.value_objects.recurrences import RecurrenceRule
 from b_domain.value_objects.texts import normalize_tags
@@ -17,9 +20,15 @@ from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.use_cases.task.relations import (
+    check_can_be_subtask,
     check_dependency,
     check_parent,
+    check_takes_subtasks,
+    cover_subtasks,
+    fit_under,
+    pull_subtasks,
     relations_of,
+    subtasks_minutes,
     waits_on_open,
 )
 from c_application.utils import find_context, format_task_recurrence
@@ -126,6 +135,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 **await _relations_text(uow, task, user_id),
             }
             previous: dict[str, Any] = task.snapshot()
+            old_due: DueDate | None = task.due_date
             user: User | None = await uow.users.get_by_id(user_id)
             prefs: UserPrefs = user.preferences if user else UserPrefs()
             # Business days are the user's, for the rule it has or gets
@@ -227,11 +237,45 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             # Parent and dependencies: never a loop (a task under its own
             # subtask, two tasks waiting on each other)
             if request.parent_id is not None:
-                parent: Task = await find_task(uow, request.parent_id, user_id)
-                await check_parent(uow, task, parent, user_id)
-                task.move_under(now, parent.id)
+                new_parent: Task = await find_task(uow, request.parent_id, user_id)
+                await check_parent(uow, task, new_parent, user_id)
+                check_takes_subtasks(new_parent)
+                await check_can_be_subtask(uow, task)
+                task.move_under(now, new_parent.id)
             elif request.remove_parent:
                 task.move_under(now, None)
+
+            # A subtask stays within its parent: what was asked is refused
+            # beyond it; a task just moved under it is brought within it
+            notes: list[str] = []
+            parent: Task | None = (
+                await uow.tasks.get_by_id(task.parent_id, user_id)
+                if task.parent_id
+                else None
+            )
+            due_asked: bool = request.due_date is not None or request.remove_due_date
+            if parent is not None:
+                if request.recurrence is not None:
+                    raise ValidationException(
+                        "A subtask does not repeat: its parent does, and brings "
+                        "it along."
+                    )
+                if request.parent_id is not None or due_asked or priority is not None:
+                    notes += fit_under(
+                        now,
+                        task,
+                        parent,
+                        due_asked=due_asked,
+                        priority_asked=priority is not None,
+                    )
+            # A parent takes at least as long as its subtasks together
+            if request.estimated_minutes is not None:
+                total: int = await subtasks_minutes(uow, task)
+                if request.estimated_minutes < total:
+                    raise ValidationException(
+                        f"'{task.title}' cannot take less than its subtasks "
+                        f"together: {total} min."
+                    )
 
             if request.add_dependencies or request.remove_dependencies:
                 depends_on: set[TaskId] = set(task.depends_on)
@@ -270,6 +314,22 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
             # 4. Persistence
             await uow.tasks.update(task)
+
+            # What the edit changes on its own, undone with it: the parent's
+            # open subtasks follow it; a subtask's parent covers its estimate
+            events = task.peek_events()
+            edit_id: UniqueId | None = (
+                events[-1].id
+                if events and isinstance(events[-1], TaskEditedEvent)
+                else None
+            )
+            if edit_id is not None and parent is None:
+                notes += await pull_subtasks(uow, now, task, old_due, edit_id)
+            if edit_id is not None and parent is not None:
+                note: str | None = await cover_subtasks(
+                    uow, now, parent, [task], caused_by=edit_id
+                )
+                notes += [note] if note else []
             relations: dict[str, Any] = await relations_of(uow, task, user_id)
 
             context = (
@@ -284,18 +344,21 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
         horizon: date = resolve_horizon(
             prefs.days_ahead, today=local_today(now, prefs.timezone)
         )
-        return TaskMapper.to_output(
-            task,
-            now,
-            occurrences=task.upcoming_occurrences(
+        return replace(
+            TaskMapper.to_output(
+                task,
                 now,
-                end_of_day(horizon, prefs.timezone),
-                limit=PREVIEW_MAX,
-                include_sub_daily=True,
-                at_least=1,
+                occurrences=task.upcoming_occurrences(
+                    now,
+                    end_of_day(horizon, prefs.timezone),
+                    limit=PREVIEW_MAX,
+                    include_sub_daily=True,
+                    at_least=1,
+                ),
+                context=context,
+                relations=relations,
             ),
-            context=context,
-            relations=relations,
+            notes=notes,
         )
 
     @staticmethod

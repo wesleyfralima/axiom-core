@@ -13,7 +13,6 @@ from b_domain.events.task_events import (
 from b_domain.value_objects import TaskId, TaskStatus
 from b_domain.value_objects.task_history import TaskAction
 from c_application.dtos.task_dtos import (
-    CompleteTaskRequest,
     CreateTaskInputDTO,
     GetTaskRequest,
     ListTasksRequest,
@@ -124,19 +123,26 @@ async def test_a_task_moves_under_a_parent_and_out(
     assert alone.parent_id is None and alone.parent is None
 
 
-async def test_a_task_never_goes_under_itself_or_its_subtask(
+async def test_subtasks_are_one_level_and_never_loop(
     use_case_context: UseCaseDeps, user: User
 ) -> None:
     house = await _add(use_case_context, user, "Move house")
     books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-    box = await _add(use_case_context, user, "Buy a box", parent_id=books.id)
+    trip = await _add(use_case_context, user, "Trip")
 
     with pytest.raises(ValidationException, match="its own parent"):
         await _edit(use_case_context, user, house, parent_id=house.id)
     with pytest.raises(ValidationException, match="its own subtask"):
-        await _edit(use_case_context, user, house, parent_id=box.id)
+        await _edit(use_case_context, user, house, parent_id=books.id)
+    # A subtask has no subtasks; a parent does not become one
+    with pytest.raises(ValidationException, match="no subtasks of its own"):
+        await _add(use_case_context, user, "Buy a box", parent_id=books.id)
+    with pytest.raises(ValidationException, match="has subtasks"):
+        await _edit(use_case_context, user, house, parent_id=trip.id)
     with pytest.raises(ValidationException, match="not both"):
-        await _edit(use_case_context, user, box, parent_id=house.id, remove_parent=True)
+        await _edit(
+            use_case_context, user, books, parent_id=trip.id, remove_parent=True
+        )
 
 
 async def test_the_history_records_the_parent(
@@ -256,58 +262,48 @@ async def test_undoing_a_dependency_edit_brings_the_old_ones_back(
 # --------------------------------------------------- closing and deleting
 
 
-async def test_completing_a_parent_can_close_its_open_subtasks(
+async def test_completing_a_parent_completes_its_open_subtasks(
     use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
 ) -> None:
     house = await _add(use_case_context, user, "Move house")
     books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-    await _add(use_case_context, user, "Buy a box", parent_id=books.id)
     blocker = await _add(use_case_context, user, "Get the keys")
-    await _add(
+    paint = await _add(
         use_case_context, user, "Paint", parent_id=house.id, depends_on={blocker.id}
     )
+    assert paint.is_blocked
 
-    assert (await _show(use_case_context, user, house)).open_subtasks == 3
+    assert (await _show(use_case_context, user, house)).open_subtasks == 2
 
-    done = await CompleteTaskUseCase(**use_case_context).execute(
-        CompleteTaskRequest(
-            task_id_prefix=house.id[:8], user_id=str(user.id), with_subtasks=True
-        )
-    )
+    done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
 
-    assert done.subtasks_done == 2 and done.subtasks_waiting == 1
-    assert (await _entity(fake_uow_factory, books)).status == TaskStatus.DONE
+    # Every one, the waiting one too, at the parent's time
+    assert done.subtasks_done == 2
+    parent = await _entity(fake_uow_factory, house)
+    for sub in (books, paint):
+        found = await _entity(fake_uow_factory, sub)
+        assert found.status == TaskStatus.DONE
+        assert found.completed_at == parent.completed_at
     # One undo: the parent and the subtasks it closed
     preview = await UndoPreviewUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id))
     )
-    assert sorted(preview.along) == ["Buy a box", "Pack the books"]
+    assert sorted(preview.along) == ["Pack the books", "Paint"]
     assert preview.also == []
     await UndoUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id), entry_id=preview.entry_id)
     )
     assert (await _entity(fake_uow_factory, books)).status == TaskStatus.PENDING
-    assert (await _show(use_case_context, user, house)).open_subtasks == 3
-
-
-async def test_completing_a_parent_alone_leaves_its_subtasks(
-    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
-) -> None:
-    house = await _add(use_case_context, user, "Move house")
-    books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-
-    done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
-
-    assert done.subtasks_done == 0
-    assert (await _entity(fake_uow_factory, books)).status == TaskStatus.PENDING
+    assert (await _entity(fake_uow_factory, paint)).status == TaskStatus.BLOCKED
+    assert (await _show(use_case_context, user, house)).open_subtasks == 2
 
 
 async def test_deleting_a_parent_takes_its_subtasks_and_restore_brings_them(
     use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
 ) -> None:
     house = await _add(use_case_context, user, "Move house")
-    books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-    box = await _add(use_case_context, user, "Buy a box", parent_id=books.id)
+    await _add(use_case_context, user, "Pack the books", parent_id=house.id)
+    box = await _add(use_case_context, user, "Buy a box", parent_id=house.id)
 
     gone = await DeleteTaskUseCase(**use_case_context).execute(
         DeleteTaskInputDTO(task_id_prefix=house.id[:8], user_id=str(user.id))

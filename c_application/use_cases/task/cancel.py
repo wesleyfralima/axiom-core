@@ -1,10 +1,12 @@
 from datetime import datetime
 
 from b_domain.entities import Task, TimeEntry
+from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
 from c_application.dtos.task_dtos import CancelTaskInputDTO, TaskStatusChangedOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.relations import is_open
 from c_application.utils.task_utils import find_task
 
 
@@ -13,7 +15,8 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
 
     Side effects go through the ``TaskCancelledEvent``: for a recurring task
     the next occurrence is created (unless the cancel ends the series), and
-    tasks that depended on this one are unblocked.
+    tasks that depended on this one are unblocked. Its open subtasks are
+    cancelled with it (one undo brings them back together).
     """
 
     async def execute(self, request: CancelTaskInputDTO) -> TaskStatusChangedOutputDTO:
@@ -43,14 +46,17 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
             task: Task = await find_task(uow, request.task_id_prefix, user_id)
             task.mark_as_cancelled(now, end_series=request.end_series)
             await uow.tasks.update(task)
+            await _stop_timers(uow, task, now)
 
-            timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(
-                task.id
-            )
-            if timers:
-                for timer in timers:
-                    timer.stop(now)
-                await uow.time_entries.update_all(timers)
+            cancel_id = task.peek_events()[-1].id
+            along: int = 0
+            for sub in await uow.tasks.get_subtasks(task.id, limit=10_000):
+                if not is_open(sub):
+                    continue
+                sub.mark_as_cancelled(now, caused_by=cancel_id)
+                await uow.tasks.update(sub)
+                await _stop_timers(uow, sub, now)
+                along += 1
 
             context = (
                 await uow.contexts.get_by_id(task.context_id, user_id)
@@ -60,4 +66,14 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
             return TaskStatusChangedOutputDTO(
                 task=TaskMapper.to_output(task, now, context=context),
                 series_ended=request.end_series,
+                subtasks_along=along,
             )
+
+
+async def _stop_timers(uow: UnitOfWork, task: Task, now: datetime) -> None:
+    """Stop the task's running timers."""
+    timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(task.id)
+    if timers:
+        for timer in timers:
+            timer.stop(now)
+        await uow.time_entries.update_all(timers)

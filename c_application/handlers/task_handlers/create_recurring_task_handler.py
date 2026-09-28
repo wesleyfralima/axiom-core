@@ -1,6 +1,13 @@
 from b_domain.entities import Task, User, UserPrefs
+from b_domain.entities.task import subtask_copy_id
 from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.ports.unit_of_work import UnitOfWork
+from b_domain.value_objects import TaskId
+from c_application.use_cases.task.relations import (
+    shifted_due,
+    subtasks_minutes,
+    waits_on_open,
+)
 from c_application.utils.work_calendar import use_work_calendar
 
 
@@ -10,7 +17,10 @@ class CreateRecurringTaskHandler:
     When a task with recurrence rules is completed or cancelled, this handler
     creates the next scheduled occurrence, ensuring continuity of recurring
     tasks. Cancelling skips one occurrence; only a cancel that ends the series
-    stops it.
+    stops it. The next occurrence brings the subtasks along, open again: the
+    ones the parent has now (added ones included, deleted ones gone), each as
+    far before the parent's due date as it was. A subtask never repeats on
+    its own.
     """
 
     def __init__(self, uow: UnitOfWork):
@@ -45,7 +55,7 @@ class CreateRecurringTaskHandler:
         async with self.uow:
             # Retrieve the completed task to access recurrence rules
             task: Task | None = await self.uow.tasks.get_by_id(event.task_id)
-            if not task or not task.recurrence:
+            if not task or not task.recurrence or task.parent_id is not None:
                 return
 
             # "The Nth business day" counts the user's business days
@@ -81,3 +91,54 @@ class CreateRecurringTaskHandler:
             else:
                 existing.come_back_as(next_task)
                 await self.uow.tasks.update(existing)
+
+            await self._bring_subtasks(task, existing or next_task, event)
+
+    async def _bring_subtasks(
+        self,
+        task: Task,
+        next_task: Task,
+        event: TaskCompletedEvent | TaskCancelledEvent,
+    ) -> None:
+        """Copy ``task``'s subtasks under its next occurrence, open.
+
+        Each copy's ID comes from the new parent and the subtask (the same
+        on every device); one already there is left, one an undo took away
+        comes back. A dependency between siblings points to the sibling's
+        copy.
+        """
+        subtasks: list[Task] = await self.uow.tasks.get_subtasks(task.id, limit=10_000)
+        if not subtasks:
+            return
+        copies: dict[TaskId, TaskId] = {
+            sub.id: subtask_copy_id(next_task.id, sub.id) for sub in subtasks
+        }
+        made: list[Task] = []
+        for sub in subtasks:
+            depends_on: set[TaskId] = {copies.get(ref, ref) for ref in sub.depends_on}
+            outside: set[TaskId] = {ref for ref in depends_on if ref in sub.depends_on}
+            copy: Task = sub.copy_under(
+                event.occurred_at,
+                next_task,
+                shifted_due(sub.due_date, task.due_date, next_task.due_date),
+                depends_on,
+                # A sibling's copy is open; an outside task, as it is
+                waiting=len(outside) < len(depends_on)
+                or await waits_on_open(self.uow, outside, task.user_id),
+                caused_by=event.id,
+            )
+            existing: Task | None = await self.uow.tasks.get_by_id(copy.id)
+            if existing is not None and existing.deleted_at is None:
+                continue
+            if existing is None:
+                await self.uow.tasks.add(copy)
+            else:
+                existing.come_back_as(copy)
+                await self.uow.tasks.update(existing)
+            made.append(copy)
+        # The copies are open again: the new parent covers them all (it is
+        # new — no edit to record)
+        total: int = await subtasks_minutes(self.uow, next_task, made)
+        if total > next_task.estimated_duration_minutes:
+            next_task.update_estimate(event.occurred_at, total)
+            await self.uow.tasks.update(next_task)

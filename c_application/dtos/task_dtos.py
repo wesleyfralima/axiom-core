@@ -43,12 +43,33 @@ class CreateTaskInputDTO(DTO):
     is_floating: bool = True
     timezone: str | None = None
 
-    # Hierarchy and dependencies
+    # Hierarchy and dependencies (a subtask: see AddSubtasksInputDTO)
     parent_id: str | None = None
     depends_on: set[str] = field(default_factory=set)
 
     # Recurrence configuration
     recurrence: RecurrenceInputDTO | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
+class AddSubtasksInputDTO(DTO):
+    """Add subtasks to a task: its checklist, one task per title.
+
+    What is not given comes from the parent (due date, priority, context);
+    what is given is refused beyond it (due later, priority higher).
+    """
+
+    user_id: str
+    # The parent: its ID or ID prefix
+    parent_id: str
+    titles: list[str]
+    description: str = ""
+    priority: int | None = None
+    required_energy_level: int = EnergyLevel.BALANCED.value
+    # How long each is expected to take (None: the default)
+    estimated_minutes: int | None = None
+    tags: list[str] = field(default_factory=list)
+    due_date: DateInput | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -94,8 +115,8 @@ class UpdateTaskInputDTO(DTO):
     recurrence: RecurrenceInputDTO | None = None
     remove_recurrence: bool = False
 
-    # Parent: another task's ID prefix (it becomes a subtask of it), or
-    # remove_parent to make it a task on its own
+    # Parent: another task's ID prefix (it becomes a subtask of it, brought
+    # within it), or remove_parent to make it a task on its own
     parent_id: str | None = None
     remove_parent: bool = False
     # Dependencies (ID prefixes): tasks it waits on, added or removed
@@ -182,6 +203,19 @@ class TaskOutputDTO(DTO):
     time_spent_minutes: int = 0
     running_since: datetime | None = None
 
+    # What the change did on its own, to tell the user (a subtask brought
+    # within its parent, the parent's estimate raised…)
+    notes: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class SubtasksAddedOutputDTO(DTO):
+    """The subtasks just added, and their parent as it is now."""
+
+    parent: TaskOutputDTO
+    subtasks: list[TaskOutputDTO]
+    notes: list[str] = field(default_factory=list)
+
 
 @dataclass(frozen=True, kw_only=True)
 class CreateTaskOutputDTO(TaskOutputDTO):
@@ -210,14 +244,6 @@ class TaskByUserRequest(DTO):
 
 
 @dataclass(frozen=True, kw_only=True)
-class CompleteTaskRequest(TaskByUserRequest):
-    """Complete a task; ``with_subtasks`` closes its open subtasks too (at
-    any depth — the ones waiting on other tasks stay open)."""
-
-    with_subtasks: bool = False
-
-
-@dataclass(frozen=True, kw_only=True)
 class CancelTaskInputDTO(DTO):
     """Request DTO for cancelling one of the user's tasks.
 
@@ -241,10 +267,15 @@ class TaskStatusChangedOutputDTO(DTO):
         task (TaskOutputDTO): The task, already in its new status.
         series_ended (bool): A recurring task was cancelled with
             ``end_series``: no next occurrence comes.
+        subtasks_along (int): Its subtasks cancelled or archived with it.
+        parent_reopened (str | None): A subtask reopened: its parent's
+            title, when the parent was closed and opened along.
     """
 
     task: TaskOutputDTO
     series_ended: bool = False
+    subtasks_along: int = 0
+    parent_reopened: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -261,10 +292,8 @@ class CompleteTaskOutputDTO(DTO):
     # The next occurrence of the task, if recurrence rules apply
     next_occurrence: TaskOutputDTO | None = None
 
-    # Subtasks closed along with it, and the open ones left (waiting on
-    # other tasks)
+    # Its open subtasks, done along with it
     subtasks_done: int = 0
-    subtasks_waiting: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)
