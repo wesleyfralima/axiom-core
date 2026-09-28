@@ -7,6 +7,7 @@ from .context import (
     SwitchContextUseCase,
     UpdateContextUseCase,
 )
+from .task.add_subtasks import AddSubtasksUseCase
 from .task.archive import ArchiveTaskUseCase
 from .task.cancel import CancelTaskUseCase
 from .task.complete import CompleteTaskUseCase
@@ -25,6 +26,7 @@ from .user.get_current import GetCurrentUserUseCase
 from .user.update_prefs import UpdateUserPreferencesUseCase
 
 __all__ = [
+    "AddSubtasksUseCase",
     "ArchiveTaskUseCase",
     "CancelTaskUseCase",
     "CompleteTaskUseCase",

@@ -9,7 +9,6 @@ from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
 from c_application.dtos.task_dtos import (
     CompleteTaskOutputDTO,
-    CompleteTaskRequest,
     TaskByUserRequest,
 )
 from c_application.mappers.task_mapper import TaskMapper
@@ -72,25 +71,19 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             # 4. Persist changes
             await uow.tasks.update(task)
 
-            # 5. Its open subtasks, when asked: closed along with it (linked
-            # to its completion, so undo takes them back together). One
-            # waiting on another task stays open.
-            done_below, waiting_below = 0, 0
-            if isinstance(request, CompleteTaskRequest) and request.with_subtasks:
-                completion = task.peek_events()[-1].id
-                for sub in reversed(await subtasks_of(uow, task)):
-                    if not is_open(sub):
-                        continue
-                    if sub.is_blocked:
-                        waiting_below += 1
-                        continue
-                    minutes: int = await self._close_active_timers(
-                        uow, sub, now, request
-                    )
-                    sub.mark_as_done(now, actual_minutes=minutes, caused_by=completion)
-                    sub.record_duration(minutes)
-                    await uow.tasks.update(sub)
-                    done_below += 1
+            # 5. Its open subtasks are done with it, at the same time — even
+            # one waiting on another task (linked to its completion, so undo
+            # takes them back together)
+            done_below: int = 0
+            completion = task.peek_events()[-1].id
+            for sub in reversed(await subtasks_of(uow, task)):
+                if not is_open(sub):
+                    continue
+                minutes: int = await self._close_active_timers(uow, sub, now, request)
+                sub.mark_as_done(now, actual_minutes=minutes, caused_by=completion)
+                sub.record_duration(minutes)
+                await uow.tasks.update(sub)
+                done_below += 1
 
             context = (
                 await uow.contexts.get_by_id(task.context_id, user_id)
@@ -103,7 +96,6 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             return replace(
                 self._build_response(task, None, now, context),
                 subtasks_done=done_below,
-                subtasks_waiting=waiting_below,
             )
 
     @staticmethod

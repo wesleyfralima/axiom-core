@@ -36,6 +36,8 @@ class TaskEditedEvent(DomainEvent):
     changes: dict[str, list[str | None]]
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's or a subtask's)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -46,6 +48,8 @@ class TaskReopenedEvent(DomainEvent):
     user_id: UserId
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's or a subtask's)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -56,6 +60,8 @@ class TaskArchivedEvent(DomainEvent):
     user_id: UserId
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's or a subtask's)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -119,6 +125,8 @@ class TaskCancelledEvent(DomainEvent):
     end_series: bool = False
     # The task before this change (``Task.snapshot``), for undo
     previous: dict[str, Any] | None = None
+    # The change that made this one on its own (a parent's or a subtask's)
+    caused_by: UniqueId | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

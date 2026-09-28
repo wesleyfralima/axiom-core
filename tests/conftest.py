@@ -175,7 +175,15 @@ class FakeTaskRepository(TaskRepository):
     async def get_subtasks(
         self, parent_id: TaskId, limit: int = 100, offset: int = 0
     ) -> builtins.list[Task]:
-        subs = [t for t in self.tasks.values() if t.parent_id == parent_id]
+        # As the database does: live ones, oldest first
+        subs = sorted(
+            (
+                t
+                for t in self.tasks.values()
+                if t.parent_id == parent_id and t.deleted_at is None
+            ),
+            key=lambda t: t.created_at,
+        )
         return subs[offset : offset + limit]
 
     @tracks_entity

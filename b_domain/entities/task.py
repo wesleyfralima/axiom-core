@@ -54,6 +54,12 @@ def occurrence_id(series_id: TaskId, due: DueDate) -> TaskId:
     )
 
 
+def subtask_copy_id(parent_id: TaskId, source_id: TaskId) -> TaskId:
+    """The ID of a subtask's copy under its parent's next occurrence, the
+    same on every device (as ``occurrence_id``)."""
+    return TaskId(uuid5(_OCCURRENCE_NAMESPACE, f"subtask|{parent_id}|{source_id}"))
+
+
 @dataclass(kw_only=True, eq=False)
 class Task(Entity):
     """Represents a Task entity with business rules and validation."""
@@ -541,6 +547,52 @@ class Task(Entity):
             tags=self.tags,
         )
 
+    def copy_under(
+        self,
+        now: datetime,
+        parent: "Task",
+        due: DueDate | None,
+        depends_on: set[TaskId],
+        waiting: bool,
+        caused_by: UniqueId | None = None,
+    ) -> "Task":
+        """This subtask again, open, under its parent's next occurrence.
+
+        What the user defined carries over; its state, counters and time
+        start over. Its ID comes from the new parent and this subtask, so
+        every device makes the same row.
+
+        Args:
+            now (datetime): When it is made.
+            parent (Task): The parent's next occurrence.
+            due (DueDate | None): Its due date there (the use case keeps its
+                distance to the parent's).
+            depends_on (set[TaskId]): What it waits on there.
+            waiting (bool): Whether one of those is open.
+            caused_by (UniqueId | None): The change that made it (the
+                parent's completion or cancel).
+        """
+        return Task.create(
+            task_id=subtask_copy_id(parent.id, self.id),
+            now=now,
+            user_id=self.user_id,
+            title=self.title,
+            description=self.description,
+            priority=self.priority,
+            required_energy_level=self.required_energy_level,
+            context_id=self.context_id,
+            parent_id=parent.id,
+            depends_on=set(depends_on),
+            waiting=waiting,
+            due_date=due.value if due else None,
+            is_floating=due.is_floating if due else True,
+            tz_name=due.timezone if due else None,
+            complexity=self.complexity,
+            estimated_duration_minutes=self.estimated_duration_minutes,
+            tags=self.tags,
+            caused_by=caused_by,
+        )
+
     def next_occurrence_due_date(self) -> Optional["DueDate"]:
         """Return the next due date based on recurrence rules.
 
@@ -769,6 +821,11 @@ class Task(Entity):
         self.due_date = DueDate.from_params(new_dt, is_floating, effective_tz)
         self._touch(now)
 
+    def set_due(self, now: datetime, due: DueDate | None) -> None:
+        """Take a due date as it is (a subtask's, from its parent)."""
+        self.due_date = due
+        self._touch(now)
+
     def mark_as_done(
         self,
         now: datetime,
@@ -776,8 +833,11 @@ class Task(Entity):
         caused_by: UniqueId | None = None,
     ) -> None:
         """Mark the task as completed (``caused_by``: its parent's
-        completion, when it closes along with it)."""
+        completion, when it closes along with it — then even while it waits
+        on another task: the parent says the whole is done)."""
         previous: dict[str, Any] = self.snapshot()
+        if caused_by is not None and self.is_blocked:
+            self.change_status(now, TaskStatus.PENDING)
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.completed_at = now
         self.add_event(
@@ -794,7 +854,12 @@ class Task(Entity):
             )
         )
 
-    def mark_as_cancelled(self, now: datetime, end_series: bool = False) -> None:
+    def mark_as_cancelled(
+        self,
+        now: datetime,
+        end_series: bool = False,
+        caused_by: UniqueId | None = None,
+    ) -> None:
         """Cancel the task: the user decided not to do it.
 
         For a recurring task, cancelling skips only this occurrence — the
@@ -805,6 +870,8 @@ class Task(Entity):
             now (datetime): Current time.
             end_series (bool): End the series instead of skipping one
                 occurrence. Only for a recurring task.
+            caused_by (UniqueId | None): Its parent's cancel, when it goes
+                along.
 
         Raises:
             NotRecurringTaskError: If ``end_series`` is asked of a task that
@@ -824,11 +891,13 @@ class Task(Entity):
                 task_id=self.id,
                 user_id=self.user_id,
                 end_series=end_series,
+                caused_by=caused_by,
             )
         )
 
-    def reopen(self, now: datetime) -> None:
-        """Bring a done or cancelled task back to the open ones.
+    def reopen(self, now: datetime, caused_by: UniqueId | None = None) -> None:
+        """Bring a done or cancelled task back to the open ones
+        (``caused_by``: a subtask's reopen, when its parent opens along).
 
         A recurring occurrence already handed its series on when it closed
         (the next occurrence exists, or the series ended there), so the
@@ -855,11 +924,13 @@ class Task(Entity):
                 task_id=self.id,
                 user_id=self.user_id,
                 previous=previous,
+                caused_by=caused_by,
             )
         )
 
-    def archive(self, now: datetime) -> None:
-        """Put a closed task away for good (no way back).
+    def archive(self, now: datetime, caused_by: UniqueId | None = None) -> None:
+        """Put a closed task away for good (no way back; ``caused_by``: its
+        parent's archive, when it goes along).
 
         Raises:
             InvalidStateTransition: If the task is not done or cancelled.
@@ -878,6 +949,7 @@ class Task(Entity):
                 task_id=self.id,
                 user_id=self.user_id,
                 previous=previous,
+                caused_by=caused_by,
             )
         )
 
@@ -886,6 +958,7 @@ class Task(Entity):
         now: datetime,
         changes: dict[str, tuple[str | None, str | None]],
         previous: dict[str, Any] | None = None,
+        caused_by: UniqueId | None = None,
     ) -> None:
         """Record what an edit changed, for the history.
 
@@ -899,6 +972,9 @@ class Task(Entity):
                 when it is empty.
             previous (dict | None): ``snapshot()`` taken before the edit, so
                 it can be undone.
+            caused_by (UniqueId | None): The change that made this edit on
+                its own (a parent's edit moving its subtasks, a subtask
+                raising its parent's estimate): undone with it.
         """
         if not changes:
             return
@@ -909,6 +985,7 @@ class Task(Entity):
                 user_id=self.user_id,
                 changes={name: [old, new] for name, (old, new) in changes.items()},
                 previous=previous,
+                caused_by=caused_by,
             )
         )
 

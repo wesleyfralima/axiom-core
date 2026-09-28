@@ -24,8 +24,19 @@ from c_application.mappers.history_mapper import history_entry_to_dto
 
 # Undone by taking the task away (a tombstone), not by a snapshot
 _TAKE_AWAY: frozenset[TaskAction] = frozenset({TaskAction.CREATED, TaskAction.RESTORED})
-# Made along with another change (a parent's subtasks): back to the snapshot
-_ALONG: frozenset[TaskAction] = frozenset({TaskAction.COMPLETED, TaskAction.DELETED})
+# Made along with another change (a parent's subtasks closed, moved or
+# deleted with it; a parent reopened or its estimate raised by a subtask):
+# back to the snapshot
+_ALONG: frozenset[TaskAction] = frozenset(
+    {
+        TaskAction.COMPLETED,
+        TaskAction.CANCELLED,
+        TaskAction.ARCHIVED,
+        TaskAction.REOPENED,
+        TaskAction.EDITED,
+        TaskAction.DELETED,
+    }
+)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -49,7 +60,8 @@ class UndoPreviewOutputDTO(DTO):
         also (list[str]): What goes with it (the titles of tasks the change
             made on its own).
         along (list[str]): What comes back as it was with it (the titles of
-            tasks the change closed or deleted along — a parent's subtasks).
+            tasks the change changed along — a parent's subtasks closed,
+            moved or deleted with it; a parent a subtask changed).
         blocked (str | None): Why it cannot be undone, if it cannot.
     """
 

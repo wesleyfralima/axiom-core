@@ -6,6 +6,61 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.24.0] — 2026-09-27
+
+Subtasks are a parent's checklist, as tasks (owner's decisions,
+2026-09-27): one level, never repeating on their own, never "bigger" than
+their parent. The parent rules, and says what it changed.
+
+### Added
+- **`AddSubtasksUseCase`** (`AddSubtasksInputDTO` →
+  `SubtasksAddedOutputDTO`): one subtask per title under a task, in one
+  change — one undo takes them all back, with what they changed on the
+  parent. A subtask takes from its parent what it is not given (due date,
+  priority, context).
+- **A subtask is never bigger than its parent**
+  (`c_application/use_cases/task/relations.py`): due no later (no date is
+  the latest of all), priority no higher — what is asked beyond it is
+  refused, on create and on edit. A task moved under a parent
+  (`parent_id`) is brought within it instead, and told so.
+- **The parent's estimate covers its subtasks'** (cancelled ones left
+  out): when they take longer together, it grows to their sum; it cannot be
+  edited below it; removing a subtask leaves it.
+- **The parent rules:** moving its due date takes along the open subtasks
+  due with it (the date they inherited), wherever it goes — away too; the
+  ones that would be later come to it; the earlier ones stay. Lowering its
+  priority lowers the higher ones. Each such change is an edit of the
+  subtask, linked to the parent's.
+- **A recurring parent brings its subtasks** to its next occurrence, open
+  again: the ones it has then (added ones in, deleted ones out), each as
+  far before the parent's due date as it was (`shifted_due`). Their IDs are
+  known ahead (`subtask_copy_id`), one row on every device; a dependency
+  between siblings points to the sibling's copy. The next occurrence's
+  estimate covers them.
+- `TaskOutputDTO.notes`: what a change did on its own, to tell the user.
+  `TaskStatusChangedOutputDTO.subtasks_along` and `parent_reopened`.
+- `TaskEditedEvent`, `TaskCancelledEvent`, `TaskArchivedEvent` and
+  `TaskReopenedEvent` carry `caused_by`; undo brings back whatever a change
+  changed along, of any of these kinds.
+
+### Changed
+- **One level of subtasks:** a subtask takes no subtasks; a task with
+  subtasks, or a recurring one, does not become a subtask; a closed or
+  deleted task takes none.
+- **Completing a parent completes its open subtasks, always**, at the same
+  time — one waiting on another task too. `CompleteTaskRequest` and its
+  `with_subtasks` are gone (`TaskByUserRequest`), and so is
+  `subtasks_waiting`.
+- **Cancelling a parent cancels its open subtasks; archiving it archives
+  its closed ones; reopening a subtask of a closed parent reopens the
+  parent** (refused under an archived one). Undo takes each back together.
+- A subtask never repeats on its own: one that did (from before) makes no
+  next occurrence.
+
+### Fixed
+- The fake repository's `get_subtasks` returned deleted subtasks (the
+  database does not), oldest first as the database.
+
 ## [0.23.0] — 2026-09-27
 
 A task's relations, seen and edited (owner's decisions, 2026-09-27):
