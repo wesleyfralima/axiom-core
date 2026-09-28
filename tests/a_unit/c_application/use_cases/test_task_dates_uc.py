@@ -132,6 +132,30 @@ async def test_a_recurrence_start_word_and_until_date(
 # ---------------------------------------------------------------- projection
 
 
+async def test_the_list_filters_one_day(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    """--due today: from its first minute to its last, no more."""
+    for title, due in (
+        ("Yesterday", "yesterday 23:59"),
+        ("Early today", "today 00:00"),
+        ("Late today", "today 23:59"),
+        ("Tomorrow", "tomorrow 00:00"),
+    ):
+        await CreateTaskUseCase(**use_case_context).execute(
+            CreateTaskInputDTO(user_id=str(user.id), title=title, due_date=due)
+        )
+    await _create(use_case_context, user)  # no date
+
+    today = await _list(use_case_context, user, due_on="today")
+    by_date = await _list(use_case_context, user, due_on="2026-03-06 15:00")
+
+    assert sorted(t.title for t in today.tasks) == ["Early today", "Late today"]
+    assert [t.title for t in by_date.tasks] == ["Tomorrow"]
+    with pytest.raises(ValidationException, match="not both"):
+        await _list(use_case_context, user, due_on="today", due_before="tomorrow")
+
+
 async def test_the_list_projects_recurring_tasks_days_ahead(
     use_case_context: UseCaseDeps, user: User
 ) -> None:

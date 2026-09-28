@@ -354,6 +354,9 @@ class ListTasksRequest(DTO):
     # Temporal Filters (Task Specific); a date alone means its midnight
     due_before: DateInput | None = None
     due_after: DateInput | None = None
+    # Due on that day, from its first minute to its last ("today",
+    # "2026-09-28"); not with due_before/due_after
+    due_on: DateInput | None = None
 
     # Project recurring tasks' future occurrences up to a number of days or a
     # date (None: the user's days_ahead preference; 0: only today)

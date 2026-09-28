@@ -154,6 +154,21 @@ class FakeTaskRepository(TaskRepository):
             results = [
                 t for t in results if (t.due_date is not None) == filters.has_due_date
             ]
+        # As the database compares them: the stored value, without its zone
+        if filters.due_after is not None:
+            after = filters.due_after.replace(tzinfo=None)
+            results = [
+                t
+                for t in results
+                if t.due_date and t.due_date.value.replace(tzinfo=None) >= after
+            ]
+        if filters.due_before is not None:
+            before = filters.due_before.replace(tzinfo=None)
+            results = [
+                t
+                for t in results
+                if t.due_date and t.due_date.value.replace(tzinfo=None) <= before
+            ]
 
         return results
 

@@ -136,6 +136,16 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
                 if request.due_after is not None
                 else None
             )
+            if request.due_on is not None:
+                if request.due_before is not None or request.due_after is not None:
+                    raise ValidationException(
+                        "Pick a day, or a range with due before/after — not both."
+                    )
+                day: date | datetime = resolve_date_input(request.due_on, today=today)
+                if isinstance(day, datetime):
+                    day = day.date()
+                due_after = datetime.combine(day, time())
+                due_before = datetime.combine(day, time.max)
             horizon: date = resolve_horizon(
                 request.ahead if request.ahead is not None else prefs.days_ahead,
                 today=today,
