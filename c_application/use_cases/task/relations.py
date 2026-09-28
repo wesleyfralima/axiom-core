@@ -167,6 +167,20 @@ def due_text(due: DueDate | None) -> str | None:
     return due.value.isoformat() if due else None
 
 
+def minutes_text(minutes: int) -> str:
+    """Minutes as people say them: "40 min", "2h50", "3h"."""
+    if minutes < 60:
+        return f"{minutes} min"
+    hours, rest = divmod(minutes, 60)
+    return f"{hours}h{rest:02d}" if rest else f"{hours}h"
+
+
+def _when(due: DueDate) -> str:
+    """A due date in an error message, as the user typed it (wall-clock
+    time for a floating one, UTC for a fixed one)."""
+    return due.value.strftime("%Y-%m-%d %H:%M")
+
+
 def check_takes_subtasks(parent: Task) -> None:
     """Refuse a parent that cannot take a subtask.
 
@@ -235,7 +249,7 @@ def fit_under(
         if due_asked:
             raise ValidationException(
                 "A subtask is due no later than its parent: "
-                f"'{parent.title}' is due {parent.due_date.format()}."
+                f"'{parent.title}' is due {_when(parent.due_date)}."
             )
         notes.append(
             f"'{task.title}' is now due with its parent."
@@ -310,7 +324,10 @@ async def cover_subtasks(
         now, {"estimate": (str(before), str(total))}, previous, caused_by=caused_by
     )
     await uow.tasks.update(parent)
-    return f"'{parent.title}' now takes {total} min: its subtasks take that long."
+    return (
+        f"'{parent.title}' now takes {minutes_text(total)}: its subtasks take "
+        "that long."
+    )
 
 
 async def pull_subtasks(

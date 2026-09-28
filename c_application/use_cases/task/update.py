@@ -26,6 +26,7 @@ from c_application.use_cases.task.relations import (
     check_takes_subtasks,
     cover_subtasks,
     fit_under,
+    minutes_text,
     pull_subtasks,
     relations_of,
     subtasks_minutes,
@@ -274,7 +275,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 if request.estimated_minutes < total:
                     raise ValidationException(
                         f"'{task.title}' cannot take less than its subtasks "
-                        f"together: {total} min."
+                        f"together: {minutes_text(total)}."
                     )
 
             if request.add_dependencies or request.remove_dependencies:

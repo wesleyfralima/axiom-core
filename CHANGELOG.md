@@ -6,6 +6,14 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.24.1] — 2026-09-27
+
+### Fixed
+- A subtask's notes and errors read as people say them: a parent's
+  estimate in hours ("now takes 2h50", `minutes_text`), not "170 min"; the
+  parent's due date as typed ("is due 2026-12-10 18:00"), without
+  "(Local)".
+
 ## [0.24.0] — 2026-09-27
 
 Subtasks are a parent's checklist, as tasks (owner's decisions,
