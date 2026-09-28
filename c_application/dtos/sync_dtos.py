@@ -51,10 +51,12 @@ class RunSyncInputDTO(DTO):
     """Request to sync now: push, then pull.
 
     Attributes:
+        user_id (str): Who asks — the account the device syncs, or refused.
         token (str): The device's token.
         batch (int): Operations per request.
     """
 
+    user_id: str
     token: str = field(repr=False)
     batch: int = 500
 
@@ -105,8 +107,9 @@ class SyncStatusOutputDTO(DTO):
 
 @dataclass(frozen=True, kw_only=True)
 class SyncTokenInputDTO(DTO):
-    """A request that only needs the device's token."""
+    """A request that needs the device's token, from the account it syncs."""
 
+    user_id: str
     token: str = field(repr=False)
 
 
@@ -115,10 +118,12 @@ class RevokeSyncDeviceInputDTO(DTO):
     """Request to revoke another device.
 
     Attributes:
+        user_id (str): Who asks — the account the device syncs, or refused.
         token (str): This device's token.
         device (str): The other device's name or ID prefix.
     """
 
+    user_id: str
     token: str = field(repr=False)
     device: str
 

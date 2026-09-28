@@ -12,6 +12,15 @@ class NotJoinedError(SyncException):
         super().__init__("This device does not sync yet: join a server first.")
 
 
+class NotThisAccountError(SyncException):
+    """The user asking is not the account this device syncs."""
+
+    def __init__(self) -> None:
+        super().__init__(
+            "This device syncs another account: log in as that account to sync."
+        )
+
+
 class AlreadyJoinedError(SyncException):
     """This device already syncs with an account."""
 

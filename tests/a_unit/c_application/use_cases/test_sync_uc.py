@@ -14,6 +14,7 @@ from b_domain.entities import User
 from b_domain.exceptions.sync import (
     AlreadyJoinedError,
     NotJoinedError,
+    NotThisAccountError,
     SyncRefusedError,
     SyncUnavailableError,
 )
@@ -185,6 +186,8 @@ class Device:
     store: FakeSyncStore = field(default_factory=FakeSyncStore)
     clock: FakeClock = field(default_factory=lambda: FakeClock(NOW))
     token: str = ""
+    # The account it syncs, once joined (who may sync it)
+    account: str = ""
 
     def __post_init__(self) -> None:
         self.users: dict[str, User] = {str(self.user.id): self.user}
@@ -211,11 +214,12 @@ class Device:
             )
         )
         self.token = result.token
+        self.account = result.account_id
         return result
 
     async def sync(self, batch: int = 500) -> Any:
         return await RunSyncUseCase(self.uow, self.clock, self.server).execute(
-            RunSyncInputDTO(token=self.token, batch=batch)
+            RunSyncInputDTO(user_id=self.account, token=self.token, batch=batch)
         )
 
     def change(self, entity_id: UUID, **fields: Any) -> None:
@@ -484,7 +488,7 @@ async def test_a_revoked_device_cannot_sync(mint: Device, phone: Device) -> None
     await mint.join(invite="INVITE-1")
     await phone.join()
     await RevokeSyncDeviceUseCase(mint.uow, mint.clock, mint.server).execute(
-        RevokeSyncDeviceInputDTO(token=mint.token, device="phone")
+        RevokeSyncDeviceInputDTO(user_id=mint.account, token=mint.token, device="phone")
     )
 
     with pytest.raises(SyncRefusedError):
@@ -525,7 +529,7 @@ async def test_the_accounts_devices(mint: Device, phone: Device) -> None:
     await phone.join()
 
     devices = await ListSyncDevicesUseCase(mint.uow, mint.clock, mint.server).execute(
-        SyncTokenInputDTO(token=mint.token)
+        SyncTokenInputDTO(user_id=mint.account, token=mint.token)
     )
 
     assert [(d.name, d.this_device, d.revoked) for d in devices.devices] == [
@@ -540,7 +544,9 @@ async def test_revoking_a_device_by_its_id_prefix(mint: Device, phone: Device) -
     joined = await phone.join()
 
     revoked = await RevokeSyncDeviceUseCase(mint.uow, mint.clock, mint.server).execute(
-        RevokeSyncDeviceInputDTO(token=mint.token, device=joined.device_id[:8])
+        RevokeSyncDeviceInputDTO(
+            user_id=mint.account, token=mint.token, device=joined.device_id[:8]
+        )
     )
 
     assert revoked.name == "phone"
@@ -553,7 +559,9 @@ async def test_a_device_cannot_revoke_itself(mint: Device) -> None:
 
     with pytest.raises(InvalidValueError):
         await RevokeSyncDeviceUseCase(mint.uow, mint.clock, mint.server).execute(
-            RevokeSyncDeviceInputDTO(token=mint.token, device="MINT")
+            RevokeSyncDeviceInputDTO(
+                user_id=mint.account, token=mint.token, device="MINT"
+            )
         )
 
 
@@ -569,13 +577,43 @@ async def test_revoking_an_unknown_or_ambiguous_device(
     revoke = RevokeSyncDeviceUseCase(mint.uow, mint.clock, mint.server)
 
     with pytest.raises(EntityNotFound):
-        await revoke.execute(RevokeSyncDeviceInputDTO(token=mint.token, device="tv"))
+        await revoke.execute(
+            RevokeSyncDeviceInputDTO(
+                user_id=mint.account, token=mint.token, device="tv"
+            )
+        )
     with pytest.raises(AmbiguousIdentifierError):
-        await revoke.execute(RevokeSyncDeviceInputDTO(token=mint.token, device="abcd"))
+        await revoke.execute(
+            RevokeSyncDeviceInputDTO(
+                user_id=mint.account, token=mint.token, device="abcd"
+            )
+        )
 
 
 async def test_listing_devices_needs_a_joined_device(mint: Device) -> None:
     with pytest.raises(NotJoinedError):
         await ListSyncDevicesUseCase(mint.uow, mint.clock, mint.server).execute(
-            SyncTokenInputDTO(token="none")
+            SyncTokenInputDTO(user_id=str(mint.user.id), token="none")
         )
+
+
+async def test_only_the_account_syncs_its_device(mint: Device, phone: Device) -> None:
+    """Another user on the device — or nobody logged in — does not sync it,
+    list its devices or revoke one."""
+    await mint.join(invite="INVITE-1")
+    await phone.join()
+    stranger: str = str(_user("stranger").id)
+
+    with pytest.raises(NotThisAccountError, match="log in as that account"):
+        await RunSyncUseCase(mint.uow, mint.clock, mint.server).execute(
+            RunSyncInputDTO(user_id=stranger, token=mint.token)
+        )
+    with pytest.raises(NotThisAccountError):
+        await ListSyncDevicesUseCase(mint.uow, mint.clock, mint.server).execute(
+            SyncTokenInputDTO(user_id=stranger, token=mint.token)
+        )
+    with pytest.raises(NotThisAccountError):
+        await RevokeSyncDeviceUseCase(mint.uow, mint.clock, mint.server).execute(
+            RevokeSyncDeviceInputDTO(user_id=stranger, token=mint.token, device="phone")
+        )
+    assert not mint.server.devices_by_token[phone.token].revoked

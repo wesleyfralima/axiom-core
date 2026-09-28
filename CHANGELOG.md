@@ -6,6 +6,17 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.24.2] — 2026-09-28
+
+### Fixed
+- **Anyone at the device could sync it, list its account's devices or
+  revoke one** — the device's token was enough, with nobody logged in
+  (found by the owner). `RunSyncInputDTO`, `SyncTokenInputDTO` and
+  `RevokeSyncDeviceInputDTO` take the `user_id` of who asks; the use cases
+  refuse anyone but the account the device syncs (`NotThisAccountError`,
+  checked by `joined_state`). Enterprise's, the CLI's and axiom-web's
+  tests adapted in the same piece of work.
+
 ## [0.24.1] — 2026-09-27
 
 ### Fixed

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.24.1"
+version = "0.24.2"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
