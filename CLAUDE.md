@@ -230,7 +230,7 @@ there too.
 
 ## Current state (2026-09-27)
 
-- Version `0.24.2`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.25.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -250,9 +250,9 @@ there too.
   build (0.22.2); a task's relations: parent and subtasks, dependencies kept
   once done, edited, cascades (0.23.0); subtasks as a checklist, within
   their parent, brought along by a recurring one (0.24.0); only the
-  device's account syncs it (0.24.2).
+  device's account syncs it (0.24.2); the tasks due on one day (0.25.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 753 tests passing; **`make check` green**: mypy at zero (packages and
+- 755 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 86.1% over an 86.0% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

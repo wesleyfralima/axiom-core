@@ -6,6 +6,15 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.25.0] — 2026-09-28
+
+### Added
+- **The tasks due on one day** (`ListTasksRequest.due_on`, asked by the
+  owner): "today", "2026-09-28" — from the day's first minute to its last
+  (a time given is ignored); the projected occurrences too. Not with
+  `due_before`/`due_after`. The fake repository now filters by due date as
+  the database does.
+
 ## [0.24.2] — 2026-09-28
 
 ### Fixed
