@@ -262,7 +262,7 @@ there too.
   one undo per command, dependencies within a family, a parent ready once
   its last subtask is done (0.26.0, product Backlog 02).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 767 tests passing; **`make check` green**: mypy at zero (packages and
+- 768 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 86.2% over an 86.2% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

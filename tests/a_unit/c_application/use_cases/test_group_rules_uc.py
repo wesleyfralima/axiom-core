@@ -8,7 +8,8 @@ import pytest
 
 from a_core.exceptions import ValidationException
 from b_domain.entities import User
-from b_domain.value_objects import TaskStatus
+from b_domain.value_objects import RecurrenceInterval, TaskStatus
+from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import (
     CancelTaskInputDTO,
     CreateTaskInputDTO,
@@ -21,11 +22,13 @@ from c_application.use_cases import (
     CancelTaskUseCase,
     CompleteTaskUseCase,
     CreateTaskUseCase,
+    DeleteTaskUseCase,
     GetTaskUseCase,
     UndoPreviewUseCase,
     UndoUseCase,
     UpdateTaskUseCase,
 )
+from c_application.use_cases.task.delete import DeleteTaskInputDTO
 from c_application.use_cases.task.undo import UndoRequest
 from tests.conftest import FakeClock, FakeUnitOfWork, FakeUowFactory, UseCaseDeps
 
@@ -285,3 +288,31 @@ async def test_a_task_of_its_own_has_no_parent_to_be_ready(
     assert (
         await CompleteTaskUseCase(**use_case_context).execute(_by(user, alone))
     ).parent_ready is None
+
+
+# ---------- Deleting a recurring task ----------
+
+
+async def test_deleting_a_recurring_task_says_the_series_ends(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    gym = await _add(
+        use_case_context,
+        user,
+        "Gym",
+        recurrence=RecurrenceInputDTO(
+            frequency=RecurrenceInterval.DAILY, start_date="2026-01-06 07:00"
+        ),
+    )
+    once = await _add(use_case_context, user, "Once")
+    delete = DeleteTaskUseCase(**use_case_context)
+
+    gone = await delete.execute(
+        DeleteTaskInputDTO(task_id_prefix=gym.id[:8], user_id=str(user.id))
+    )
+    assert gone.series_ended
+    assert not (
+        await delete.execute(
+            DeleteTaskInputDTO(task_id_prefix=once.id[:8], user_id=str(user.id))
+        )
+    ).series_ended

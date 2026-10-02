@@ -20,6 +20,8 @@ of 2026-10-02).
   refuses the whole command); the preview lists them (`more`), and so does
   the result. Changes from before commands were recorded go back one at a
   time, as before.
+- `DeleteTaskOutputDTO.series_ended`: the deleted task repeated, so no
+  next occurrence comes (to skip one occurrence, cancel it).
 - **A parent ready once its last subtask is done:**
   `CompleteTaskOutputDTO.parent_ready` (the parent, still open, when none
   of its subtasks is) — the interface asks whether it is done too.
