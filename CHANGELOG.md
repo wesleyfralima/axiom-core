@@ -6,6 +6,31 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.30.0] — 2026-10-02
+
+The report's redesign (axiom-cli 0.35.0).
+
+### Added
+- **A series' timeline in the report**: `SeriesReportDTO.timeline`, one
+  entry per day of the period — `none`, `on_time`, `late` or `skipped` (the
+  worst when a day has several).
+
+### Changed
+- **A weekly rule names three or more days in short**: "Every week on
+  Mon-Sat", "Every week on Mon, Tue, Thu, Sat" (runs of three or more days
+  collapse); one or two days stay as before ("Every week on Mondays and
+  Fridays"). Shown wherever the rule is.
+- **A series' `rate` is the period's** (completed ÷ completed + skipped),
+  not its whole life's. `streak` stays the current streak (documented).
+- **A report never goes past today**: an end date in the future is today,
+  a start in the future is refused.
+
+### Fixed
+- **The report's `period` came back as a context name** ("none", "Estudo")
+  when some task had an estimate and measured time: a loop variable
+  shadowed the period's label. It is "this week", "this month",
+  "last 7 days" or "custom" again.
+
 ## [0.29.0] — 2026-10-02
 
 Product Backlog 02, owner's decisions of 2026-10-02.

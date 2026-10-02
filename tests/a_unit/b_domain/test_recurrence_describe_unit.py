@@ -46,7 +46,23 @@ def _weekday_only(d: date) -> bool:
         ),
         (
             WeeklyByDaysRule(start_date=START, days_of_week={4, 0, 2}),
-            "Every week on Mondays, Wednesdays, and Fridays",
+            "Every week on Mon, Wed, Fri",
+        ),
+        (
+            WeeklyByDaysRule(start_date=START, days_of_week={0, 1, 2, 3, 4, 5}),
+            "Every week on Mon-Sat",
+        ),
+        (
+            WeeklyByDaysRule(start_date=START, days_of_week={5, 0, 1, 3}),
+            "Every week on Mon, Tue, Thu, Sat",
+        ),
+        (
+            WeeklyByDaysRule(start_date=START, days_of_week={0, 1, 2, 4, 5, 6}),
+            "Every week on Mon-Wed, Fri-Sun",
+        ),
+        (
+            WeeklyByDaysRule(start_date=START, days_of_week={0, 4}),
+            "Every week on Mondays and Fridays",
         ),
         (
             MonthlyByDaysRule(start_date=START, days_of_month={20, 10}, interval=3),

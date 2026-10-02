@@ -30,6 +30,13 @@ from c_application.utils.recurrence_input import WEEK_STARTS
 _NO_CONTEXT: str = "none"
 _GONE_CONTEXT: str = "(deleted context)"
 
+# What happened to a series on one day (worst wins when several did)
+_NOTHING: str = "none"
+_ON_TIME: str = "on_time"
+_LATE: str = "late"
+_SKIPPED: str = "skipped"
+_WORSE: tuple[str, ...] = (_NOTHING, _ON_TIME, _LATE, _SKIPPED)
+
 
 @dataclass(frozen=True, kw_only=True)
 class ReportRequest(DTO):
@@ -37,7 +44,7 @@ class ReportRequest(DTO):
 
     ``period``: "week" (this week, from the user's week_start), "month" (this
     month); otherwise ``start``/``end`` (dates as typed; ``end`` defaults to
-    today); with none of them, the last 7 days.
+    today and never goes past it); with none of them, the last 7 days.
     """
 
     user_id: str
@@ -73,10 +80,13 @@ class SeriesReportDTO(DTO):
         title (str): Its latest occurrence's title.
         rule (str | None): How it repeats now (None: it stopped).
         done (int): Occurrences completed in the period.
-        missed (int): Occurrences cancelled in the period.
-        streak (int): Completed in a row, up to the latest closed one.
-        rate (float | None): Completed ÷ closed, over its whole life (None
-            when none closed yet).
+        missed (int): Occurrences cancelled (skipped) in the period.
+        streak (int): The current streak: completed in a row, up to the
+            latest closed one (not limited to the period).
+        rate (float | None): Completed ÷ (completed + skipped) in the period
+            (None when neither happened).
+        timeline (list[str]): One entry per day of the period: "none" (nothing
+            happened), "on_time", "late" or "skipped" (the worst of the day).
     """
 
     series_id: str
@@ -87,6 +97,7 @@ class SeriesReportDTO(DTO):
     missed: int
     streak: int
     rate: float | None
+    timeline: list[str] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -228,6 +239,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                     spent_on[entry.task_id], _ = await time_of(uow, entry.task_id, now)
 
         on_time = late = no_due = 0
+        punctuality: dict[Any, str] = {}
         by_context: Counter[str] = Counter()
         by_priority: Counter[str] = Counter()
         for entry in completions:
@@ -237,15 +249,20 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             due: datetime | None = _due(state)
             if due is None:
                 no_due += 1
+                punctuality[entry.entry_id] = _ON_TIME
             elif _aware(entry.occurred_at) <= due:
                 on_time += 1
+                punctuality[entry.entry_id] = _ON_TIME
             else:
                 late += 1
+                punctuality[entry.entry_id] = _LATE
             by_context[_context_name(state, contexts)] += 1
             if state.get("priority") is not None:
                 by_priority[Priority(state["priority"]).name.lower()] += 1
 
-        series, quiet = _series(in_series, entries)
+        series, quiet = _series(
+            in_series, entries, _days(first, last), zone, punctuality
+        )
 
         # Time inside the period, by context
         time_by_context: Counter[str] = Counter()
@@ -266,10 +283,10 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             estimate: int = int(state.get("estimate") or 0)
             if estimate <= 0:
                 continue
-            for label in ("all", _context_name(state, contexts)):
-                accuracy[label][0] += 1
-                accuracy[label][1] += estimate
-                accuracy[label][2] += actual
+            for key in ("all", _context_name(state, contexts)):
+                accuracy[key][0] += 1
+                accuracy[key][1] += estimate
+                accuracy[key][2] += actual
 
         hours: Counter[int] = Counter(
             _aware(e.occurred_at).astimezone(zone).hour for e in completions
@@ -344,21 +361,29 @@ def _period(
     if request.start is None and request.end is None:
         return today - timedelta(days=6), today, "last 7 days"
 
-    last: date = _day(request.end, today) if request.end is not None else today
+    last: date = (
+        min(_day(request.end, today), today) if request.end is not None else today
+    )
     first: date = (
         _day(request.start, today)
         if request.start is not None
         else last - timedelta(days=6)
     )
+    if first > today:
+        raise ValidationException("A report cannot start in the future.")
     if last < first:
         raise ValidationException("The period ends before it starts.")
     return first, last, "custom"
 
 
 def _series(
-    members: list[Task], entries: list[TaskHistoryEntry]
+    members: list[Task],
+    entries: list[TaskHistoryEntry],
+    days: list[date],
+    zone: ZoneInfo,
+    punctuality: dict[Any, str],
 ) -> tuple[list[SeriesReportDTO], int]:
-    """Each series with something done or missed in the period, and how
+    """Each series with something done or skipped in the period, and how
     many others are still going with nothing in it."""
     by_series: dict[TaskId, list[Task]] = defaultdict(list)
     for task in members:
@@ -390,7 +415,21 @@ def _series(
             if task.status != TaskStatus.DONE:
                 break
             streak += 1
-        completed: int = sum(1 for t in closed if t.status == TaskStatus.DONE)
+
+        ids: set[TaskId] = {t.id for t in occurrences}
+        worst: dict[date, str] = {}
+        for entry in entries:
+            if entry.task_id not in ids:
+                continue
+            if entry.action == TaskAction.COMPLETED:
+                kind: str = punctuality.get(entry.entry_id, _ON_TIME)
+            elif entry.action == TaskAction.CANCELLED:
+                kind = _SKIPPED
+            else:
+                continue
+            day: date = _aware(entry.occurred_at).astimezone(zone).date()
+            if _WORSE.index(kind) > _WORSE.index(worst.get(day, _NOTHING)):
+                worst[day] = kind
 
         report.append(
             SeriesReportDTO(
@@ -401,7 +440,8 @@ def _series(
                 done=done,
                 missed=missed,
                 streak=streak,
-                rate=completed / len(closed) if closed else None,
+                rate=done / (done + missed),
+                timeline=[worst.get(d, _NOTHING) for d in days],
             )
         )
     return sorted(report, key=lambda s: s.title.lower()), quiet

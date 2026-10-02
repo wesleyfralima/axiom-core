@@ -16,6 +16,7 @@ from b_domain.value_objects import RecurrenceInterval, TaskId
 from b_domain.value_objects.task_history import TaskAction
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
 from c_application.dtos.task_dtos import (
+    CancelTaskInputDTO,
     CreateTaskInputDTO,
     TaskByUserRequest,
     TaskHistoryRequest,
@@ -26,6 +27,7 @@ from c_application.handlers.task_handlers.create_recurring_task_handler import (
     CreateRecurringTaskHandler,
 )
 from c_application.use_cases import (
+    CancelTaskUseCase,
     CompleteTaskUseCase,
     CreateTaskUseCase,
     GetTaskHistoryUseCase,
@@ -146,6 +148,66 @@ async def test_periods(
     assert (report.start, report.period) == (start, label)
 
 
+async def test_a_period_never_goes_past_today(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    report = await _report(use_case_context, user, start="2026-03-01", end="2026-03-20")
+    assert (report.start, report.end, report.period) == (
+        date(2026, 3, 1),
+        date(2026, 3, 5),
+        "custom",
+    )
+    with pytest.raises(ValidationException, match="in the future"):
+        await _report(use_case_context, user, start="2026-03-10")
+
+
+async def test_a_series_timeline_and_period_rate(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    gym = await _create(
+        use_case_context,
+        user,
+        title="Gym",
+        recurrence=RecurrenceInputDTO(
+            frequency=RecurrenceInterval.DAILY, start_date="2026-03-05 18:00"
+        ),
+    )
+    await _done(use_case_context, user, gym)  # on time: noon, due at 18:00
+    async with fake_uow_factory() as uow:
+        [completion] = [
+            e
+            for e in await uow.task_history.recent(user.id)
+            if e.action == TaskAction.COMPLETED
+        ]
+        done_gym = await uow.tasks.get_by_id(TaskId.from_string(gym.id))
+    assert done_gym is not None
+    await CreateRecurringTaskHandler(fake_uow_factory()).handle(
+        TaskCompletedEvent(
+            id=UniqueId(completion.entry_id),
+            occurred_at=completion.occurred_at,
+            task_id=done_gym.id,
+            user_id=user.id,
+            estimated_minutes=30,
+            actual_minutes=0,
+            energy_level_used=done_gym.required_energy_level,
+            task_complexity=done_gym.complexity,
+        )
+    )
+    report = await _report(use_case_context, user)
+    [series] = report.series
+    assert series.timeline == ["none"] * 6 + ["on_time"]
+    assert series.rate == 1.0
+
+    # Skipping the next occurrence: the same day now has the worst of the two
+    await CancelTaskUseCase(**use_case_context).execute(
+        CancelTaskInputDTO(task_id_prefix=series.task_id[:8], user_id=str(user.id))
+    )
+    report = await _report(use_case_context, user)
+    [series] = report.series
+    assert (series.done, series.missed, series.rate) == (1, 1, 0.5)
+    assert series.timeline == ["none"] * 6 + ["skipped"]
+
+
 async def test_a_period_that_ends_before_it_starts(
     use_case_context: UseCaseDeps, user: User
 ) -> None:
@@ -195,6 +257,8 @@ async def test_a_series_carries_its_id_and_has_a_streak(
     [series] = report.series
     assert (series.title, series.done, series.missed, series.streak) == ("Gym", 1, 0, 1)
     assert series.rate == 1.0
+    # One entry per day of the period; done at noon against a 07:00 due date
+    assert series.timeline == ["none"] * 6 + ["late"]
     assert series.rule == "Every day."
     assert series.series_id == gym.id
     assert series.task_id != gym.id  # the latest occurrence
