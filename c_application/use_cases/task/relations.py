@@ -21,11 +21,12 @@ from typing import Any
 from zoneinfo import ZoneInfo
 
 from a_core import UniqueId
-from a_core.exceptions import ValidationException
+from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.entities import Task
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.value_objects import TaskId, TaskStatus, UserId
 from b_domain.value_objects.dates import DueDate
+from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos.task_dtos import TaskLinkDTO
 
 
@@ -42,6 +43,79 @@ async def waits_on_open(
         if is_open(await uow.tasks.get_by_id(ref, user_id)):
             return True
     return False
+
+
+async def open_blockers(uow: UnitOfWork, task: Task, user_id: UserId) -> list[Task]:
+    """The tasks ``task`` still waits on (open ones), by ID."""
+    blockers: list[Task] = []
+    for ref in sorted(task.depends_on, key=str):
+        found: Task | None = await uow.tasks.get_by_id(ref, user_id)
+        if found is not None and is_open(found):
+            blockers.append(found)
+    return blockers
+
+
+def _waiting_on(blockers: list[Task]) -> str:
+    """ "'A'", "'A' and 'B'", "'A', 'B' and 'C'"."""
+    names: list[str] = [f"'{b.title}'" for b in blockers]
+    return ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0]
+
+
+async def refuse_while_waiting(uow: UnitOfWork, task: Task, user_id: UserId) -> None:
+    """Refuse to complete a task that waits on another one, or whose open
+    subtask does: a dependency the user set is never ignored — it is done or
+    cancelled first, or removed, or the waiting subtask is deleted.
+
+    Raises:
+        InvalidStateTransition: If the task, or one of its open subtasks,
+            waits on a task still open.
+    """
+    blockers: list[Task] = await open_blockers(uow, task, user_id)
+    if task.is_blocked and blockers:
+        raise InvalidStateTransition(
+            f"'{task.title}' is waiting on {_waiting_on(blockers)}: finish "
+            "that first, or remove the dependency (axpro task edit "
+            f"{str(task.id)[:8]} --undep {str(blockers[0].id)[:8]})."
+        )
+    for sub in await subtasks_of(uow, task):
+        if not is_open(sub) or not sub.is_blocked:
+            continue
+        held: list[Task] = await open_blockers(uow, sub, user_id)
+        if held:
+            raise InvalidStateTransition(
+                f"'{task.title}' cannot be done: its subtask '{sub.title}' is "
+                f"waiting on {_waiting_on(held)}. Finish that first, remove "
+                f"the dependency (axpro task edit {str(sub.id)[:8]} --undep "
+                f"{str(held[0].id)[:8]}) or delete the subtask."
+            )
+
+
+async def closed_along(uow: UnitOfWork, task: Task, user_id: UserId) -> list[Task]:
+    """The subtasks a done or cancelled ``task`` closed along with it and that
+    are still closed: they come back when it is reopened. A subtask closed
+    before, or by itself, stays as it is."""
+    if task.status not in (TaskStatus.DONE, TaskStatus.CANCELLED):
+        return []
+    closings: list[TaskHistoryEntry] = [
+        e
+        for e in await uow.task_history.list_for_task(task.id, user_id)
+        if e.action in (TaskAction.COMPLETED, TaskAction.CANCELLED)
+    ]
+    if not closings:
+        return []
+    found: list[Task] = []
+    for entry in await uow.task_history.caused_by(closings[-1].entry_id):
+        if entry.action not in (TaskAction.COMPLETED, TaskAction.CANCELLED):
+            continue
+        sub: Task | None = await uow.tasks.get_by_id(entry.task_id, user_id)
+        if (
+            sub is not None
+            and sub.deleted_at is None
+            and sub.parent_id == task.id
+            and sub.status in (TaskStatus.DONE, TaskStatus.CANCELLED)
+        ):
+            found.append(sub)
+    return found
 
 
 async def subtasks_of(uow: UnitOfWork, task: Task) -> list[Task]:
@@ -172,11 +246,12 @@ async def relations_of(uow: UnitOfWork, task: Task, user_id: UserId) -> dict[str
         found
         for ref in sorted(task.depends_on, key=str)
         if (found := await uow.tasks.get_by_id(ref, user_id)) is not None
+        and found.deleted_at is None
     ]
     blocks: list[Task] = [
         t
         for t in await uow.tasks.find_tasks_blocked_by(task.id)
-        if t.user_id == user_id
+        if t.user_id == user_id and t.deleted_at is None
     ]
     return {
         "parent": link(parent) if parent else None,
@@ -185,6 +260,7 @@ async def relations_of(uow: UnitOfWork, task: Task, user_id: UserId) -> dict[str
         "all_subtasks": len(below),
         "waits_on": [link(t) for t in waits_on],
         "blocks": [link(t) for t in blocks],
+        "reopens_with": len(await closed_along(uow, task, user_id)),
     }
 
 

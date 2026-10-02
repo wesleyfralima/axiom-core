@@ -142,7 +142,8 @@ simulator: `python -m d_fake_infra`).
   on its own once the device joined; the server is the `SyncTransport`
   port; the use cases are in `c_application/use_cases/sync/` (join, run,
   status, devices). `undo` skips the changes of other devices
-  (`TaskHistoryEntry.device_id`). The design is in the product backlog
+  (`TaskHistoryEntry.device_id`) and refuses a command when another device
+  changed a task it touched since (`_changed_elsewhere`). The design is in the product backlog
   (`../docs/backlog/todo/backlog-01.md`, Part 5).
 - **The sync server:** `b_domain/ports/sync_server_store.py`
   (`SyncServerStore`) and `c_application/use_cases/sync_server/` (invite,
@@ -173,6 +174,10 @@ simulator: `python -m d_fake_infra`).
   `caused_by`** (the event's), so undo takes it back with that change. The
   last open subtask done tells its parent is ready
   (`CompleteTaskOutputDTO.parent_ready`): the interface asks.
+  **A dependency is never ignored:** completing a task that waits, or a
+  parent whose open subtask waits, is refused (`refuse_while_waiting`).
+  Reopening a parent brings back the subtasks it closed along with it
+  (`closed_along`; the others stay closed).
 - **Saved views:** `b_domain/value_objects/task_view.py` (`TaskView`,
   `ViewScope`), port `TaskViewRepository` (`uow.task_views`), use cases in
   `c_application/use_cases/task_view/`. A view keeps the task list's
@@ -248,7 +253,7 @@ there too.
 
 ## Current state (2026-10-02)
 
-- Version `0.25.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.29.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -272,9 +277,11 @@ there too.
   one undo per command, dependencies within a family, a parent ready once
   its last subtask is done (0.26.0, product Backlog 02); every device of
   an account on the same version (0.27.0); saved views, this device's or
-  every device's (0.28.0, product Backlog 03, Part 2).
+  every device's (0.28.0, product Backlog 03, Part 2); a waiting task
+  is never done around its dependency, reopening a parent brings its
+  subtasks, undo refused after another device's change (0.29.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 784 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 86.6% over an 86.6% floor.
+- 792 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 86.8% over an 86.7% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

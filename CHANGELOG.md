@@ -6,6 +6,36 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.29.0] — 2026-10-02
+
+Product Backlog 02, owner's decisions of 2026-10-02.
+
+### Changed
+- **A dependency the user set is never ignored** (S2): completing a task
+  that waits on another open task is refused saying what it waits on
+  (`'Paint' is waiting on 'Get the keys': finish that first, or remove the
+  dependency…`), and so is completing a parent whose open subtask waits —
+  it names the subtask and what holds it; done or cancelled first, removed,
+  or the subtask deleted, and the parent goes. Before, completing the
+  parent took a waiting subtask along. `Task.mark_as_done` no longer
+  takes a blocked task out of its wait.
+- **Reopening a parent brings back the subtasks it closed along with it**
+  (S5; `closed_along`, found by the history's `caused_by`): a subtask done
+  or cancelled before, or by itself, stays closed. One undo takes them all
+  back. `TaskOutputDTO.reopens_with` (the card says how many),
+  `TaskStatusChangedOutputDTO.subtasks_reopened`.
+- **A deleted task no longer shows in "Waits on" or "Blocks"** (D1); it is
+  back when it is restored or the delete is undone.
+
+### Fixed
+- **An undo could take away what another device did since** (G2/G3, tried
+  with two devices and a server): it restores the task's whole snapshot, so
+  a title or date the other device changed after the command went back too,
+  on every device — and the edits of a next occurrence the other device had
+  changed went into its tombstone. Undo is now refused (the preview's
+  `blocked`) when a task the command changed, made or closed along was
+  changed by another device after it.
+
 ## [0.28.0] — 2026-10-02
 
 ### Added

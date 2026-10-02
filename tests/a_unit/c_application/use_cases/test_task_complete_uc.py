@@ -156,7 +156,7 @@ async def test_complete_task_fails_if_task_is_blocked(
         )
 
         with pytest.raises(
-            DomainException, match="Cannot change task status from blocked to done"
+            DomainException, match="'Task B' is waiting on 'Task A': finish that first"
         ):
             await use_case.execute(request)
 
