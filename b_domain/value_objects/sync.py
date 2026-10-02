@@ -167,6 +167,8 @@ class SyncEntity(StrEnum):
     TASK = "task"
     TIME_ENTRY = "time_entry"
     TASK_HISTORY = "task_history"
+    # The account's saved views (a device's own never sync)
+    TASK_VIEW = "task_view"
 
     @property
     def rank(self) -> int:

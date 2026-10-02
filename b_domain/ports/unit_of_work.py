@@ -23,6 +23,7 @@ from b_domain.ports.repositories.outbox_event_repository import (
 from b_domain.ports.repositories.task_history_repository import (
     TaskHistoryRepository,
 )
+from b_domain.ports.repositories.task_view_repository import TaskViewRepository
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
 from b_domain.ports.repositories.user_behavior_metrics_repository import (
     UserBehaviorMetricsRepository,
@@ -76,6 +77,7 @@ class UnitOfWork(ABC):
     user_behavior_metrics: UserBehaviorMetricsRepository
     user_behavior_profiles: UserBehaviorProfileRepository
     calendar_days: CalendarDayRepository
+    task_views: TaskViewRepository
     # The device's side of sync (its state, operations to push, clocks)
     sync: SyncStore
     # Not a repository: what the region's holidays are (read-only, no
