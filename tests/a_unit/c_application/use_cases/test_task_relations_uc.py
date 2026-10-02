@@ -267,20 +267,21 @@ async def test_completing_a_parent_completes_its_open_subtasks(
 ) -> None:
     house = await _add(use_case_context, user, "Move house")
     books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-    blocker = await _add(use_case_context, user, "Get the keys")
+    # A sibling: a subtask waits only within its family
+    blocker = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
     paint = await _add(
         use_case_context, user, "Paint", parent_id=house.id, depends_on={blocker.id}
     )
     assert paint.is_blocked
 
-    assert (await _show(use_case_context, user, house)).open_subtasks == 2
+    assert (await _show(use_case_context, user, house)).open_subtasks == 3
 
     done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
 
     # Every one, the waiting one too, at the parent's time
-    assert done.subtasks_done == 2
+    assert done.subtasks_done == 3
     parent = await _entity(fake_uow_factory, house)
-    for sub in (books, paint):
+    for sub in (books, blocker, paint):
         found = await _entity(fake_uow_factory, sub)
         assert found.status == TaskStatus.DONE
         assert found.completed_at == parent.completed_at
@@ -288,14 +289,15 @@ async def test_completing_a_parent_completes_its_open_subtasks(
     preview = await UndoPreviewUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id))
     )
-    assert sorted(preview.along) == ["Pack the books", "Paint"]
+    assert sorted(preview.along) == ["Get the keys", "Pack the books", "Paint"]
     assert preview.also == []
     await UndoUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id), entry_id=preview.entry_id)
     )
     assert (await _entity(fake_uow_factory, books)).status == TaskStatus.PENDING
+    assert (await _entity(fake_uow_factory, blocker)).status == TaskStatus.PENDING
     assert (await _entity(fake_uow_factory, paint)).status == TaskStatus.BLOCKED
-    assert (await _show(use_case_context, user, house)).open_subtasks == 2
+    assert (await _show(use_case_context, user, house)).open_subtasks == 3
 
 
 async def test_deleting_a_parent_takes_its_subtasks_and_restore_brings_them(

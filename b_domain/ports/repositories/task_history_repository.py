@@ -27,6 +27,11 @@ class TaskHistoryRepository(ABC):
         """The entries another entry's change made on its own."""
 
     @abstractmethod
+    async def of_command(self, command_id: UUID) -> list[TaskHistoryEntry]:
+        """Every entry one command wrote, newest first (what one undo takes
+        back)."""
+
+    @abstractmethod
     async def between(
         self, user_id: UserId, start: datetime, end: datetime
     ) -> list[TaskHistoryEntry]:

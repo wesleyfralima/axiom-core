@@ -295,6 +295,10 @@ class CompleteTaskOutputDTO(DTO):
     # Its open subtasks, done along with it
     subtasks_done: int = 0
 
+    # A subtask: its parent, still open, now that none of its subtasks is
+    # (the interface asks whether the parent is done too)
+    parent_ready: TaskLinkDTO | None = None
+
 
 @dataclass(frozen=True, kw_only=True)
 class GetTaskRequest(DTO):

@@ -9,7 +9,10 @@
 - **Dependencies** are kept once they are done: a task shows what it waited
   on, and waits again if one of them is reopened. It waits (blocked) while
   one of them is open; a closed or deleted one does not hold it. A task never
-  depends, however indirectly, on one that depends on it.
+  depends, however indirectly, on one that depends on it. **A dependency
+  stays within a family:** a subtask waits only on its siblings and only
+  its siblings wait on it; a task of its own waits only on tasks of their
+  own (two tasks depend on each other only with the same parent, or none).
 """
 
 from collections.abc import Iterable
@@ -100,6 +103,49 @@ async def check_dependency(
         found: Task | None = await uow.tasks.get_by_id(ref, user_id)
         if found is not None:
             pending.extend(found.depends_on)
+
+
+def check_family(waiting: Task, blocker: Task) -> None:
+    """Refuse a dependency between two tasks of different families.
+
+    Raises:
+        ValidationException: If one is a subtask and the other is not its
+            sibling.
+    """
+    if waiting.parent_id == blocker.parent_id:
+        return
+    if blocker.parent_id is not None:
+        raise ValidationException(
+            f"'{blocker.title}' is a subtask: only its siblings can wait on it."
+        )
+    raise ValidationException(
+        f"'{waiting.title}' is a subtask: it can only wait on its siblings "
+        "(its parent can wait on other tasks)."
+    )
+
+
+async def check_family_links(uow: UnitOfWork, task: Task, user_id: UserId) -> None:
+    """Refuse moving a task (under a parent, or out of one) while it is linked
+    by a dependency to a task outside its new family.
+
+    Raises:
+        ValidationException: If it waits on, or holds, such a task.
+    """
+    for ref in task.depends_on:
+        blocker: Task | None = await uow.tasks.get_by_id(ref, user_id)
+        if blocker is not None and blocker.parent_id != task.parent_id:
+            raise ValidationException(
+                f"'{task.title}' waits on '{blocker.title}': remove the dependency "
+                f"first (axpro task edit {str(task.id)[:8]} --undep "
+                f"{str(blocker.id)[:8]})."
+            )
+    for waiting in await uow.tasks.find_tasks_blocked_by(task.id):
+        if waiting.parent_id != task.parent_id:
+            raise ValidationException(
+                f"'{waiting.title}' waits on '{task.title}': remove the dependency "
+                f"first (axpro task edit {str(waiting.id)[:8]} --undep "
+                f"{str(task.id)[:8]})."
+            )
 
 
 def link(task: Task) -> TaskLinkDTO:

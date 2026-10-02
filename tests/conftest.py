@@ -509,6 +509,9 @@ class FakeTaskHistoryRepository(TaskHistoryRepository):
     async def caused_by(self, entry_id: UUID) -> list[TaskHistoryEntry]:
         return [e for e in self.entries if e.caused_by == entry_id]
 
+    async def of_command(self, command_id: UUID) -> list[TaskHistoryEntry]:
+        return [e for e in reversed(self.entries) if e.command_id == command_id]
+
     async def between(
         self, user_id: UserId, start: datetime, end: datetime
     ) -> list[TaskHistoryEntry]:

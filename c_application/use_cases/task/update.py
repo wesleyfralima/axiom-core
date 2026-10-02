@@ -22,6 +22,8 @@ from c_application.mappers.task_mapper import TaskMapper
 from c_application.use_cases.task.relations import (
     check_can_be_subtask,
     check_dependency,
+    check_family,
+    check_family_links,
     check_parent,
     check_takes_subtasks,
     cover_subtasks,
@@ -283,6 +285,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 for ref in request.add_dependencies:
                     blocker: Task = await find_task(uow, ref, user_id)
                     await check_dependency(uow, task, blocker, user_id)
+                    check_family(task, blocker)
                     depends_on.add(blocker.id)
                 for ref in request.remove_dependencies:
                     # Among its own dependencies (a deleted one included)
@@ -298,6 +301,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     depends_on,
                     waiting=await waits_on_open(uow, depends_on, user_id),
                 )
+            # Moved: its dependencies (those left) stay within its new family
+            if request.parent_id is not None or request.remove_parent:
+                await check_family_links(uow, task, user_id)
 
             after: dict[str, str | None] = {
                 **_snapshot(task, names),

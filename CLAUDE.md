@@ -104,7 +104,10 @@ simulator: `python -m d_fake_infra`).
   of any kind are picked up by `b_domain/events/registry.py` on their own.
 - **Undo and tombstones:** `c_application/use_cases/task/undo.py`. A change's
   event carries `previous=task.snapshot()`; undo restores it with
-  `Task.revert_to` (no state machine). A delete is a tombstone
+  `Task.revert_to` (no state machine). **One undo per command typed:**
+  the interface gives the unit of work a `command_id` (one per command),
+  written on every history entry; undo takes back every change of the
+  newest command (`of_command`), newest first. A delete is a tombstone
   (`deleted_at`): searches see only live tasks unless asked for deleted
   ones; `get_by_id` sees both; `purge_deleted` is final.
 - **Task lifecycle:** the state machine is `TaskStatus._get_transitions`
@@ -148,7 +151,10 @@ simulator: `python -m d_fake_infra`).
 - **Relations:** `c_application/use_cases/task/relations.py` — no loops
   (`check_parent`, `check_dependency`), what `show` tells (`relations_of`).
   Dependencies are kept once done: a task waits (`TaskStatus.BLOCKED`)
-  while one is open; `FollowBlockersHandler` keeps that true.
+  while one is open; `FollowBlockersHandler` keeps that true. **A
+  dependency stays within a family** (`check_family`,
+  `check_family_links`): two tasks depend on each other only with the same
+  parent, or none — a subtask only with its siblings.
 - **Subtasks** (a parent's checklist, as tasks; same module): one level,
   never repeating on their own, never bigger than the parent — due no
   later, priority no higher (`fit_under`: refused when asked, brought
@@ -161,7 +167,9 @@ simulator: `python -m d_fake_infra`).
   parent. A recurring parent's next occurrence brings copies
   (`CreateRecurringTaskHandler`, `Task.copy_under`, `subtask_copy_id`,
   `shifted_due`). **Whatever a change does to another task is linked by
-  `caused_by`** (the event's), so one undo takes the whole command back.
+  `caused_by`** (the event's), so undo takes it back with that change. The
+  last open subtask done tells its parent is ready
+  (`CompleteTaskOutputDTO.parent_ready`): the interface asks.
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -228,7 +236,7 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-09-27)
+## Current state (2026-10-02)
 
 - Version `0.25.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
@@ -250,9 +258,11 @@ there too.
   build (0.22.2); a task's relations: parent and subtasks, dependencies kept
   once done, edited, cascades (0.23.0); subtasks as a checklist, within
   their parent, brought along by a recurring one (0.24.0); only the
-  device's account syncs it (0.24.2); the tasks due on one day (0.25.0).
+  device's account syncs it (0.24.2); the tasks due on one day (0.25.0);
+  one undo per command, dependencies within a family, a parent ready once
+  its last subtask is done (0.26.0, product Backlog 02).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 755 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 86.1% over an 86.0% floor.
+- 767 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 86.2% over an 86.2% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

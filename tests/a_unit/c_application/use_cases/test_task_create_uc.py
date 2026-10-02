@@ -331,8 +331,9 @@ async def test_parent_and_dependencies_by_id_prefix(
     parent = await create.execute(
         CreateTaskInputDTO(user_id=str(wesley.id), title="Move house")
     )
+    # A sibling: a subtask waits only within its family
     before = await create.execute(
-        CreateTaskInputDTO(user_id=str(wesley.id), title="Before")
+        CreateTaskInputDTO(user_id=str(wesley.id), title="Before", parent_id=parent.id)
     )
 
     child = await create.execute(
@@ -349,7 +350,7 @@ async def test_parent_and_dependencies_by_id_prefix(
     listed = await ListTasksUseCase(**use_case_context).execute(
         ListTasksRequest(user_id=str(wesley.id), parent_id=parent.id[:6])
     )
-    assert [t.title for t in listed.tasks] == ["Pack the books"]
+    assert sorted(t.title for t in listed.tasks) == ["Before", "Pack the books"]
 
 
 @pytest.mark.asyncio

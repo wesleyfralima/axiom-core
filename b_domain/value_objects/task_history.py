@@ -57,6 +57,9 @@ class TaskHistoryEntry:
         undoes (UUID | None): For an "undone" entry, the entry it undid.
         device_id (UUID | None): The device that made the change (set by the
             storage once the device syncs).
+        command_id (UUID | None): The command the user typed that made it
+            (every change of ``task done a b c`` shares one): undo takes the
+            whole command back. None before commands were recorded.
     """
 
     task_id: TaskId
@@ -77,3 +80,5 @@ class TaskHistoryEntry:
     # The device that made the change, once the user syncs (None: this
     # device, before it joined)
     device_id: UUID | None = None
+    # The command typed (one per `axpro …` run): one undo takes it all back
+    command_id: UUID | None = None
