@@ -833,11 +833,8 @@ class Task(Entity):
         caused_by: UniqueId | None = None,
     ) -> None:
         """Mark the task as completed (``caused_by``: its parent's
-        completion, when it closes along with it — then even while it waits
-        on another task: the parent says the whole is done)."""
+        completion, when it closes along with it)."""
         previous: dict[str, Any] = self.snapshot()
-        if caused_by is not None and self.is_blocked:
-            self.change_status(now, TaskStatus.PENDING)
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.completed_at = now
         self.add_event(

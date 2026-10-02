@@ -176,6 +176,8 @@ class TaskOutputDTO(DTO):
     all_subtasks: int = 0
     waits_on: list[TaskLinkDTO] = field(default_factory=list)
     blocks: list[TaskLinkDTO] = field(default_factory=list)
+    # A closed parent: how many subtasks come back with it when reopened
+    reopens_with: int = 0
     due_date: datetime | None = None
     is_overdue: bool = False
 
@@ -270,12 +272,15 @@ class TaskStatusChangedOutputDTO(DTO):
         subtasks_along (int): Its subtasks cancelled or archived with it.
         parent_reopened (str | None): A subtask reopened: its parent's
             title, when the parent was closed and opened along.
+        subtasks_reopened (int): A parent reopened: the subtasks it closed
+            along with it, opened again with it.
     """
 
     task: TaskOutputDTO
     series_ended: bool = False
     subtasks_along: int = 0
     parent_reopened: str | None = None
+    subtasks_reopened: int = 0
 
 
 @dataclass(frozen=True, kw_only=True)

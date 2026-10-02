@@ -12,7 +12,12 @@ from c_application.dtos.task_dtos import (
     TaskByUserRequest,
 )
 from c_application.mappers.task_mapper import TaskMapper
-from c_application.use_cases.task.relations import is_open, link, subtasks_of
+from c_application.use_cases.task.relations import (
+    is_open,
+    link,
+    refuse_while_waiting,
+    subtasks_of,
+)
 from c_application.use_cases.task.timer import time_of
 
 
@@ -57,6 +62,11 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             except ValueError as e:
                 raise ValidationException(e) from e
 
+            # A dependency the user set is never ignored: not this task, nor
+            # a parent whose open subtask waits
+            subtasks: list[Task] = await subtasks_of(uow, task)
+            await refuse_while_waiting(uow, task, subtasks, user_id)
+
             # 2. Close active timers and compute actual duration
             actual_duration: int = await self._close_active_timers(
                 uow, task, now, request
@@ -71,12 +81,11 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             # 4. Persist changes
             await uow.tasks.update(task)
 
-            # 5. Its open subtasks are done with it, at the same time — even
-            # one waiting on another task (linked to its completion, so undo
-            # takes them back together)
+            # 5. Its open subtasks are done with it, at the same time (linked
+            # to its completion, so undo takes them back together)
             done_below: int = 0
             completion = task.peek_events()[-1].id
-            for sub in reversed(await subtasks_of(uow, task)):
+            for sub in reversed(subtasks):
                 if not is_open(sub):
                     continue
                 minutes: int = await self._close_active_timers(uow, sub, now, request)

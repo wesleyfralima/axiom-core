@@ -4,7 +4,7 @@ from datetime import datetime
 
 import pytest
 
-from a_core.exceptions import ValidationException
+from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.entities import Task, User
 from b_domain.events.task_events import (
     TaskCompletedEvent,
@@ -13,6 +13,7 @@ from b_domain.events.task_events import (
 from b_domain.value_objects import TaskId, TaskStatus
 from b_domain.value_objects.task_history import TaskAction
 from c_application.dtos.task_dtos import (
+    CancelTaskInputDTO,
     CreateTaskInputDTO,
     GetTaskRequest,
     ListTasksRequest,
@@ -24,6 +25,7 @@ from c_application.handlers.task_handlers.follow_blockers_handler import (
     FollowBlockersHandler,
 )
 from c_application.use_cases import (
+    CancelTaskUseCase,
     CompleteTaskUseCase,
     CreateTaskUseCase,
     DeleteTaskUseCase,
@@ -267,21 +269,16 @@ async def test_completing_a_parent_completes_its_open_subtasks(
 ) -> None:
     house = await _add(use_case_context, user, "Move house")
     books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
-    # A sibling: a subtask waits only within its family
-    blocker = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
-    paint = await _add(
-        use_case_context, user, "Paint", parent_id=house.id, depends_on={blocker.id}
-    )
-    assert paint.is_blocked
+    keys = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
 
-    assert (await _show(use_case_context, user, house)).open_subtasks == 3
+    assert (await _show(use_case_context, user, house)).open_subtasks == 2
 
     done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
 
-    # Every one, the waiting one too, at the parent's time
-    assert done.subtasks_done == 3
+    # Every one, at the parent's time
+    assert done.subtasks_done == 2
     parent = await _entity(fake_uow_factory, house)
-    for sub in (books, blocker, paint):
+    for sub in (books, keys):
         found = await _entity(fake_uow_factory, sub)
         assert found.status == TaskStatus.DONE
         assert found.completed_at == parent.completed_at
@@ -289,15 +286,133 @@ async def test_completing_a_parent_completes_its_open_subtasks(
     preview = await UndoPreviewUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id))
     )
-    assert sorted(preview.along) == ["Get the keys", "Pack the books", "Paint"]
+    assert sorted(preview.along) == ["Get the keys", "Pack the books"]
     assert preview.also == []
     await UndoUseCase(**use_case_context).execute(
         UndoRequest(user_id=str(user.id), entry_id=preview.entry_id)
     )
     assert (await _entity(fake_uow_factory, books)).status == TaskStatus.PENDING
-    assert (await _entity(fake_uow_factory, blocker)).status == TaskStatus.PENDING
+    assert (await _entity(fake_uow_factory, keys)).status == TaskStatus.PENDING
+    assert (await _show(use_case_context, user, house)).open_subtasks == 2
+
+
+async def test_a_parent_is_not_done_while_an_open_subtask_waits(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    house = await _add(use_case_context, user, "Move house")
+    books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
+    keys = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
+    paint = await _add(
+        use_case_context, user, "Paint", parent_id=house.id, depends_on={keys.id}
+    )
+    assert paint.is_blocked
+
+    # A dependency is never ignored: nothing changes, and it says what holds
+    with pytest.raises(
+        InvalidStateTransition,
+        match="'Move house' cannot be done: its subtask 'Paint' is waiting on "
+        "'Get the keys'",
+    ):
+        await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+    for task in (house, books, keys):
+        assert (await _entity(fake_uow_factory, task)).status == TaskStatus.PENDING
     assert (await _entity(fake_uow_factory, paint)).status == TaskStatus.BLOCKED
-    assert (await _show(use_case_context, user, house)).open_subtasks == 3
+
+    # The waiting task alone is refused too, naming what it waits on
+    with pytest.raises(InvalidStateTransition, match="'Paint' is waiting on 'Get"):
+        await CompleteTaskUseCase(**use_case_context).execute(_by(user, paint))
+
+    # Sorted out: the blocker done frees it, and then the parent goes
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, keys))
+    await _follow(fake_uow_factory, user, TaskCompletedEvent, keys)
+    done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+    assert done.subtasks_done == 2
+
+
+async def test_a_waiting_subtask_that_is_deleted_no_longer_holds_its_parent(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    house = await _add(use_case_context, user, "Move house")
+    keys = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
+    paint = await _add(
+        use_case_context, user, "Paint", parent_id=house.id, depends_on={keys.id}
+    )
+    with pytest.raises(InvalidStateTransition):
+        await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+
+    await DeleteTaskUseCase(**use_case_context).execute(
+        DeleteTaskInputDTO(task_id_prefix=paint.id[:8], user_id=str(user.id))
+    )
+    done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+    assert done.subtasks_done == 1
+
+
+async def test_reopening_a_parent_brings_back_what_it_closed_along(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    house = await _add(use_case_context, user, "Move house")
+    books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
+    boxes = await _add(use_case_context, user, "Buy boxes", parent_id=house.id)
+    keys = await _add(use_case_context, user, "Get the keys", parent_id=house.id)
+    # One closed before the parent, another thrown away on its own
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, boxes))
+    await CancelTaskUseCase(**use_case_context).execute(
+        CancelTaskInputDTO(task_id_prefix=keys.id[:8], user_id=str(user.id))
+    )
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+    assert (await _entity(fake_uow_factory, books)).status == TaskStatus.DONE
+
+    # The card says how many come back
+    assert (await _show(use_case_context, user, house)).reopens_with == 1
+
+    reopened = await ReopenTaskUseCase(**use_case_context).execute(_by(user, house))
+
+    assert reopened.subtasks_reopened == 1
+    assert (await _entity(fake_uow_factory, house)).status == TaskStatus.REOPENED
+    assert (await _entity(fake_uow_factory, books)).status == TaskStatus.REOPENED
+    # What was closed before stays closed
+    assert (await _entity(fake_uow_factory, boxes)).status == TaskStatus.DONE
+    assert (await _entity(fake_uow_factory, keys)).status == TaskStatus.CANCELLED
+
+    # One undo takes it all back
+    await UndoUseCase(**use_case_context).execute(UndoRequest(user_id=str(user.id)))
+    assert (await _entity(fake_uow_factory, house)).status == TaskStatus.DONE
+    assert (await _entity(fake_uow_factory, books)).status == TaskStatus.DONE
+
+
+async def test_reopening_a_subtask_does_not_reopen_its_siblings(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    house = await _add(use_case_context, user, "Move house")
+    books = await _add(use_case_context, user, "Pack the books", parent_id=house.id)
+    boxes = await _add(use_case_context, user, "Buy boxes", parent_id=house.id)
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, house))
+
+    reopened = await ReopenTaskUseCase(**use_case_context).execute(_by(user, books))
+
+    assert reopened.parent_reopened == "Move house"
+    assert reopened.subtasks_reopened == 0
+    assert (await _entity(fake_uow_factory, boxes)).status == TaskStatus.DONE
+
+
+async def test_a_deleted_blocker_is_not_shown_until_it_comes_back(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    keys = await _add(use_case_context, user, "Get the keys")
+    use = await _add(use_case_context, user, "Use the keys", depends_on={keys.id})
+    assert [t.title for t in (await _show(use_case_context, user, use)).waits_on] == [
+        "Get the keys"
+    ]
+
+    await DeleteTaskUseCase(**use_case_context).execute(
+        DeleteTaskInputDTO(task_id_prefix=keys.id[:8], user_id=str(user.id))
+    )
+    assert (await _show(use_case_context, user, use)).waits_on == []
+
+    await RestoreTaskUseCase(**use_case_context).execute(_by(user, keys))
+    assert [t.title for t in (await _show(use_case_context, user, use)).waits_on] == [
+        "Get the keys"
+    ]
 
 
 async def test_deleting_a_parent_takes_its_subtasks_and_restore_brings_them(

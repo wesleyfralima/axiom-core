@@ -2,7 +2,7 @@
 
 from dataclasses import replace
 from datetime import timedelta
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 
@@ -397,3 +397,103 @@ async def test_undo_leaves_the_changes_other_devices_made(
     assert preview.task_id == task.id
     assert preview.entry is not None
     assert preview.entry.action == str(TaskAction.CREATED)
+
+
+def _this_device(fake_uow_factory: FakeUowFactory, user: User) -> UUID:
+    """Make the fake device sync: from now on changes carry its ID."""
+    mine = uuid4()
+    fake_uow_factory().sync.sync_state = SyncState(
+        server_url="https://example.com",
+        account_id=user.id.value,
+        device_id=mine,
+        device_name="mint",
+        clock=Hlc.start(mine),
+    )
+    return mine
+
+
+def _stamp(fake_uow_factory: FakeUowFactory, device: UUID) -> None:
+    """What the history's storage does: every change so far is this device's."""
+    history = fake_uow_factory().task_history.entries
+    history[:] = [replace(e, device_id=e.device_id or device) for e in history]
+
+
+def _changed_by(
+    fake_uow_factory: FakeUowFactory, task: TaskOutputDTO, device: UUID
+) -> None:
+    """A change another device made to the task after the last one."""
+    history = fake_uow_factory().task_history.entries
+    history.append(
+        replace(
+            history[-1],
+            task_id=TaskId.from_string(task.id),
+            entry_id=uuid4(),
+            action=TaskAction.EDITED,
+            caused_by=None,
+            command_id=None,
+            occurred_at=history[-1].occurred_at + timedelta(minutes=1),
+            device_id=device,
+        )
+    )
+
+
+async def test_undo_is_refused_when_another_device_changed_the_task_since(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory, user: User
+) -> None:
+    mine, other = _this_device(fake_uow_factory, user), uuid4()
+    task = await _create(use_case_context, user)
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
+    _stamp(fake_uow_factory, mine)
+    _changed_by(fake_uow_factory, task, other)  # renamed on the phone, say
+
+    preview = await UndoPreviewUseCase(**use_case_context).execute(
+        UndoRequest(user_id=str(user.id))
+    )
+    assert preview.blocked is not None
+    assert "changed on another device" in preview.blocked
+    with pytest.raises(DomainException, match="changed on another device"):
+        await UndoUseCase(**use_case_context).execute(
+            UndoRequest(user_id=str(user.id), entry_id=preview.entry_id)
+        )
+    # Nothing was touched
+    kept = await _task(fake_uow_factory, task)
+    assert kept is not None
+    assert kept.status == TaskStatus.DONE
+
+
+async def test_undo_works_when_the_other_device_changed_it_before(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory, user: User
+) -> None:
+    mine, other = _this_device(fake_uow_factory, user), uuid4()
+    task = await _create(use_case_context, user)
+    _stamp(fake_uow_factory, mine)
+    _changed_by(fake_uow_factory, task, other)
+    history = fake_uow_factory().task_history.entries
+    history[-1] = replace(history[-1], occurred_at=history[0].occurred_at)
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
+    _stamp(fake_uow_factory, mine)
+
+    assert await _undo(use_case_context, user) == "completed"
+
+
+async def test_undo_is_refused_when_another_device_changed_the_next_occurrence(
+    use_case_context: UseCaseDeps, fake_uow_factory: FakeUowFactory, user: User
+) -> None:
+    mine, other = _this_device(fake_uow_factory, user), uuid4()
+    task = await _gym(use_case_context, user)
+    await _complete_following(use_case_context, user, task, fake_uow_factory)
+    _stamp(fake_uow_factory, mine)
+    next_one = next(
+        e.task_id
+        for e in fake_uow_factory().task_history.entries
+        if e.action == TaskAction.CREATED and e.caused_by is not None
+    )
+    _changed_by(
+        fake_uow_factory,
+        replace(task, id=str(next_one)),
+        other,
+    )  # its edits would end up in a tombstone
+
+    with pytest.raises(DomainException, match="changed on another device"):
+        await UndoUseCase(**use_case_context).execute(UndoRequest(user_id=str(user.id)))
+    assert len(await _open_ones(fake_uow_factory)) == 1

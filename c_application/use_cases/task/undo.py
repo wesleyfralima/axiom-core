@@ -161,7 +161,8 @@ class UndoPreviewUseCase(UseCase[UndoRequest, UndoPreviewOutputDTO]):
                         if (reason := _why_not(e, t))
                     ),
                     None,
-                ),
+                )
+                or await _changed_elsewhere(uow, command, user_id),
             )
 
 
@@ -197,6 +198,10 @@ class UndoUseCase(UseCase[UndoRequest, UndoOutputDTO]):
                 if reason or task is None:
                     raise DomainException(reason or "The task is gone.")
                 tasks.append(task)
+
+            # A snapshot never goes back over what another device did since
+            if reason := await _changed_elsewhere(uow, command, user_id):
+                raise DomainException(reason)
 
             # Newest first: each snapshot goes back over what came after it
             also: int = 0
@@ -364,6 +369,41 @@ async def _undo_along(
             )
             await uow.tasks.update(task)
     return count
+
+
+async def _caused(uow: UnitOfWork, entry_id: UUID) -> list[TaskHistoryEntry]:
+    """Everything a change made on its own, at any depth."""
+    found: list[TaskHistoryEntry] = []
+    for entry in await uow.task_history.caused_by(entry_id):
+        found.append(entry)
+        found.extend(await _caused(uow, entry.entry_id))
+    return found
+
+
+async def _changed_elsewhere(
+    uow: UnitOfWork, command: list[TaskHistoryEntry], user_id: UserId
+) -> str | None:
+    """Why the command cannot be undone here: a task it changed — or made, or
+    closed along — was changed on another device after it. Undo restores a
+    whole snapshot, so it would take that change away too (and a next
+    occurrence the other device changed would go with its tombstone). None
+    when nothing changed elsewhere since."""
+    device: UUID | None = await _this_device(uow)
+    for entry in command:
+        touched: list[TaskHistoryEntry] = [entry, *await _caused(uow, entry.entry_id)]
+        for each in touched:
+            for later in await uow.task_history.list_for_task(each.task_id, user_id):
+                if later.occurred_at > entry.occurred_at and later.device_id not in (
+                    None,
+                    device,
+                ):
+                    task: Task | None = await uow.tasks.get_by_id(each.task_id, user_id)
+                    return (
+                        f"'{task.title if task else each.note}' was changed on "
+                        "another device after that: undoing it here would take "
+                        "that change away too. Change it back by hand."
+                    )
+    return None
 
 
 def _why_not(target: TaskHistoryEntry, task: Task | None) -> str | None:

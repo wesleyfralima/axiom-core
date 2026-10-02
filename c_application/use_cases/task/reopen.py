@@ -6,6 +6,7 @@ from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskStatus, UserId
 from c_application.dtos.task_dtos import TaskByUserRequest, TaskStatusChangedOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.relations import closed_along
 from c_application.utils.task_utils import find_task
 
 
@@ -14,7 +15,9 @@ class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskStatusChangedOutputDTO]):
 
     A reopened recurring occurrence becomes a one-off task (see
     ``Task.reopen``): its series already moved on. A subtask of a closed
-    parent opens the parent too (the whole is not done while a part is not).
+    parent opens the parent too (the whole is not done while a part is not);
+    a reopened parent brings back the subtasks it closed along with it (one
+    closed before, or by itself, stays closed).
     """
 
     async def execute(self, request: TaskByUserRequest) -> TaskStatusChangedOutputDTO:
@@ -50,12 +53,17 @@ class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskStatusChangedOutputDTO]):
                     f"Its parent '{parent.title}' is archived: a part of it "
                     "cannot be open."
                 )
+            along: list[Task] = await closed_along(uow, task, user_id)
             task.reopen(now)
             await uow.tasks.update(task)
+            reopen_id = task.peek_events()[-1].id
+            for sub in along:
+                sub.reopen(now, caused_by=reopen_id)
+                await uow.tasks.update(sub)
 
             reopened: str | None = None
             if parent is not None and parent.status.is_closed:
-                parent.reopen(now, caused_by=task.peek_events()[-1].id)
+                parent.reopen(now, caused_by=reopen_id)
                 await uow.tasks.update(parent)
                 reopened = str(parent.title)
 
@@ -67,4 +75,5 @@ class ReopenTaskUseCase(UseCase[TaskByUserRequest, TaskStatusChangedOutputDTO]):
             return TaskStatusChangedOutputDTO(
                 task=TaskMapper.to_output(task, now, context=context),
                 parent_reopened=reopened,
+                subtasks_reopened=len(along),
             )
