@@ -6,6 +6,20 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.28.0] — 2026-10-02
+
+### Added
+- **Saved views** (product Backlog 03, Part 2; owner's decisions of
+  2026-10-02): the task list's filters under a name, as data — the fields
+  of `ListTasksRequest` (its owner aside), dates as typed, a context by its
+  name — so any interface runs them (`list_request(user_id, filters,
+  **overrides)`). This device's by default, or every device's
+  (`everywhere`: it syncs, `SyncEntity.TASK_VIEW`); this device's own hides
+  every device's of the same name, there. `TaskView`, `ViewScope`, the
+  `TaskViewRepository` port (`uow.task_views`), `SaveTaskViewUseCase`,
+  `ListTaskViewsUseCase`, `GetTaskViewUseCase`, `RemoveTaskViewUseCase`,
+  `TaskViewNotFound`.
+
 ## [0.27.0] — 2026-10-02
 
 ### Added

@@ -173,6 +173,13 @@ simulator: `python -m d_fake_infra`).
   `caused_by`** (the event's), so undo takes it back with that change. The
   last open subtask done tells its parent is ready
   (`CompleteTaskOutputDTO.parent_ready`): the interface asks.
+- **Saved views:** `b_domain/value_objects/task_view.py` (`TaskView`,
+  `ViewScope`), port `TaskViewRepository` (`uow.task_views`), use cases in
+  `c_application/use_cases/task_view/`. A view keeps the task list's
+  filters as data (`ListTasksRequest`'s fields; `list_request` builds the
+  request back, with overrides); this device's (never synced) or every
+  device's (`TASK_VIEW`, synced); this device's own wins over every
+  device's of the same name.
 - **Contexts:** `b_domain/entities/context.py`, port
   `ContextRepository`, use cases in `c_application/use_cases/context/`. A
   context is named by its name (ignoring case) or ID prefix —
@@ -264,9 +271,10 @@ there too.
   device's account syncs it (0.24.2); the tasks due on one day (0.25.0);
   one undo per command, dependencies within a family, a parent ready once
   its last subtask is done (0.26.0, product Backlog 02); every device of
-  an account on the same version (0.27.0).
+  an account on the same version (0.27.0); saved views, this device's or
+  every device's (0.28.0, product Backlog 03, Part 2).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 773 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 86.3% over an 86.3% floor.
+- 784 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 86.6% over an 86.6% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

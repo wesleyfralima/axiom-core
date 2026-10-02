@@ -28,6 +28,7 @@ from b_domain.ports.repositories.filters import (
     TimeEntryFilter,
     UserFilter,
 )
+from b_domain.ports.repositories.task_view_repository import TaskViewRepository
 from b_domain.ports.repositories.time_entry_repository import TimeEntryRepository
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.services.sync_merge import MergePlan
@@ -48,6 +49,7 @@ from b_domain.value_objects.sync import (
     SyncState,
 )
 from b_domain.value_objects.task_history import TaskHistoryEntry
+from b_domain.value_objects.task_view import TaskView, ViewScope
 from b_domain.value_objects.user_behavior_metrics import UserBehaviorMetrics
 from b_domain.value_objects.work_calendar import CalendarDay, HolidayRegion
 
@@ -536,6 +538,31 @@ class FakeTaskHistoryRepository(TaskHistoryRepository):
         ]
 
 
+class FakeTaskViewRepository(TaskViewRepository):
+    def __init__(self, views: list[TaskView] | None = None) -> None:
+        self.views: list[TaskView] = views if views is not None else []
+
+    async def list_by_user(self, user_id: UserId) -> list[TaskView]:
+        return sorted(
+            (v for v in self.views if v.user_id == user_id), key=lambda v: v.name
+        )
+
+    async def save(self, view: TaskView) -> None:
+        self.views[:] = [v for v in self.views if v != view]
+        self.views.append(view)
+
+    async def remove(
+        self, user_id: UserId, name: str, scope: ViewScope, now: datetime
+    ) -> bool:
+        before: int = len(self.views)
+        self.views[:] = [
+            v
+            for v in self.views
+            if (v.user_id, v.name, v.scope) != (user_id, name, scope)
+        ]
+        return len(self.views) < before
+
+
 class FakeCalendarDayRepository(CalendarDayRepository):
     def __init__(self, days: dict[str, list[CalendarDay]] | None = None) -> None:
         self.days: dict[str, list[CalendarDay]] = days if days is not None else {}
@@ -732,6 +759,7 @@ class FakeUnitOfWork(UnitOfWork):
         calendar_days: dict[str, list[CalendarDay]] | None = None,
         holidays: FakeHolidayProvider | None = None,
         sync: FakeSyncStore | None = None,
+        task_views: list[TaskView] | None = None,
     ) -> None:
 
         # Pass the shared dicts to the repositories
@@ -760,6 +788,7 @@ class FakeUnitOfWork(UnitOfWork):
         )
         self.holidays: FakeHolidayProvider = holidays or FakeHolidayProvider()
         self.sync: FakeSyncStore = sync if sync is not None else FakeSyncStore()
+        self.task_views: FakeTaskViewRepository = FakeTaskViewRepository(task_views)
 
         self._seen_entities: set[Entity] = set()
         self._trigger_relay: bool = False
@@ -810,6 +839,7 @@ def fake_uow_factory() -> FakeUowFactory:
     shared_calendar_days: dict[str, list[CalendarDay]] = {}
     shared_holidays: FakeHolidayProvider = FakeHolidayProvider()
     shared_sync: FakeSyncStore = FakeSyncStore()
+    shared_views: list[TaskView] = []
 
     # add others as needed
 
@@ -824,6 +854,7 @@ def fake_uow_factory() -> FakeUowFactory:
             calendar_days=shared_calendar_days,
             holidays=shared_holidays,
             sync=shared_sync,
+            task_views=shared_views,
         )
 
     return factory
