@@ -1,7 +1,9 @@
 import logging
 from abc import ABC, abstractmethod
+from dataclasses import replace
 from types import TracebackType
 from typing import Protocol, Self
+from uuid import UUID
 
 from a_core import DomainEvent, Entity
 from b_domain.entities.outbox_event import OutboxEvent
@@ -79,19 +81,26 @@ class UnitOfWork(ABC):
     # Not a repository: what the region's holidays are (read-only, no
     # transaction), here so every use case and handler reaches it
     holidays: HolidayProvider
+    # The command the user typed (the interface makes one per command): it
+    # goes on every history entry written, so one undo takes it all back
+    command_id: UUID | None = None
 
     def __init__(
         self,
         event_bus: EventBus,
         trigger_relay: bool = True,
+        command_id: UUID | None = None,
     ):
         """Initialize the UnitOfWork with an event bus.
 
         Args:
             event_bus (EventBus): Event bus used to publish domain events.
             trigger_relay (bool): If true, trigger relay events when published.
+            command_id (UUID | None): The command the user typed, written on
+                every history entry (None: not recorded).
         """
         self.event_bus = event_bus
+        self.command_id = command_id
         self._seen_entities: set[Entity] = set()
         self._trigger_relay = trigger_relay
 
@@ -159,7 +168,7 @@ class UnitOfWork(ABC):
                 # The same transaction keeps the history true to the data
                 entry: TaskHistoryEntry | None = history_entry(event)
                 if entry is not None:
-                    history.append(entry)
+                    history.append(replace(entry, command_id=self.command_id))
 
         if outbox_entries:
             await self.outbox_repo.add_many(outbox_entries)

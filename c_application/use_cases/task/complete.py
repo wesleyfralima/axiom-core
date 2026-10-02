@@ -12,7 +12,7 @@ from c_application.dtos.task_dtos import (
     TaskByUserRequest,
 )
 from c_application.mappers.task_mapper import TaskMapper
-from c_application.use_cases.task.relations import is_open, subtasks_of
+from c_application.use_cases.task.relations import is_open, link, subtasks_of
 from c_application.use_cases.task.timer import time_of
 
 
@@ -91,11 +91,29 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
                 else None
             )
 
+            # The last open subtask: its parent may be done too (the user
+            # says so; a parent without open subtasks is fine)
+            parent: Task | None = (
+                await uow.tasks.get_by_id(task.parent_id, user_id)
+                if task.parent_id
+                else None
+            )
+            ready: bool = (
+                parent is not None
+                and is_open(parent)
+                and not any(
+                    is_open(sibling)
+                    for sibling in await uow.tasks.get_subtasks(parent.id, limit=10_000)
+                    if sibling.id != task.id
+                )
+            )
+
             # Next occurrence will be generated asynchronously
             # by CreateRecurringTaskHandler
             return replace(
                 self._build_response(task, None, now, context),
                 subtasks_done=done_below,
+                parent_ready=link(parent) if parent is not None and ready else None,
             )
 
     @staticmethod

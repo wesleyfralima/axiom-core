@@ -6,6 +6,35 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.26.0] — 2026-10-02
+
+What acts on several tasks at once (product Backlog 02, owner's decisions
+of 2026-10-02).
+
+### Added
+- **One undo takes back the whole command typed** (`task done a b c`: the
+  three). `TaskHistoryEntry.command_id`; `UnitOfWork(command_id=…)` writes
+  it on every entry (the interface makes one per command);
+  `TaskHistoryRepository.of_command`. `undo` takes back every change of the
+  newest command, newest first, in one transaction, or none (a purged task
+  refuses the whole command); the preview lists them (`more`), and so does
+  the result. Changes from before commands were recorded go back one at a
+  time, as before.
+- `DeleteTaskOutputDTO.series_ended`: the deleted task repeated, so no
+  next occurrence comes (to skip one occurrence, cancel it).
+- **A parent ready once its last subtask is done:**
+  `CompleteTaskOutputDTO.parent_ready` (the parent, still open, when none
+  of its subtasks is) — the interface asks whether it is done too.
+
+### Changed
+- **A dependency stays within a family** (`check_family`,
+  `check_family_links`): a subtask waits only on its siblings and only its
+  siblings wait on it; a task of its own waits only on tasks of their own.
+  Moving a task under a parent (or out of one) while a dependency links it
+  outside its new family is refused — "remove the dependency first"
+  (removing it in the same edit is enough). A parent no longer waits on its
+  own subtask. Existing links are not touched.
+
 ## [0.25.0] — 2026-09-28
 
 ### Added

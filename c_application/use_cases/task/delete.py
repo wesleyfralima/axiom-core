@@ -37,6 +37,9 @@ class DeleteTaskOutputDTO(DTO):
     kept_days: int = 30
     # Its subtasks (any depth), deleted along with it
     subtasks_deleted: int = 0
+    # It repeated: no next occurrence, the series ends with it (to skip one
+    # occurrence, cancel it)
+    series_ended: bool = False
 
 
 class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
@@ -114,4 +117,5 @@ class DeleteTaskUseCase(UseCase[DeleteTaskInputDTO, DeleteTaskOutputDTO]):
                 task_id=str(task_to_delete.id),
                 kept_days=keep_days,
                 subtasks_deleted=len(below),
+                series_ended=task_to_delete.recurrence is not None,
             )

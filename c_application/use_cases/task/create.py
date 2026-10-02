@@ -179,9 +179,18 @@ async def make_task(
             raise ValidationException(
                 "A subtask does not repeat: its parent does, and brings it along."
             )
-    depends_on_vo: set[TaskId] = {
-        (await find_task(uow, ref, user_id_vo)).id for ref in dto.depends_on
-    }
+    # A dependency stays within a family: a subtask's only on its siblings
+    depends_on_vo: set[TaskId] = set()
+    for ref in dto.depends_on:
+        blocker: Task = await find_task(uow, ref, user_id_vo)
+        if blocker.parent_id != (parent.id if parent is not None else None):
+            raise ValidationException(
+                f"'{blocker.title}' is a subtask: only its siblings can wait on it."
+                if blocker.parent_id is not None
+                else "A subtask can only wait on its siblings (its parent can "
+                "wait on other tasks)."
+            )
+        depends_on_vo.add(blocker.id)
 
     # 4. Smart context resolution: the requested one (name or ID prefix),
     # else the parent's (a subtask), else the active one if it still exists
