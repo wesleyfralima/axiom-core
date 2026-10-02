@@ -22,11 +22,14 @@ class AcceptPushUseCase(SyncServerUseCase[PushInputDTO, PushOutputDTO]):
 
         Raises:
             DeviceNotAllowedError: If the token is unknown or revoked.
+            UpdateRequiredError: If another device of the account runs a
+                newer series of the app.
             ValidationException: If there are too many operations, one is
                 malformed, comes from another device, or has a clock too far
                 ahead of the server's.
         """
         device: SyncDevice = await self._device(request.token)
+        await self._same_version(device, request.app_version)
         if len(request.operations) > MAX_BATCH:
             raise ValidationException(
                 f"A push takes up to {MAX_BATCH} operations "
@@ -46,5 +49,4 @@ class AcceptPushUseCase(SyncServerUseCase[PushInputDTO, PushOutputDTO]):
             operations.append(op)
 
         accepted: int = await self.store.append(device.account_id, operations, now)
-        await self.store.seen(device.device_id, now)
         return PushOutputDTO(received=len(operations), accepted=accepted)

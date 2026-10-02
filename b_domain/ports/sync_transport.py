@@ -47,13 +47,17 @@ class DeviceInfo:
     joined_at: datetime
     last_seen_at: datetime | None
     revoked: bool
+    # The app's version it last synced with (None: not known)
+    app_version: str | None = None
 
 
 class SyncTransport(ABC):
     """The sync server's calls.
 
     Every call raises ``SyncUnavailableError`` when the server cannot be
-    reached in time, and ``SyncRefusedError`` when it says no.
+    reached in time, and ``SyncRefusedError`` when it says no —
+    ``UpdateRequiredError`` when another device of the account runs a newer
+    series of the app. The transport tells the server this app's version.
     """
 
     @abstractmethod

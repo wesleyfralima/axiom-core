@@ -148,6 +148,9 @@ simulator: `python -m d_fake_infra`).
   (`SyncServerStore`) and `c_application/use_cases/sync_server/` (invite,
   account, device, push, pull, devices). They take the store and the clock
   (`SyncServerUseCase`), not a unit of work: the server has no task schema.
+  **Every device of an account runs the same `major.minor`** (`AppVersion`;
+  fixes may differ): push, pull and joining refuse a device behind the
+  newest (`UpdateRequiredError`).
 - **Relations:** `c_application/use_cases/task/relations.py` — no loops
   (`check_parent`, `check_dependency`), what `show` tells (`relations_of`).
   Dependencies are kept once done: a task waits (`TaskStatus.BLOCKED`)
@@ -260,9 +263,10 @@ there too.
   their parent, brought along by a recurring one (0.24.0); only the
   device's account syncs it (0.24.2); the tasks due on one day (0.25.0);
   one undo per command, dependencies within a family, a parent ready once
-  its last subtask is done (0.26.0, product Backlog 02).
+  its last subtask is done (0.26.0, product Backlog 02); every device of
+  an account on the same version (0.27.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 768 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 86.2% over an 86.2% floor.
+- 773 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 86.3% over an 86.3% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

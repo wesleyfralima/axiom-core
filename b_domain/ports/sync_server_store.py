@@ -63,8 +63,11 @@ class SyncServerStore(ABC):
         """Revoke a device's token."""
 
     @abstractmethod
-    async def seen(self, device_id: UUID, now: datetime) -> None:
-        """Note that a device synced now."""
+    async def seen(
+        self, device_id: UUID, now: datetime, app_version: str | None = None
+    ) -> None:
+        """Note that a device synced now, and the version it runs (when it
+        said one)."""
 
     @abstractmethod
     async def append(

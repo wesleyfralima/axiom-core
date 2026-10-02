@@ -6,9 +6,10 @@ from datetime import timedelta
 from uuid import UUID
 
 from a_core.exceptions import ValidationException
-from b_domain.exceptions.sync import DeviceNotAllowedError
+from b_domain.exceptions.sync import DeviceNotAllowedError, UpdateRequiredError
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.sync_server_store import SyncServerStore
+from b_domain.value_objects.app_version import AppVersion
 from b_domain.value_objects.sync_server import (
     SyncDevice,
     secret_hash,
@@ -48,6 +49,40 @@ class SyncServerUseCase[TRequest, TResponse](ABC):
             raise DeviceNotAllowedError()
         return device
 
+    async def _same_version(self, device: SyncDevice, app_version: str | None) -> None:
+        """Note the version a device runs, and refuse it when another device
+        of its account runs a newer series (every device runs the same
+        ``major.minor``; fixes may differ). A device that says no version is
+        older than any that does; while none says one, nothing is refused.
+
+        Raises:
+            UpdateRequiredError: If the device is behind.
+        """
+        await self.store.seen(device.device_id, self.clock.now(), app_version)
+        newest: AppVersion | None = await newest_version(
+            self.store, device.account_id, app_version
+        )
+        this: AppVersion | None = AppVersion.parse(app_version)
+        if newest is not None and (this is None or this.is_behind(newest)):
+            raise UpdateRequiredError(str(newest), app_version)
+
+
+async def newest_version(
+    store: SyncServerStore, account_id: UUID, app_version: str | None = None
+) -> AppVersion | None:
+    """The newest version among an account's devices still allowed (and
+    ``app_version``, one about to join)."""
+    known: list[AppVersion] = [
+        version
+        for d in await store.devices(account_id)
+        if d.revoked_at is None
+        and (version := AppVersion.parse(d.app_version)) is not None
+    ]
+    joining: AppVersion | None = AppVersion.parse(app_version)
+    if joining is not None:
+        known.append(joining)
+    return max(known, default=None)
+
 
 def parse_uuid(text: str, what: str) -> UUID:
     """A UUID from text.
@@ -68,4 +103,5 @@ def device_output(device: SyncDevice) -> ServerDeviceOutputDTO:
         joined_at=device.joined_at.isoformat(),
         last_seen_at=device.last_seen_at.isoformat() if device.last_seen_at else None,
         revoked=device.revoked_at is not None,
+        app_version=device.app_version,
     )

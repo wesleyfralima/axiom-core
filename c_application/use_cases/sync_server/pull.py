@@ -18,14 +18,16 @@ class ServePullUseCase(SyncServerUseCase[PullInputDTO, PullOutputDTO]):
 
         Raises:
             DeviceNotAllowedError: If the token is unknown or revoked.
+            UpdateRequiredError: If another device of the account runs a
+                newer series of the app.
             ValidationException: If the cursor is negative.
         """
         device: SyncDevice = await self._device(request.token)
+        await self._same_version(device, request.app_version)
         if request.after < 0:
             raise ValidationException("The cursor cannot be negative.")
         limit: int = min(max(request.limit, 1), MAX_BATCH)
         page, more = await self.store.after(device.account_id, request.after, limit)
-        await self.store.seen(device.device_id, self.clock.now())
         return PullOutputDTO(
             operations=[op.to_payload() for _, op in page],
             cursor=page[-1][0] if page else request.after,
