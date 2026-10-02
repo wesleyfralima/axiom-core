@@ -47,12 +47,14 @@ class RegisterSyncDeviceInputDTO(DTO):
         password (str): Its password.
         device_id (str): The device's ID (it chooses it).
         device_name (str): What the owner calls it (up to 64 characters).
+        app_version (str | None): The app's version on it.
     """
 
     username: str
     password: str = field(repr=False)
     device_id: str
     device_name: str
+    app_version: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -65,10 +67,12 @@ class DeviceAccessOutputDTO(DTO):
 
 @dataclass(frozen=True, kw_only=True)
 class PushInputDTO(DTO):
-    """A device's operations (``SyncOperation.to_payload``)."""
+    """A device's operations (``SyncOperation.to_payload``), and the app's
+    version it runs."""
 
     token: str = field(repr=False)
     operations: list[dict[str, Any]]
+    app_version: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -86,11 +90,13 @@ class PushOutputDTO(DTO):
 
 @dataclass(frozen=True, kw_only=True)
 class PullInputDTO(DTO):
-    """A device asking for the account's operations after its cursor."""
+    """A device asking for the account's operations after its cursor, and
+    the app's version it runs."""
 
     token: str = field(repr=False)
     after: int = 0
     limit: int = 500
+    app_version: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -132,3 +138,4 @@ class ServerDeviceOutputDTO(DTO):
     joined_at: str
     last_seen_at: str | None
     revoked: bool
+    app_version: str | None = None

@@ -14,6 +14,7 @@ from a_core.exceptions import ValidationException
 from b_domain.exceptions.sync import (
     DeviceNotAllowedError,
     SyncConflictError,
+    UpdateRequiredError,
     WrongCredentialsError,
 )
 from b_domain.ports.password_hasher import PasswordHasher
@@ -24,6 +25,7 @@ from b_domain.ports.sync_transport import (
     PullPage,
     SyncTransport,
 )
+from b_domain.value_objects.app_version import AppVersion
 from b_domain.value_objects.sync import Hlc, SyncEntity, SyncOperation
 from b_domain.value_objects.sync_server import SyncAccount, SyncDevice, secret_hash
 from c_application.dtos.sync_dtos import (
@@ -122,8 +124,14 @@ class MemoryServerStore(SyncServerStore):
     async def revoke_device(self, device_id: UUID, now: datetime) -> None:
         self.by_id[device_id] = replace(self.by_id[device_id], revoked_at=now)
 
-    async def seen(self, device_id: UUID, now: datetime) -> None:
-        self.by_id[device_id] = replace(self.by_id[device_id], last_seen_at=now)
+    async def seen(
+        self, device_id: UUID, now: datetime, app_version: str | None = None
+    ) -> None:
+        self.by_id[device_id] = replace(
+            self.by_id[device_id],
+            last_seen_at=now,
+            app_version=app_version or self.by_id[device_id].app_version,
+        )
 
     async def append(
         self, account_id: UUID, operations: Sequence[SyncOperation], now: datetime
@@ -173,6 +181,7 @@ class Server:
         name: str = "mint",
         device_id: UUID | None = None,
         username: str = "wesley",
+        version: str | None = None,
     ) -> tuple[UUID, str]:
         device = device_id or uuid4()
         access = await RegisterSyncDeviceUseCase(
@@ -183,18 +192,27 @@ class Server:
                 password=PASSWORD,
                 device_id=str(device),
                 device_name=name,
+                app_version=version,
             )
         )
         return device, access.token
 
-    async def push(self, token: str, operations: list[SyncOperation]) -> Any:
+    async def push(
+        self, token: str, operations: list[SyncOperation], version: str | None = None
+    ) -> Any:
         return await AcceptPushUseCase(self.store, self.clock).execute(
-            PushInputDTO(token=token, operations=[op.to_payload() for op in operations])
+            PushInputDTO(
+                token=token,
+                operations=[op.to_payload() for op in operations],
+                app_version=version,
+            )
         )
 
-    async def pull(self, token: str, after: int = 0, limit: int = 500) -> Any:
+    async def pull(
+        self, token: str, after: int = 0, limit: int = 500, version: str | None = None
+    ) -> Any:
         return await ServePullUseCase(self.store, self.clock).execute(
-            PullInputDTO(token=token, after=after, limit=limit)
+            PullInputDTO(token=token, after=after, limit=limit, app_version=version)
         )
 
 
@@ -564,3 +582,82 @@ async def test_the_devices_side_talks_to_the_servers_side(server: Server) -> Non
         await RunSyncUseCase(phone.uow, phone.clock, transport).execute(
             RunSyncInputDTO(user_id=accounts["phone"], token=tokens["phone"])
         )
+
+
+# ---------------------------------------------------------------- versions
+
+
+async def test_every_device_of_an_account_runs_the_same_series(server: Server) -> None:
+    await server.account(await server.invite())
+    mint, mint_token = await server.device("mint", version="0.30.0")
+    _, phone_token = await server.device("phone", version="0.30.1")
+
+    # Fixes may differ
+    await server.push(mint_token, _ops(mint, 1), version="0.30.0")
+    await server.pull(phone_token, version="0.30.2")
+
+    # A newer series: the device behind is refused, push and pull, until it
+    # is updated
+    await server.pull(phone_token, version="0.31.0")
+    with pytest.raises(UpdateRequiredError) as refused:
+        await server.push(mint_token, _ops(mint, 1), version="0.30.5")
+    assert (refused.value.newest, refused.value.this) == ("0.31.0", "0.30.5")
+    assert "runs Axiom Pro 0.31.0; this one runs 0.30.5" in refused.value.message
+    with pytest.raises(UpdateRequiredError):
+        await server.pull(mint_token, version="0.30.5")
+    await server.pull(mint_token, version="0.31.0")
+
+    # Each device's version is kept (the device list shows it)
+    versions = {d.name: d.app_version for d in server.store.by_id.values()}
+    assert versions == {"mint": "0.31.0", "phone": "0.31.0"}
+
+
+async def test_a_device_that_says_no_version_is_older_than_any(server: Server) -> None:
+    await server.account(await server.invite())
+    old, old_token = await server.device("old phone")
+
+    # While no device says a version, nothing is refused (as before)
+    await server.push(old_token, _ops(old, 1))
+    mint, mint_token = await server.device("mint", version="0.30.0")
+    await server.push(mint_token, _ops(mint, 1), version="0.30.0")
+
+    with pytest.raises(UpdateRequiredError) as refused:
+        await server.pull(old_token)
+    assert "this one runs an older version" in refused.value.message
+
+
+async def test_a_revoked_device_holds_no_version(server: Server) -> None:
+    await server.account(await server.invite())
+    old, old_token = await server.device("old", version="0.30.0")
+    new, _ = await server.device("new", version="0.31.0")
+    with pytest.raises(UpdateRequiredError):
+        await server.push(old_token, _ops(old, 1), version="0.30.0")
+
+    # A lost phone with the newer version, revoked: it holds nobody back
+    await server.store.revoke_device(new, NOW)
+    await server.push(old_token, _ops(old, 1), version="0.30.0")
+
+
+async def test_a_device_joins_on_the_accounts_series_or_a_newer_one(
+    server: Server,
+) -> None:
+    await server.account(await server.invite())
+    await server.device("mint", version="0.30.0")
+
+    with pytest.raises(UpdateRequiredError):
+        await server.device("old phone", version="0.29.0")
+    with pytest.raises(UpdateRequiredError):
+        await server.device("older phone")
+    await server.device("phone", version="0.30.1")
+    await server.device("tablet", version="0.31.0")
+
+
+def test_versions_parse_and_compare() -> None:
+    assert AppVersion.parse("0.30.1") == AppVersion(0, 30, 1)
+    assert AppVersion.parse("v1.2") == AppVersion(1, 2, 0)
+    assert AppVersion.parse("0.30.0.dev1") == AppVersion(0, 30, 0)
+    assert AppVersion.parse(None) is None
+    assert AppVersion.parse("dev") is None
+    assert AppVersion(0, 29, 9).is_behind(AppVersion(0, 30, 0))
+    assert not AppVersion(0, 30, 0).is_behind(AppVersion(0, 30, 9))
+    assert str(AppVersion(0, 30, 2)) == "0.30.2"

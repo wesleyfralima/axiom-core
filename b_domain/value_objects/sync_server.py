@@ -56,6 +56,8 @@ class SyncDevice(ValueObject):
         joined_at (datetime): When it joined.
         last_seen_at (datetime | None): When it last pushed or pulled.
         revoked_at (datetime | None): When it was revoked, if it was.
+        app_version (str | None): The app's version it last synced with
+            (None: one from before versions were sent).
     """
 
     device_id: UUID
@@ -65,3 +67,4 @@ class SyncDevice(ValueObject):
     joined_at: datetime
     last_seen_at: datetime | None = None
     revoked_at: datetime | None = None
+    app_version: str | None = None

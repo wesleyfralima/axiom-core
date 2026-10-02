@@ -6,6 +6,21 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.27.0] — 2026-10-02
+
+### Added
+- **Every device of an account runs the same version** (owner's decision,
+  2026-10-02; product Backlog 02, G1): the same `major.minor`, fixes may
+  differ. `AppVersion` (`b_domain/value_objects/app_version.py`); the
+  server keeps the version each device syncs with
+  (`SyncDevice.app_version`, `SyncServerStore.seen(…, app_version)`) and
+  refuses push, pull and joining to a device behind the account's newest
+  (`UpdateRequiredError`, a `SyncRefusedError` with `newest` and `this`).
+  A device that says no version is older than any that does; a revoked
+  one holds nobody back. `PushInputDTO`, `PullInputDTO` and
+  `RegisterSyncDeviceInputDTO` take `app_version`; `DeviceInfo`,
+  `ServerDeviceOutputDTO` and `SyncDeviceOutputDTO` show it.
+
 ## [0.26.0] — 2026-10-02
 
 What acts on several tasks at once (product Backlog 02, owner's decisions

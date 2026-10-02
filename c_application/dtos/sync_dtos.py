@@ -139,6 +139,7 @@ class SyncDeviceOutputDTO(DTO):
         last_seen_at (str | None): When it last synced (ISO).
         revoked (bool): Whether it can no longer sync.
         this_device (bool): Whether it is the one asking.
+        app_version (str | None): The app's version it last synced with.
     """
 
     device_id: str
@@ -147,6 +148,7 @@ class SyncDeviceOutputDTO(DTO):
     last_seen_at: str | None
     revoked: bool
     this_device: bool
+    app_version: str | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

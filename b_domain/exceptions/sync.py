@@ -38,6 +38,26 @@ class SyncRefusedError(SyncException):
     clock far ahead."""
 
 
+class UpdateRequiredError(SyncRefusedError):
+    """Another device of the account runs a newer series of the app: this
+    one must be updated before it syncs (or changes anything) again. Every
+    device of an account runs the same ``major.minor``; fixes may differ.
+
+    Attributes:
+        newest (str): The newest version among the account's devices.
+        this (str | None): This device's version (None: too old to say).
+    """
+
+    def __init__(self, newest: str, this: str | None = None) -> None:
+        self.newest = newest
+        self.this = this
+        super().__init__(
+            f"Another device of this account runs Axiom Pro {newest}; this one "
+            f"runs {this or 'an older version'}. Every device must run the "
+            f"same version: update this one, then sync."
+        )
+
+
 class DeviceNotAllowedError(SyncRefusedError):
     """The server does not know the device's token, or it was revoked."""
 

@@ -3,11 +3,13 @@ from uuid import UUID
 from a_core.exceptions import ValidationException
 from b_domain.exceptions.sync import (
     SyncConflictError,
+    UpdateRequiredError,
     WrongCredentialsError,
 )
 from b_domain.ports.password_hasher import PasswordHasher
 from b_domain.ports.providers import ClockProvider
 from b_domain.ports.sync_server_store import SyncServerStore
+from b_domain.value_objects.app_version import AppVersion
 from b_domain.value_objects.sync_server import (
     SyncAccount,
     SyncDevice,
@@ -20,6 +22,7 @@ from c_application.dtos.sync_server_dtos import (
 )
 from c_application.use_cases.sync_server._common import (
     SyncServerUseCase,
+    newest_version,
     parse_uuid,
 )
 
@@ -45,6 +48,8 @@ class RegisterSyncDeviceUseCase(
             ValidationException: If the device ID or name is not valid.
             WrongCredentialsError: If the username or password is wrong.
             SyncConflictError: If the device ID is taken.
+            UpdateRequiredError: If another device of the account runs a
+                newer series of the app.
         """
         device_id: UUID = parse_uuid(request.device_id, "device ID")
         name: str = request.device_name.strip()
@@ -60,6 +65,11 @@ class RegisterSyncDeviceUseCase(
             raise WrongCredentialsError("Wrong username or password.")
         if await self.store.device(device_id) is not None:
             raise SyncConflictError("A device with this ID already exists.")
+        # It joins on the account's version, or a newer one
+        newest: AppVersion | None = await newest_version(self.store, account.account_id)
+        this: AppVersion | None = AppVersion.parse(request.app_version)
+        if newest is not None and (this is None or this.is_behind(newest)):
+            raise UpdateRequiredError(str(newest), request.app_version)
 
         token: str = new_secret()
         await self.store.add_device(
@@ -69,6 +79,7 @@ class RegisterSyncDeviceUseCase(
                 name=name,
                 token_hash=secret_hash(token),
                 joined_at=self.clock.now(),
+                app_version=request.app_version,
             )
         )
         return DeviceAccessOutputDTO(account_id=str(account.account_id), token=token)

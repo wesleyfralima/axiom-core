@@ -99,6 +99,7 @@ class RevokeSyncDeviceUseCase(
                 joined_at=device.joined_at,
                 last_seen_at=device.last_seen_at,
                 revoked=True,
+                app_version=device.app_version,
             ),
             state,
         )
@@ -112,4 +113,5 @@ def _output(device: DeviceInfo, state: SyncState) -> SyncDeviceOutputDTO:
         last_seen_at=device.last_seen_at.isoformat() if device.last_seen_at else None,
         revoked=device.revoked,
         this_device=device.device_id == state.device_id,
+        app_version=device.app_version,
     )
