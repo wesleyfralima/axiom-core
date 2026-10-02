@@ -210,6 +210,8 @@ async def test_the_report_has_time_accuracy_and_best_hours(
         ReportRequest(user_id=str(user.id))
     )
 
+    # Accuracy rows are named by context: the period's label is not one of them
+    assert report.period == "last 7 days"
     assert report.time_spent_minutes == 5 * 45
     assert [(c.label, c.count) for c in report.time_by_context] == [("none", 225)]
     [overall, *_] = report.accuracy

@@ -24,6 +24,24 @@ WEEKDAY_NAMES: tuple[str, ...] = (
 )
 
 
+def _short_weekday_runs(ordered: list[int]) -> list[str]:
+    """Short names of sorted weekdays; consecutive runs of 3+ become "Mon-Thu"."""
+
+    runs: list[list[int]] = []
+    for day in ordered:
+        if runs and day == runs[-1][-1] + 1:
+            runs[-1].append(day)
+        else:
+            runs.append([day])
+    names: list[str] = []
+    for run in runs:
+        if len(run) >= 3:
+            names.append(f"{WEEKDAY_NAMES[run[0]][:3]}-{WEEKDAY_NAMES[run[-1]][:3]}")
+        else:
+            names.extend(WEEKDAY_NAMES[d][:3] for d in run)
+    return names
+
+
 @dataclass(frozen=True, kw_only=True)
 class RecurrenceRule(ValueObject, ABC):
     """Base contract for all recurrence strategies.
@@ -285,10 +303,17 @@ class RecurrenceRule(ValueObject, ABC):
 
     @staticmethod
     def _weekdays(days: set[int], plural: bool = False) -> str:
-        """Name weekdays in order: "Monday and Friday" or "Mondays and Fridays"."""
+        """Name weekdays in order: "Monday and Friday" or "Mondays and Fridays".
 
+        With ``plural`` and three or more days the names are short and runs of
+        three or more days collapse: "Mon-Sat", "Mon, Wed, Fri".
+        """
+
+        ordered: list[int] = sorted(days)
+        if plural and len(ordered) >= 3:
+            return ", ".join(_short_weekday_runs(ordered))
         suffix: str = "s" if plural else ""
-        return join_naturally(f"{WEEKDAY_NAMES[d]}{suffix}" for d in sorted(days))
+        return join_naturally(f"{WEEKDAY_NAMES[d]}{suffix}" for d in ordered)
 
     def normalize_comparison_date(self, dt: datetime) -> datetime:
         """Normalize a datetime for comparison with recurrence rules.
