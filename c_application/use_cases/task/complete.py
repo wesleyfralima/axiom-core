@@ -64,7 +64,8 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
             # A dependency the user set is never ignored: not this task, nor
             # a parent whose open subtask waits
-            await refuse_while_waiting(uow, task, user_id)
+            subtasks: list[Task] = await subtasks_of(uow, task)
+            await refuse_while_waiting(uow, task, subtasks, user_id)
 
             # 2. Close active timers and compute actual duration
             actual_duration: int = await self._close_active_timers(
@@ -84,7 +85,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             # to its completion, so undo takes them back together)
             done_below: int = 0
             completion = task.peek_events()[-1].id
-            for sub in reversed(await subtasks_of(uow, task)):
+            for sub in reversed(subtasks):
                 if not is_open(sub):
                     continue
                 minutes: int = await self._close_active_timers(uow, sub, now, request)

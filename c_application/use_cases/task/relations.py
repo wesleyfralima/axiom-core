@@ -61,10 +61,16 @@ def _waiting_on(blockers: list[Task]) -> str:
     return ", ".join(names[:-1]) + " and " + names[-1] if len(names) > 1 else names[0]
 
 
-async def refuse_while_waiting(uow: UnitOfWork, task: Task, user_id: UserId) -> None:
+async def refuse_while_waiting(
+    uow: UnitOfWork, task: Task, subtasks: list[Task], user_id: UserId
+) -> None:
     """Refuse to complete a task that waits on another one, or whose open
     subtask does: a dependency the user set is never ignored — it is done or
     cancelled first, or removed, or the waiting subtask is deleted.
+
+    ``subtasks`` are the ones the caller loaded (``subtasks_of``) and goes on
+    with: a task read twice in a unit of work is two instances, and only the
+    first one's events are kept.
 
     Raises:
         InvalidStateTransition: If the task, or one of its open subtasks,
@@ -77,7 +83,7 @@ async def refuse_while_waiting(uow: UnitOfWork, task: Task, user_id: UserId) -> 
             "that first, or remove the dependency (axpro task edit "
             f"{str(task.id)[:8]} --undep {str(blockers[0].id)[:8]})."
         )
-    for sub in await subtasks_of(uow, task):
+    for sub in subtasks:
         if not is_open(sub) or not sub.is_blocked:
             continue
         held: list[Task] = await open_blockers(uow, sub, user_id)
