@@ -6,6 +6,17 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.30.1] — 2026-10-06
+
+Product Backlog 04, Part 1.
+
+### Fixed
+- **A series' timeline puts each occurrence on its own day**: a completion
+  or a skip goes on the day the occurrence was due (its history entry's
+  snapshot), not on the day it was typed. Yesterday's occurrence skipped
+  today read "today skipped" — and, with today's done too, the worst of the
+  two hid the completion; now yesterday reads skipped and today on time.
+
 ## [0.30.0] — 2026-10-02
 
 The report's redesign (axiom-cli 0.35.0).

@@ -11,7 +11,7 @@ import pytest
 from a_core import UniqueId
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, User
-from b_domain.events.task_events import TaskCompletedEvent
+from b_domain.events.task_events import TaskCancelledEvent, TaskCompletedEvent
 from b_domain.value_objects import RecurrenceInterval, TaskId
 from b_domain.value_objects.task_history import TaskAction
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
@@ -198,14 +198,75 @@ async def test_a_series_timeline_and_period_rate(
     assert series.timeline == ["none"] * 6 + ["on_time"]
     assert series.rate == 1.0
 
-    # Skipping the next occurrence: the same day now has the worst of the two
+    # Skipping the next occurrence ahead of time: it counts, but its day
+    # (tomorrow's) is not in the period
     await CancelTaskUseCase(**use_case_context).execute(
         CancelTaskInputDTO(task_id_prefix=series.task_id[:8], user_id=str(user.id))
     )
     report = await _report(use_case_context, user)
     [series] = report.series
     assert (series.done, series.missed, series.rate) == (1, 1, 0.5)
-    assert series.timeline == ["none"] * 6 + ["skipped"]
+    assert series.timeline == ["none"] * 6 + ["on_time"]
+
+
+async def _next_occurrence(
+    fake_uow_factory: FakeUowFactory, user: User, task_id: str
+) -> None:
+    """Make the occurrence after ``task_id``'s last closing, as the relay's
+    handler does."""
+    async with fake_uow_factory() as uow:
+        last = (await uow.task_history.recent(user.id))[0]
+        closed = await uow.tasks.get_by_id(TaskId.from_string(task_id))
+    assert closed is not None
+    event: TaskCompletedEvent | TaskCancelledEvent = (
+        TaskCompletedEvent(
+            id=UniqueId(last.entry_id),
+            occurred_at=last.occurred_at,
+            task_id=closed.id,
+            user_id=user.id,
+            estimated_minutes=30,
+            actual_minutes=0,
+            energy_level_used=closed.required_energy_level,
+            task_complexity=closed.complexity,
+        )
+        if last.action == TaskAction.COMPLETED
+        else TaskCancelledEvent(
+            id=UniqueId(last.entry_id),
+            occurred_at=last.occurred_at,
+            task_id=closed.id,
+            user_id=user.id,
+        )
+    )
+    await CreateRecurringTaskHandler(fake_uow_factory()).handle(event)
+
+
+async def test_a_skip_is_on_the_day_of_the_occurrence_it_skipped(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    """Yesterday's not done, skipped today so today's shows up, and today's
+    done: yesterday skipped, today on time (not both today)."""
+    walk = await _create(
+        use_case_context,
+        user,
+        title="Walk",
+        recurrence=RecurrenceInputDTO(
+            frequency=RecurrenceInterval.DAILY, start_date="2026-03-04 18:00"
+        ),
+    )
+    await CancelTaskUseCase(**use_case_context).execute(
+        CancelTaskInputDTO(task_id_prefix=walk.id[:8], user_id=str(user.id))
+    )
+    await _next_occurrence(fake_uow_factory, user, walk.id)
+    [today] = [
+        t for t in (await _report(use_case_context, user)).series if t.title == "Walk"
+    ]
+    await CompleteTaskUseCase(**use_case_context).execute(
+        TaskByUserRequest(task_id_prefix=today.task_id[:8], user_id=str(user.id))
+    )
+
+    [series] = (await _report(use_case_context, user)).series
+    assert (series.done, series.missed) == (1, 1)
+    assert series.timeline == ["none"] * 5 + ["skipped", "on_time"]
 
 
 async def test_a_period_that_ends_before_it_starts(

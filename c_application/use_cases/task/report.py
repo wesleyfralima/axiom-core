@@ -87,6 +87,7 @@ class SeriesReportDTO(DTO):
             (None when neither happened).
         timeline (list[str]): One entry per day of the period: "none" (nothing
             happened), "on_time", "late" or "skipped" (the worst of the day).
+            An occurrence is on the day it was due, whenever it was closed.
     """
 
     series_id: str
@@ -427,7 +428,10 @@ def _series(
                 kind = _SKIPPED
             else:
                 continue
-            day: date = _aware(entry.occurred_at).astimezone(zone).date()
+            # The day of the occurrence it closed, not the day it was typed:
+            # yesterday's skipped today is yesterday's
+            due: datetime | None = _due(entry.previous or {})
+            day: date = _aware(due or entry.occurred_at).astimezone(zone).date()
             if _WORSE.index(kind) > _WORSE.index(worst.get(day, _NOTHING)):
                 worst[day] = kind
 
