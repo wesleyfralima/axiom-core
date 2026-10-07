@@ -241,8 +241,9 @@ class TaskByUserRequest(DTO):
     task_id_prefix: str
     user_id: str
 
-    # Completion metadata
-    completed_at: datetime | None = None
+    # Completion metadata: when it was done, as typed ("yesterday 21:00", a
+    # wall-clock time where the user is) or an instant; None is now
+    completed_at: DateInput | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

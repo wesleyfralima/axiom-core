@@ -6,6 +6,25 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.31.0] — 2026-10-06
+
+Product Backlog 04, Part 2: done and forgotten (axiom-cli 0.36.0).
+
+### Added
+- **A task done at the moment it was**: `TaskByUserRequest.completed_at` is
+  a `DateInput` ("yesterday 21:00", a wall-clock time where the user is)
+  resolved by `CompleteTaskUseCase` — it already took an instant, which no
+  interface passed. The completion, its history entry, the timers it stops
+  and the next occurrence all follow that moment, so the report counts it
+  on its own day. Refused: a moment with no time of day, one in the
+  future, one before a running timer started.
+- **A time alone is today's**: `resolve_date_input("21:00")` is today at
+  21:00, in every date the user types. `local_instant` puts a wall-clock
+  time where the user is.
+
+### Changed
+- Coverage floor 86.8%.
+
 ## [0.30.1] — 2026-10-06
 
 Product Backlog 04, Part 1.

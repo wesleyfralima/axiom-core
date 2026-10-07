@@ -1,9 +1,10 @@
 from dataclasses import replace
-from datetime import datetime
+from datetime import UTC, datetime
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
-from b_domain.entities import Context, Task, TimeEntry
+from b_domain.entities import Context, Task, TimeEntry, User
+from b_domain.entities.user import UserPrefs
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
@@ -19,6 +20,11 @@ from c_application.use_cases.task.relations import (
     subtasks_of,
 )
 from c_application.use_cases.task.timer import time_of
+from c_application.utils.date_input import (
+    local_instant,
+    local_today,
+    resolve_date_input,
+)
 
 
 class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
@@ -53,9 +59,11 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         except ValidationException as e:
             raise ValidationException(e) from e
 
-        now: datetime = request.completed_at or self.clock.now()
-
         async with self.uow as uow:
+            # When it was done: now, or a moment the user typed (done and
+            # forgotten)
+            now: datetime = await self._moment(uow, request, user_id)
+
             # 1. Resolve the task by prefix
             try:
                 task: Task = await self._resolve_task(uow, task_id_prefix, user_id)
@@ -68,9 +76,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             await refuse_while_waiting(uow, task, subtasks, user_id)
 
             # 2. Close active timers and compute actual duration
-            actual_duration: int = await self._close_active_timers(
-                uow, task, now, request
-            )
+            actual_duration: int = await self._close_active_timers(uow, task, now)
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
             task.mark_as_done(now, actual_minutes=actual_duration)
@@ -88,7 +94,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             for sub in reversed(subtasks):
                 if not is_open(sub):
                     continue
-                minutes: int = await self._close_active_timers(uow, sub, now, request)
+                minutes: int = await self._close_active_timers(uow, sub, now)
                 sub.mark_as_done(now, actual_minutes=minutes, caused_by=completion)
                 sub.record_duration(minutes)
                 await uow.tasks.update(sub)
@@ -160,33 +166,67 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
         return task_found
 
+    async def _moment(
+        self, uow: UnitOfWork, request: TaskByUserRequest, user_id: UserId
+    ) -> datetime:
+        """When the task was done: now, or ``completed_at`` as typed, a
+        wall-clock time where the user is.
+
+        Raises:
+            ValidationException: If the moment has no time of day or is in
+                the future.
+            InvalidValueError: If it is not a date the user can type.
+        """
+        now: datetime = self.clock.now()
+        if request.completed_at is None:
+            return now
+        user: User | None = await uow.users.get_by_id(user_id)
+        prefs: UserPrefs = user.preferences if user else UserPrefs()
+        resolved = resolve_date_input(
+            request.completed_at, today=local_today(now, prefs.timezone)
+        )
+        if not isinstance(resolved, datetime):
+            raise ValidationException(
+                "When it was done needs a time of day, e.g. 'yesterday 21:00'."
+            )
+        moment: datetime = local_instant(resolved, prefs.timezone)
+        if moment > (now if now.tzinfo else now.replace(tzinfo=UTC)):
+            raise ValidationException("A task cannot be done in the future.")
+        return moment
+
     @staticmethod
-    async def _close_active_timers(
-        uow: UnitOfWork, task: Task, now: datetime, request: TaskByUserRequest
-    ) -> int:
+    async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime) -> int:
         """Close active timers for a task and compute actual duration.
 
         Args:
             task (Task): Task entity.
-            now (datetime): Current time.
-            request (TaskByUserRequest): Request containing completion time.
+            now (datetime): When it was done.
 
         Returns:
             int: Minutes spent on the task: every session, the ones just
             closed included.
+
+        Raises:
+            ValidationException: If a timer started after ``now`` (its session
+                would end before it began).
         """
 
-        effective_now: datetime = request.completed_at or now
         active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(
             task.id
         )
         for timer in active_timers:
-            timer.stop(effective_now)
+            started: datetime = timer.start_time
+            if (started if started.tzinfo else started.replace(tzinfo=UTC)) > now:
+                raise ValidationException(
+                    f"'{task.title}' has a timer that started after that: "
+                    "it was done later, or pause it first."
+                )
+            timer.stop(now)
         if active_timers:
             await uow.time_entries.update_all(active_timers)
 
         # Every session counts, the paused ones too (not only the running one)
-        spent, _ = await time_of(uow, task.id, effective_now)
+        spent, _ = await time_of(uow, task.id, now)
         return spent
 
     @staticmethod

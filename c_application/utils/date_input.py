@@ -27,7 +27,7 @@ _DAY_OFFSETS: dict[str, int] = {
 
 _ACCEPTED: str = (
     "YYYY-MM-DD, MM-DD (the next one), YYYY-MM-DD HH:MM, "
-    "today, tomorrow or yesterday (+ HH:MM)"
+    "today, tomorrow or yesterday (+ HH:MM), HH:MM (today)"
 )
 
 _TIME_RE: re.Pattern[str] = re.compile(r"^(\d{1,2}):(\d{2})$")
@@ -61,7 +61,8 @@ def resolve_date_input(value: DateInput, *, today: date) -> date | datetime:
             and time (``2026-10-01 14:00`` or with ``T``), a month and day
             (``12-25``: the next one, today included), or a day word
             (``today``, ``tomorrow``, ``yesterday``); a month and day or a
-            day word can be followed by ``HH:MM``.
+            day word can be followed by ``HH:MM``, and ``HH:MM`` alone is
+            today at that time.
         today (date): The user's today, which the words are relative to.
 
     Returns:
@@ -77,6 +78,10 @@ def resolve_date_input(value: DateInput, *, today: date) -> date | datetime:
     text: str = " ".join(value.strip().lower().split())
     parts: list[str] = text.split(" ")
     day_word, clock = parts[0], parts[1:]
+
+    if not clock and _TIME_RE.match(day_word):
+        # A time alone is today's
+        return datetime.combine(today, _parse_clock(day_word, value))
 
     day: date | None = None
     if day_word in _DAY_OFFSETS:
@@ -134,6 +139,18 @@ def resolve_horizon(ahead: int | DateInput, *, today: date) -> date:
             valid_options=[f"a number of days, or a date ({_ACCEPTED})"],
         ) from None
     return resolved.date() if isinstance(resolved, datetime) else resolved
+
+
+def local_instant(moment: datetime, tz_name: str) -> datetime:
+    """A wall-clock time where the user is as an instant (aware); an aware
+    one stays as it is."""
+    if moment.tzinfo is not None:
+        return moment
+    try:
+        zone: ZoneInfo = ZoneInfo(tz_name)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    return moment.replace(tzinfo=zone)
 
 
 def end_of_day(day: date, tz_name: str) -> datetime:

@@ -8,6 +8,7 @@ from a_core.exceptions import InvalidValueError
 from c_application.utils.date_input import (
     at_time,
     end_of_day,
+    local_instant,
     local_today,
     resolve_date_input,
     resolve_horizon,
@@ -33,6 +34,9 @@ TODAY = date(2026, 3, 5)
         ("3-4", date(2027, 3, 4)),
         ("02-29", date(2028, 2, 29)),
         ("12-25 10:00", datetime(2026, 12, 25, 10, 0)),
+        # A time alone: today
+        ("21:00", datetime(2026, 3, 5, 21, 0)),
+        ("7:30", datetime(2026, 3, 5, 7, 30)),
     ],
 )
 def test_resolve_date_input(typed: str, expected: date | datetime) -> None:
@@ -46,7 +50,8 @@ def test_dates_and_datetimes_pass_through() -> None:
 
 
 @pytest.mark.parametrize(
-    "typed", ["next friday", "tomorrow 25:00", "2026-13-01", "tomorrow at 9", ""]
+    "typed",
+    ["next friday", "tomorrow 25:00", "2026-13-01", "tomorrow at 9", "", "25:00"],
 )
 def test_unknown_expressions_are_refused(typed: str) -> None:
     with pytest.raises(InvalidValueError, match="Invalid date"):
@@ -100,3 +105,14 @@ def test_end_of_day_is_aware_in_the_zone() -> None:
 def test_a_month_and_day_must_exist(typed: str) -> None:
     with pytest.raises(InvalidValueError, match="MM-DD"):
         resolve_date_input(typed, today=TODAY)
+
+
+def test_local_instant_puts_a_wall_clock_time_where_the_user_is() -> None:
+    assert local_instant(datetime(2026, 3, 5, 21, 0), "America/Sao_Paulo") == (
+        datetime(2026, 3, 6, 0, 0, tzinfo=UTC)
+    )
+    aware = datetime(2026, 3, 5, 21, 0, tzinfo=UTC)
+    assert local_instant(aware, "America/Sao_Paulo") is aware
+    assert local_instant(datetime(2026, 3, 5, 21, 0), "Nowhere/Else").utcoffset() == (
+        datetime(2026, 3, 5, tzinfo=UTC).utcoffset()
+    )
