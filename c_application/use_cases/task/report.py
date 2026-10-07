@@ -2,9 +2,9 @@
 
 Nothing new is collected: completions, cancellations and creations come
 from the history (an undone one does not count), and a completion is on
-time or late against the due date the task had *when it was completed*
-(the snapshot in its history entry), so moving a date later does not
-rewrite the past.
+time or late against the deadline the task had *when it was completed*
+(the snapshot in its history entry: due + estimate, or the due date when
+strict), so moving a date later does not rewrite the past.
 """
 
 from collections import Counter, defaultdict
@@ -20,6 +20,7 @@ from b_domain.entities.user import UserPrefs
 from b_domain.ports.repositories.filters import TaskFilter, TimeEntryFilter
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, Priority, TaskId, TaskStatus, UserId
+from b_domain.value_objects.dates import deadline_of
 from b_domain.value_objects.recurrences._serial import axiom_date_from_dict
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.use_cases.task.timer import time_of
@@ -199,6 +200,31 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                 if completions
                 else {}
             )
+            # A subtask due with its parent shares its parent's deadline
+            parent_ids: set[TaskId] = {
+                TaskId.from_string(ref)
+                for e in completions
+                if (
+                    ref := (e.previous or _state_of(tasks.get(e.task_id))).get(
+                        "parent_id"
+                    )
+                )
+            }
+            parents: dict[TaskId, Task] = (
+                {
+                    t.id: t
+                    for t in await uow.tasks.list(
+                        TaskFilter(
+                            user_id=user_id,
+                            ids=list(parent_ids),
+                            deleted=None,
+                            limit=10_000,
+                        )
+                    )
+                }
+                if parent_ids
+                else {}
+            )
             contexts: dict[ContextId, str] = {
                 c.id: c.name for c in await uow.contexts.list_by_user(user_id)
             }
@@ -247,11 +273,11 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             state: dict[str, Any] = entry.previous or _state_of(
                 tasks.get(entry.task_id)
             )
-            due: datetime | None = _due(state)
-            if due is None:
+            deadline: datetime | None = _deadline(state, parents)
+            if deadline is None:
                 no_due += 1
                 punctuality[entry.entry_id] = _ON_TIME
-            elif _aware(entry.occurred_at) <= due:
+            elif _aware(entry.occurred_at) <= deadline:
                 on_time += 1
                 punctuality[entry.entry_id] = _ON_TIME
             else:
@@ -461,6 +487,24 @@ def _due(state: dict[str, Any]) -> datetime | None:
     if not state.get("due"):
         return None
     return _aware(axiom_date_from_dict(state["due"]).materialize())
+
+
+def _deadline(state: dict[str, Any], parents: dict[TaskId, Task]) -> datetime | None:
+    """When the task in a snapshot became late: due + estimate, or the due
+    date when strict (a snapshot without "strict" is a block; one without
+    "estimate", from before it was kept, the due date itself). A subtask due
+    with its parent: its parent's."""
+    due: datetime | None = _due(state)
+    if due is None:
+        return None
+    ref: str | None = state.get("parent_id")
+    parent: Task | None = parents.get(TaskId.from_string(ref)) if ref else None
+    if parent is not None and parent.due_date is not None:
+        if _aware(parent.due_date.materialize()) == due:
+            return parent.deadline()
+    return deadline_of(
+        due, int(state.get("estimate") or 0), bool(state.get("strict", False))
+    )
 
 
 def _context_name(state: dict[str, Any], names: dict[ContextId, str]) -> str:

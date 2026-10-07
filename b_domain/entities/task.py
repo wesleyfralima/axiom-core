@@ -22,7 +22,7 @@ from b_domain.events.task_events import (
 )
 from b_domain.exceptions.recurrence import NotRecurringTaskError
 from b_domain.value_objects import Description, Priority, TaskId, TaskStatus, Title
-from b_domain.value_objects.dates import DueDate, build_axiom_date
+from b_domain.value_objects.dates import DueDate, build_axiom_date, deadline_of
 from b_domain.value_objects.enums import EnergyLevel, TaskComplexity
 from b_domain.value_objects.identifiers import ContextId, UserId
 from b_domain.value_objects.recurrences import RecurrenceRule
@@ -92,6 +92,9 @@ class Task(Entity):
     required_energy_level: EnergyLevel = EnergyLevel.BALANCED
     complexity: TaskComplexity = TaskComplexity.MEDIUM
     estimated_duration_minutes: int = 30
+    # The due date is a hard deadline: late right after it. Otherwise it is
+    # when the task starts, and it is late only after its estimate (a block)
+    strict_due: bool = False
 
     # --- Campos Comportamentais (Telemetria) ---
     success_count: int = 0
@@ -144,6 +147,7 @@ class Task(Entity):
         tags: frozenset[str] | None = None,
         task_id: TaskId | None = None,
         waiting: bool | None = None,
+        strict_due: bool = False,
     ) -> "Task":
         """Factory method to create a new clean Task.
 
@@ -175,6 +179,7 @@ class Task(Entity):
                 next occurrence, ``occurrence_id``); a new one otherwise.
             waiting (bool | None): Whether a task in ``depends_on`` is still
                 open (the use case knows); None: any dependency counts.
+            strict_due (bool): The due date is a hard deadline.
 
         Returns:
             Task: A new Task instance.
@@ -226,6 +231,7 @@ class Task(Entity):
             recurrence=recurrence,
             complexity=complexity,
             estimated_duration_minutes=estimated_duration_minutes,
+            strict_due=strict_due,
             success_count=success_count,
             attempt_count=attempt_count,
             average_duration_minutes=average_duration_minutes,
@@ -458,9 +464,13 @@ class Task(Entity):
             if not next_dt:
                 return None
 
-            # Normalize timezone for comparison
+            # Normalize timezone for comparison. The first one still on time:
+            # today's 08:00 lasting 2 hours is still to do at 09:00
             comparison_now: datetime = self.recurrence.normalize_comparison_date(now)
-            if next_dt > comparison_now:
+            deadline: datetime = deadline_of(
+                next_dt, self.estimated_duration_minutes, self.strict_due
+            )
+            if deadline > comparison_now:
                 return self._recreate_task_with_date(now, next_dt, caused_by)
 
             # Otherwise, continue iterating
@@ -541,6 +551,7 @@ class Task(Entity):
             tz_name=tz_name,
             complexity=self.complexity,
             estimated_duration_minutes=self.estimated_duration_minutes,
+            strict_due=self.strict_due,
             average_duration_minutes=self.average_duration_minutes,
             caused_by=caused_by,
             series_id=series_id,
@@ -589,6 +600,7 @@ class Task(Entity):
             tz_name=due.timezone if due else None,
             complexity=self.complexity,
             estimated_duration_minutes=self.estimated_duration_minutes,
+            strict_due=self.strict_due,
             tags=self.tags,
             caused_by=caused_by,
         )
@@ -825,6 +837,36 @@ class Task(Entity):
         """Take a due date as it is (a subtask's, from its parent)."""
         self.due_date = due
         self._touch(now)
+
+    def set_strict_due(self, now: datetime, strict: bool) -> None:
+        """Whether the due date is a hard deadline (or when the task starts)."""
+        self.strict_due = strict
+        self._touch(now)
+
+    def deadline(self, parent: Optional["Task"] = None) -> datetime | None:
+        """When the task becomes late (see ``deadline_of``); None without a
+        due date.
+
+        A subtask due with its parent shares its parent's deadline: they are
+        a checklist of the same block. One with an earlier due date of its
+        own keeps its own.
+        """
+        if self.due_date is None:
+            return None
+        if (
+            parent is not None
+            and parent.due_date is not None
+            and parent.due_date.materialize() == self.due_date.materialize()
+        ):
+            return parent.deadline()
+        return self.due_date.deadline(self.estimated_duration_minutes, self.strict_due)
+
+    def is_overdue(self, now: datetime, parent: Optional["Task"] = None) -> bool:
+        """Past its deadline (whatever its status: the caller decides)."""
+        deadline: datetime | None = self.deadline(parent)
+        if deadline is None:
+            return False
+        return (now if now.tzinfo else now.replace(tzinfo=UTC)) > deadline
 
     def mark_as_done(
         self,
@@ -1068,6 +1110,7 @@ class Task(Entity):
             "recurrence": rule_to_dict(self.recurrence) if self.recurrence else None,
             "series_id": str(self.series_id) if self.series_id else None,
             "estimate": self.estimated_duration_minutes,
+            "strict": self.strict_due,
             "tags": sorted(self.tags),
             "parent_id": str(self.parent_id) if self.parent_id else None,
             "depends_on": sorted(str(t) for t in self.depends_on),
@@ -1128,6 +1171,8 @@ class Task(Entity):
             )
             if "estimate" in snapshot:
                 self.estimated_duration_minutes = int(snapshot["estimate"])
+            if "strict" in snapshot:
+                self.strict_due = bool(snapshot["strict"])
             if "tags" in snapshot:
                 self.tags = frozenset(snapshot["tags"])
             if "series_id" in snapshot:

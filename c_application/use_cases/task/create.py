@@ -289,6 +289,7 @@ async def make_task(
         estimated_duration_minutes=(
             dto.estimated_minutes or user.preferences.default_task_duration_minutes
         ),
+        strict_due=dto.strict_due,
         tags=tags,
         caused_by=caused_by,
     )
