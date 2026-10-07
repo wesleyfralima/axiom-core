@@ -13,6 +13,29 @@ type TimezoneLike = dt_timezone | ZoneInfo
 type TimezoneInput = dt_timezone | ZoneInfo | tzinfo | str
 
 
+def deadline_of(due: datetime, estimate_minutes: int, strict: bool) -> datetime:
+    """When a task due at ``due`` becomes late.
+
+    The due date is when the task starts, and it lasts its estimate: late
+    only after due + estimate — never past the end of the due date's day (a
+    date with no time typed is 23:59, and its estimate must not cross into
+    the next day). ``strict``: the due date is a real deadline, late right
+    after it (the estimate says when to start: due - estimate).
+
+    Args:
+        due (datetime): The due date (naive or aware: the result is alike).
+        estimate_minutes (int): How long the task is expected to take.
+        strict (bool): The due date is a hard deadline.
+
+    Returns:
+        datetime: The last moment the task is on time.
+    """
+    if strict or estimate_minutes <= 0:
+        return due
+    end_of_day: datetime = due.replace(hour=23, minute=59, second=59, microsecond=0)
+    return min(due + timedelta(minutes=estimate_minutes), max(due, end_of_day))
+
+
 class DateKind(StrEnum):
     """
     Define the semantic nature of a date.
@@ -255,15 +278,27 @@ class DueDate(AxiomDate):
         if self.value.year < 2000:
             raise ValidationException("Due date seems invalid (too old).")
 
-    def is_overdue(self, now_reference: datetime) -> bool:
+    def deadline(self, estimate_minutes: int = 0, strict: bool = False) -> datetime:
+        """When a task due now becomes late (see ``deadline_of``), aware."""
+        return deadline_of(self.materialize(), estimate_minutes, strict)
+
+    def is_overdue(
+        self,
+        now_reference: datetime,
+        estimate_minutes: int = 0,
+        strict: bool = False,
+    ) -> bool:
         """Check if the due date has expired.
 
         Args:
             now_reference (datetime): The "current time" to compare against.
                 Must be timezone-aware (UTC or valid IANA timezone).
+            estimate_minutes (int): How long the task lasts: it is late only
+                after due + estimate (see ``deadline_of``).
+            strict (bool): The due date is a hard deadline.
 
         Returns:
-            bool: True if the due date has passed, False otherwise.
+            bool: True if the deadline has passed, False otherwise.
 
         Raises:
             ValidationException: If `now_reference` is
@@ -285,7 +320,7 @@ class DueDate(AxiomDate):
             # A floating date is wall-clock time in its own zone (the user's
             # when it was set), never in the zone `now` happens to carry:
             # 23:59 in São Paulo is not 23:59 UTC. Fixed dates are instants.
-            my_limit: datetime = self.materialize()
+            my_limit: datetime = self.deadline(estimate_minutes, strict)
             return now_reference > my_limit
 
         except (ValueError, TypeError):

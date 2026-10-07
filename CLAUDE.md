@@ -62,6 +62,13 @@ simulator: `python -m d_fake_infra`).
 - **Dates:** `b_domain/value_objects/dates.py`. `AxiomDate.fixed` = an instant
   (aware, UTC); `AxiomDate.floating` = wall-clock time + source timezone
   (naive). A floating task requires a floating recurrence, and vice versa.
+  **When a task is late:** `deadline_of` (same module) — the due date is
+  when it starts and it lasts its estimate (late after due + estimate,
+  never past the due date's day), or, with `Task.strict_due`, a hard
+  deadline. `Task.deadline`/`is_overdue` (a subtask due with its parent
+  shares its deadline), the report's on time / late and the next
+  occurrence of a skipped or completed one (the first still on time) all
+  use it.
 - **Recurrences:** `b_domain/value_objects/recurrences/` — one class per rule,
   `_base.py` with the contract, `_factory.py` builds from the
   `RecurrenceInputDTO`. Each rule describes itself (`describe_pattern()`); a

@@ -170,6 +170,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             if request.estimated_minutes is not None:
                 task.update_estimate(now, request.estimated_minutes)
 
+            if request.strict_due is not None and request.strict_due != task.strict_due:
+                task.set_strict_due(now, request.strict_due)
+
             if request.tags is not None or request.add_tags or request.remove_tags:
                 tags: frozenset[str] = (
                     normalize_tags(request.tags)
@@ -455,5 +458,6 @@ def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str 
         ),
         "recurrence": format_task_recurrence(task.recurrence),
         "estimate": str(task.estimated_duration_minutes),
+        "strict": "yes" if task.strict_due else None,
         "tags": " ".join(f"#{t}" for t in sorted(task.tags)) or None,
     }

@@ -42,6 +42,9 @@ class CreateTaskInputDTO(DTO):
     due_date: DateInput | None = None
     is_floating: bool = True
     timezone: str | None = None
+    # The due date is a hard deadline (late right after it); otherwise it is
+    # when the task starts, late only after its estimate
+    strict_due: bool = False
 
     # Hierarchy and dependencies (a subtask: see AddSubtasksInputDTO)
     parent_id: str | None = None
@@ -108,6 +111,8 @@ class UpdateTaskInputDTO(DTO):
     remove_due_date: bool = False
     is_floating: bool | None = None
     timezone: str | None = None
+    # Whether the due date is a hard deadline (None: as it is)
+    strict_due: bool | None = None
 
     # Recurrence: a new rule (its start_date defaults to the task's due date,
     # which stays — the occurrences after it follow the new rule), or
@@ -202,6 +207,11 @@ class TaskOutputDTO(DTO):
 
     # Time: the estimate, what was measured (timers) and a running timer
     estimated_minutes: int = 30
+    # The due date is a hard deadline; ``deadline`` is when the task becomes
+    # late (due + estimate, or the due date when strict; a subtask due with
+    # its parent: its parent's)
+    strict_due: bool = False
+    deadline: datetime | None = None
     time_spent_minutes: int = 0
     running_since: datetime | None = None
 

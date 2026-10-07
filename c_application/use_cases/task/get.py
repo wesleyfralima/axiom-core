@@ -93,6 +93,11 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
                 today=local_today(now, prefs.timezone),
             )
             spent, since = await time_of(uow, task.id, now)
+            parent: Task | None = (
+                await uow.tasks.get_by_id(task.parent_id, user_id)
+                if task.parent_id
+                else None
+            )
             return TaskMapper.to_output(
                 task,
                 now,
@@ -101,4 +106,5 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
                 time_spent_minutes=spent,
                 running_since=since,
                 relations=await relations_of(uow, task, user_id),
+                parent=parent,
             )

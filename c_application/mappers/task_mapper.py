@@ -27,6 +27,7 @@ class TaskMapper:
         context: Context | None = None,
         parent_title: str | None = None,
         relations: dict[str, Any] | None = None,
+        parent: Task | None = None,
     ) -> TaskOutputDTO:
         """Maps a Domain Task entity to a TaskOutputDTO for the outside world.
 
@@ -35,6 +36,8 @@ class TaskMapper:
         fills ``next_occurrences`` with the occurrences projected up to it;
         ``occurrences`` gives them ready (they win). ``relations`` are the
         fields ``relations_of`` fills (parent, subtasks, dependencies).
+        ``parent`` is a subtask's parent, when the caller loaded it: one due
+        with it shares its deadline.
         """
         return TaskOutputDTO(
             id=str(task.id),
@@ -47,7 +50,9 @@ class TaskMapper:
             context_icon=context.icon if context else None,
             required_energy_level=task.required_energy_level.value,
             due_date=task.due_date.value if task.due_date else None,
-            is_overdue=task.due_date.is_overdue(now) if task.due_date else False,
+            is_overdue=task.is_overdue(now, parent),
+            strict_due=task.strict_due,
+            deadline=task.deadline(parent),
             parent_id=str(task.parent_id) if task.parent_id else None,
             parent_title=parent_title,
             is_blocked=task.is_blocked,

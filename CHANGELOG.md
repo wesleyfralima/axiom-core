@@ -6,6 +6,34 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.32.0] — 2026-10-06
+
+Product Backlog 04, Part 3: the due date as a block (axiom-enterprise
+0.23.0, axiom-cli 0.37.0).
+
+### Added
+- **A task is late only after its block**: the due date is when it starts,
+  and it lasts its estimate — `deadline_of` (`b_domain/value_objects/dates`):
+  due + estimate, never past the end of the due date's day. Due at 08:00,
+  lasting 2 hours, done at 09:45: on time.
+- **`Task.strict_due`**: the due date is a hard deadline — late right after
+  it (the estimate says when to start). In `CreateTaskInputDTO`,
+  `UpdateTaskInputDTO` (an edit recorded as `strict`), the snapshot (undo),
+  and carried to the next occurrence and to a subtask's copy.
+- `Task.deadline()` / `Task.is_overdue()`: a subtask due with its parent
+  shares its parent's deadline; one with an earlier due date of its own
+  keeps its own. `TaskOutputDTO.deadline` and `strict_due`;
+  `TaskMapper.to_output(parent=…)` (the list and `show` pass it).
+
+### Changed
+- **Late is past the deadline everywhere**: `is_overdue`, and the report's
+  on time / late (from the snapshot's estimate and `strict`).
+- **The next occurrence is the first still on time**: a skipped or
+  completed occurrence made the next one whose due date was ahead, so a
+  daily 08:00 task skipped at 09:00 jumped to tomorrow and today's
+  vanished; now today's comes while its block lasts.
+- Coverage floor 86.9%.
+
 ## [0.31.0] — 2026-10-06
 
 Product Backlog 04, Part 2: done and forgotten (axiom-cli 0.36.0).
