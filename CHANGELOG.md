@@ -6,6 +6,22 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.33.0] — 2026-10-08
+
+Product Backlog 01, Part 8: `axpro today` (axiom-enterprise 0.24.0,
+axiom-cli 0.38.0).
+
+### Added
+- **`TodayUseCase`** (`c_application/use_cases/task/today.py`): the day at
+  a glance in four lists — `overdue` (open and past their deadline, oldest
+  first), `today` (due today, not late yet), `done` (completed today, by
+  `completed_at`: one done "yesterday 21:00" this morning is yesterday's)
+  and `next` (the first open ones after today, `next_count`, 3 by
+  default; a subtask due with its parent is left to it). Every context
+  unless `context_id` (a name or ID prefix) is given; the day is the
+  user's, in their time zone; nothing is projected.
+- Coverage floor 87.0%.
+
 ## [0.32.0] — 2026-10-06
 
 Product Backlog 04, Part 3: the due date as a block (axiom-enterprise
