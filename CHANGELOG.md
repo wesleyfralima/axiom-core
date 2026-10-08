@@ -6,6 +6,32 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.38.0] — 2026-10-08
+
+Product Backlog 01, Part 8: the commitment limit (axiom-enterprise 0.29.0,
+axiom-cli 0.43.0) — the end of Part 8.
+
+### Added
+- **The productive day** (`UserPrefs.day_start`, `day_end` — HH:MM, the end
+  may be past midnight — and `day_margin`, 5 to 25%, default 10%):
+  `day_minutes`, `day_capacity_minutes`. `working_hours_*` stay, for Flow.
+- **The day's load** (`c_application/use_cases/task/capacity.py`,
+  `DayLoadDTO`): the open tasks' estimates (a parent only, never an hourly
+  series; the late ones count today) against the time there is — today,
+  the clock (from now, or the day's start, to its end, minus the margin);
+  another day, all of it.
+- **A full day warns, never refuses** (`full_day_warnings`, default on):
+  `full_day` on the task created or edited (moved, grown, re-parented),
+  the subtasks added (the parent's day) and the task snoozed;
+  `TodayOutputDTO.load` (and `warn_full`).
+- **`Task.took_minutes`**: the time it really took, as the user tells it —
+  on completion (`TaskByUserRequest.took_minutes`, it wins over the timer
+  for the series' learned estimate) or after (`UpdateTaskInputDTO`, a done
+  task only; "took" in the history). The report's estimate accuracy uses it.
+- **An hourly series never lasts longer than its interval**
+  (`Task.check_fits_its_interval`, on create and edit).
+- Coverage floor 87.7%.
+
 ## [0.37.0] — 2026-10-08
 
 Product Backlog 01, Part 8: the procrastination radar (axiom-enterprise

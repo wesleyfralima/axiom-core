@@ -53,6 +53,7 @@ class TaskMapper:
             is_overdue=task.is_overdue(now, parent),
             strict_due=task.strict_due,
             snoozed_from=task.snoozed_from.value if task.snoozed_from else None,
+            took_minutes=task.took_minutes,
             deadline=task.deadline(parent),
             parent_id=str(task.parent_id) if task.parent_id else None,
             parent_title=parent_title,

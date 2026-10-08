@@ -110,6 +110,10 @@ simulator: `python -m d_fake_infra`).
   or missed in a row (the series' closed occurrences, the gaps a habit
   skipped, the open one's days gone); flags at `RADAR_AFTER`; off with
   `postpone_warnings`. Used by `today` and `wrap`.
+- **The commitment limit:** `c_application/use_cases/task/capacity.py` —
+  a day's capacity is the productive day (`day_start`–`day_end`) minus
+  `day_margin`; today, the clock. `full_day_of` after a change (its own
+  transaction, so it reads what was saved); off with `full_day_warnings`.
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
   the rule starts at it (`build_recurrence`, shared with create), the next
   occurrences follow it. `count` = occurrences left, this one included.
@@ -274,7 +278,7 @@ there too.
 
 ## Current state (2026-10-08)
 
-- Version `0.37.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.38.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -307,9 +311,10 @@ there too.
   `TodayUseCase` (0.33.0, product Backlog 01, Part 8); the snooze,
   `snoozed_from` (0.34.0); the end of the day, `WrapUseCase` (0.35.0);
   a habit or a bill, `RecurrenceRule.keep_missed` (0.36.0); the
-  procrastination radar (0.37.0).
+  procrastination radar (0.37.0); the commitment limit — the
+  productive day, a full day warned, `took_minutes` (0.38.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 887 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 87.6% over an 87.6% floor.
+- 898 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.7% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

@@ -18,8 +18,13 @@ from b_domain.value_objects import (
 from b_domain.value_objects.enums import EnergyLevel, Priority
 from b_domain.value_objects.texts import normalize_tags
 from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
-from c_application.dtos.task_dtos import CreateTaskInputDTO, TaskOutputDTO
+from c_application.dtos.task_dtos import (
+    CreateTaskInputDTO,
+    DayLoadDTO,
+    TaskOutputDTO,
+)
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import full_day_of
 from c_application.use_cases.task.relations import (
     check_takes_subtasks,
     cover_subtasks,
@@ -120,6 +125,12 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 notes += [note] if note else []
             relations: dict[str, Any] = await relations_of(uow, task, user_id_vo)
 
+        # The day it lands on, when full (warned, never refused)
+        async with self.uow as uow:
+            full_day: DayLoadDTO | None = await full_day_of(
+                uow, user_id_vo, task, now_system
+            )
+
         # 9. Return mapped output DTO (recurring: the occurrences ahead)
         today: date = local_today(now_system, user.preferences.timezone)
         horizon: date = resolve_horizon(user.preferences.days_ahead, today=today)
@@ -132,6 +143,7 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
                 relations=relations,
             ),
             notes=notes,
+            full_day=full_day,
         )
 
 
@@ -300,6 +312,8 @@ async def make_task(
             due_asked=dto.due_date is not None,
             priority_asked=dto.priority is not None,
         )
+    # An hourly series never lasts longer than its interval
+    task.check_fits_its_interval()
 
     await uow.tasks.add(task)
     return task, context

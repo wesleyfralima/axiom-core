@@ -50,6 +50,10 @@ class UserPrefsInputDTO(DTO):
     allow_overdue_tasks: bool | None = None
     keep_deleted_days: int | None = None
     postpone_warnings: bool | None = None
+    full_day_warnings: bool | None = None
+    day_start: str | None = None  # HH:MM
+    day_end: str | None = None  # HH:MM
+    day_margin: int | None = None  # percent, 5 to 25
 
     # ------------------------------------------------------------------
     # Notifications
@@ -107,6 +111,10 @@ class UserPrefsOutputDTO(DTO):
     allow_overdue_tasks: bool
     keep_deleted_days: int
     postpone_warnings: bool
+    full_day_warnings: bool
+    day_start: str
+    day_end: str
+    day_margin: int
 
     # ------------------------------------------------------------------
     # Notifications

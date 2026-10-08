@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "axiom-core"
-version = "0.37.0"
+version = "0.38.0"
 description = "Core domain and application rules for Axiom Productivity."
 authors = ["Wesley Francisco de Lima <wesleyfralima@gmail.com>"]
 readme = "README.md"
@@ -30,7 +30,7 @@ build-backend = "poetry.core.masonry.api"
 
 [tool.coverage.report]
 # Floor = real coverage, so `make check` is green; raise it whenever tests are added.
-fail_under = 87.6
+fail_under = 87.7
 precision = 1
 exclude_lines = [
     "pragma: no cover",

@@ -40,8 +40,16 @@ class UserPrefs(ValueObject):
     # ------------------------------------------------------------------
     timezone: str = "UTC"
     week_start: Literal["monday", "sunday"] = "monday"
+    # The hours most focused on one daily thing (work, school): for Axiom
+    # Flow, which is off — not shown among the preferences for now
     working_hours_start: int = 9  # 09:00
     working_hours_end: int = 18  # 18:00
+    # The productive day, roughly waking to sleeping ("HH:MM"; the end may
+    # be past midnight): the time there is to do things. A day's capacity
+    # is it minus ``day_margin`` percent (5 to 25)
+    day_start: str = "08:00"
+    day_end: str = "23:00"
+    day_margin: int = 10
     # The days of the week the user works (mon,tue,…): business days
     work_days: str = DEFAULT_WORK_DAYS
     # Whose public holidays are not business days ("BR", "BR-SP"; "": none)
@@ -68,6 +76,8 @@ class UserPrefs(ValueObject):
     # The radar: a task put off three times (or a series missed three in a
     # row) asks for a decision in `today` and `wrap`
     postpone_warnings: bool = True
+    # A day that gets more tasks than it has time for warns (never blocks)
+    full_day_warnings: bool = True
 
     # ------------------------------------------------------------------
     # Notifications
@@ -104,6 +114,18 @@ class UserPrefs(ValueObject):
         """``default_due_time`` as a time of day."""
         hours, minutes = (int(part) for part in self.default_due_time.split(":"))
         return time(hours, minutes)
+
+    @property
+    def day_minutes(self) -> int:
+        """How long the productive day is (its end past midnight counts on)."""
+        start: int = _minutes_of(self.day_start)
+        end: int = _minutes_of(self.day_end)
+        return end - start if end > start else end + 24 * 60 - start
+
+    @property
+    def day_capacity_minutes(self) -> int:
+        """The productive day minus its margin: the time tasks can take."""
+        return self.day_minutes * (100 - self.day_margin) // 100
 
     @property
     def work_weekdays(self) -> frozenset[int]:
@@ -176,6 +198,15 @@ class UserPrefs(ValueObject):
                 "default due time", str(result["default_due_time"])
             )
 
+        for key in ("day_start", "day_end"):
+            if key in result:
+                result[key] = _clock_time_text(key.replace("_", " "), str(result[key]))
+        if "day_margin" in result and not 5 <= int(result["day_margin"]) <= 25:
+            raise InvalidValueError(
+                concept="day margin (5 to 25 percent)",
+                invalid_value=str(result["day_margin"]),
+            )
+
         if "keep_deleted_days" in result and not (
             0 <= int(result["keep_deleted_days"]) <= 3650
         ):
@@ -207,6 +238,12 @@ class UserPrefs(ValueObject):
                 )
 
         return result
+
+
+def _minutes_of(clock: str) -> int:
+    """ "HH:MM" as minutes since midnight."""
+    hours, minutes = (int(part) for part in clock.split(":"))
+    return hours * 60 + minutes
 
 
 def _clock_time_text(concept: str, text: str) -> str:
