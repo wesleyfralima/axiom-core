@@ -6,6 +6,28 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.35.0] — 2026-10-08
+
+Product Backlog 01, Part 8: the end of the day (axiom-enterprise 0.26.0,
+axiom-cli 0.40.0).
+
+### Added
+- **`WrapUseCase`** (`c_application/use_cases/task/wrap.py`): what was done
+  today, what is left (open, due today or late) and, for each, what fits
+  it (`WrapAction`): tomorrow and the next business day (when the snooze
+  takes it there — not onto a recurring one's next occurrence, not past a
+  subtask's parent), a date, remove the date (not a recurring task or a
+  subtask), skip (a recurring one) or cancel, done (not a waiting one),
+  keep. A subtask due with its parent is left to it. Nothing is kept
+  between runs. When nothing is left, `ahead`: open tasks due within
+  `days_ahead` that can be done now, the shortest estimate first
+  (`ahead_count`, 5).
+
+### Changed
+- `today.collect_day` and `Day`: the day as tasks (late, due today, later,
+  done today), shared by `TodayUseCase` and `WrapUseCase`.
+- Coverage floor 87.4%.
+
 ## [0.34.0] — 2026-10-08
 
 Product Backlog 01, Part 8: the snooze (axiom-enterprise 0.25.0, axiom-cli
