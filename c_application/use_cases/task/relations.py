@@ -568,6 +568,7 @@ async def bring_subtasks(
     next_task: Task,
     now: datetime,
     caused_by: UniqueId | None,
+    parent_due: DueDate | None = None,
 ) -> None:
     """Copy ``task``'s subtasks under its next occurrence, open.
 
@@ -575,7 +576,10 @@ async def bring_subtasks(
     every device); one already there is left, one an undo took away comes
     back. A dependency between siblings points to the sibling's copy.
     ``caused_by``: the change that made the next occurrence (undone with it).
+    ``parent_due``: the due date the subtasks were placed against, when
+    ``task``'s has moved since (a snooze); else ``task``'s own.
     """
+    placed: DueDate | None = parent_due or task.due_date
     subtasks: list[Task] = await uow.tasks.get_subtasks(task.id, limit=10_000)
     if not subtasks:
         return
@@ -589,7 +593,7 @@ async def bring_subtasks(
         copy: Task = sub.copy_under(
             now,
             next_task,
-            shifted_due(sub.due_date, task.due_date, next_task.due_date),
+            shifted_due(sub.due_date, placed, next_task.due_date),
             depends_on,
             # A sibling's copy is open; an outside task, as it is
             waiting=len(outside) < len(depends_on)

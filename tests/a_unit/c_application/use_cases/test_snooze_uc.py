@@ -383,3 +383,25 @@ async def test_a_subtask_stays_within_its_parent(
 
     with pytest.raises(ValidationException, match="no later than its parent"):
         await _snooze(use_case_context, user, added.subtasks[0])
+
+
+async def test_both_kept_the_next_one_brings_the_subtasks_to_its_day(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    bedtime = await _create(
+        use_case_context, user, "Bedtime", recurrence=_daily("today 22:00")
+    )
+    await AddSubtasksUseCase(**use_case_context).execute(
+        AddSubtasksInputDTO(
+            user_id=str(user.id), parent_id=bedtime.id[:8], titles=["Stretch"]
+        )
+    )
+
+    snoozed = await _snooze(use_case_context, user, bedtime, keep_both=True)
+
+    assert snoozed.next is not None
+    async with fake_uow_factory() as uow:
+        for parent in (bedtime.id, snoozed.next.id):
+            [sub] = await uow.tasks.get_subtasks(TaskId.from_string(parent))
+            assert sub.due_date is not None
+            assert sub.due_date.value == datetime(2026, 3, 6, 22, 0)

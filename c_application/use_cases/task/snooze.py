@@ -175,7 +175,12 @@ class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
                 following_task = await add_occurrence(uow, made)
                 if following_task is not None:
                     await bring_subtasks(
-                        uow, task, following_task, now, caused_by=snooze_id
+                        uow,
+                        task,
+                        following_task,
+                        now,
+                        caused_by=snooze_id,
+                        parent_due=old_due,
                     )
             if parent is None:
                 notes += await pull_subtasks(uow, now, task, old_due, snooze_id)
