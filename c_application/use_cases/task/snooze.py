@@ -127,8 +127,13 @@ class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
                 )
 
             # A recurring occurrence: not onto its next one, unless both stay
+            # — as they always do when the series keeps its missed ones
             keep_both: bool = False
-            if task.recurrence is not None and task.parent_id is None:
+            if (
+                task.recurrence is not None
+                and task.parent_id is None
+                and not task.recurrence.keep_missed
+            ):
                 upcoming: Task | None = task.create_next_occurrence(now)
                 if upcoming is not None and upcoming.due_date is not None:
                     following: DueDate = upcoming.due_date

@@ -259,7 +259,6 @@ async def make_task(
         )
 
         # First occurrence becomes the due date
-        # TODO: must add catch_up param
         due_date = recurrence_vo.get_next_occurrence()
 
     # A subtask with no date of its own is due with its parent

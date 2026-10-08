@@ -1,4 +1,5 @@
 from collections.abc import Callable
+from dataclasses import replace
 from datetime import date, time
 
 from b_domain.exceptions.recurrence import (
@@ -52,6 +53,7 @@ class RecurrenceFactory:
         window_start: time | None = None,
         window_end: time | None = None,
         week_start: int = 0,
+        keep_missed: bool = False,
     ) -> RecurrenceRule:
         """Create the appropriate recurrence rule based on input parameters.
 
@@ -81,6 +83,8 @@ class RecurrenceFactory:
                 window rules. Defaults to None.
             week_start (int, optional): The week's first day (0 = Monday,
                 6 = Sunday), for "the Nth day of the week". Defaults to 0.
+            keep_missed (bool, optional): Keep the missed occurrences, one
+                after another (a bill), instead of skipping them (a habit).
 
         Returns:
             RecurrenceRule: The appropriate recurrence rule implementation.
@@ -91,6 +95,41 @@ class RecurrenceFactory:
                 rule that is neither weekly nor monthly, together with days of
                 the month, or to a weekly rule together with weekdays.
         """
+        rule: RecurrenceRule = RecurrenceFactory._build(
+            start_date,
+            frequency,
+            interval,
+            end_date,
+            count,
+            days_of_week,
+            days_of_month,
+            set_pos,
+            nth_business_day,
+            is_business_day_checker,
+            window_start,
+            window_end,
+            week_start,
+        )
+        # A bill: its missed occurrences kept, one after another
+        return replace(rule, keep_missed=True) if keep_missed else rule
+
+    @staticmethod
+    def _build(
+        start_date: AxiomDate,
+        frequency: RecurrenceInterval,
+        interval: int,
+        end_date: AxiomDate | None,
+        count: int | None,
+        days_of_week: set[int] | None,
+        days_of_month: set[int] | None,
+        set_pos: int | None,
+        nth_business_day: int | None,
+        is_business_day_checker: Callable[[date], bool] | None,
+        window_start: time | None,
+        window_end: time | None,
+        week_start: int,
+    ) -> RecurrenceRule:
+        """The rule for the inputs (see ``create_from_input``)."""
         # 0. A position is the Nth day of a week or of a month: never ignored
         if set_pos is not None and nth_business_day is None:
             if frequency not in (RecurrenceInterval.WEEKLY, RecurrenceInterval.MONTHLY):

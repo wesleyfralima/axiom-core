@@ -228,6 +228,9 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     now, new_due, is_floating=is_floating, tz_name=tz_name
                 )
 
+            kept_missed: bool = (
+                task.recurrence.keep_missed if task.recurrence is not None else False
+            )
             if request.remove_recurrence:
                 task.change_recurrence(now, None)
             elif request.recurrence is not None:
@@ -239,6 +242,22 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     now,
                     calendar.is_business_day if calendar else weekdays_only,
                 )
+            # A habit or a bill: as asked, else as it was (a new rule too)
+            keep_missed: bool | None = (
+                request.keep_missed
+                if request.keep_missed is not None
+                else (kept_missed if request.recurrence is not None else None)
+            )
+            if keep_missed is not None:
+                if task.recurrence is None:
+                    raise ValidationException(
+                        f"'{task.title}' does not repeat: only a recurring task "
+                        "keeps or skips its missed occurrences."
+                    )
+                if task.recurrence.keep_missed != keep_missed:
+                    task.change_recurrence(
+                        now, replace(task.recurrence, keep_missed=keep_missed)
+                    )
 
             # Parent and dependencies: never a loop (a task under its own
             # subtask, two tasks waiting on each other)

@@ -143,6 +143,8 @@ def _fits_tomorrow(task: Task, day: Day) -> bool:
     tomorrow: date = day.today + timedelta(days=1)
     target: datetime = datetime.combine(tomorrow, day.wall(task).time())
     if task.recurrence is not None and task.parent_id is None:
+        if task.recurrence.keep_missed:
+            return True  # the next one waits for this one
         upcoming: Task | None = task.create_next_occurrence(day.now)
         if upcoming is not None and upcoming.due_date is not None:
             return day.wall(upcoming).date() > tomorrow

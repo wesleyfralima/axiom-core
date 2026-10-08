@@ -113,6 +113,9 @@ class UpdateTaskInputDTO(DTO):
     timezone: str | None = None
     # Whether the due date is a hard deadline (None: as it is)
     strict_due: bool | None = None
+    # A recurring task: keep its missed occurrences (a bill) or skip them (a
+    # habit); None leaves it as it is
+    keep_missed: bool | None = None
 
     # Recurrence: a new rule (its start_date defaults to the task's due date,
     # which stays — the occurrences after it follow the new rule), or
