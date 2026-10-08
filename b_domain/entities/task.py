@@ -17,6 +17,7 @@ from b_domain.events.task_events import (
     TaskPausedEvent,
     TaskReopenedEvent,
     TaskRestoredEvent,
+    TaskSnoozedEvent,
     TaskStartedEvent,
     TaskUndoneEvent,
 )
@@ -95,6 +96,9 @@ class Task(Entity):
     # The due date is a hard deadline: late right after it. Otherwise it is
     # when the task starts, and it is late only after its estimate (a block)
     strict_due: bool = False
+    # The due date it had before it was first snoozed (None: never snoozed);
+    # an occurrence of its own, not carried to the next one
+    snoozed_from: DueDate | None = None
 
     # --- Campos Comportamentais (Telemetria) ---
     success_count: int = 0
@@ -838,6 +842,55 @@ class Task(Entity):
         self.due_date = due
         self._touch(now)
 
+    def snooze(
+        self,
+        now: datetime,
+        due: DueDate,
+        keep_both: bool = False,
+        changes: dict[str, tuple[str | None, str | None]] | None = None,
+    ) -> Optional["Task"]:
+        """Put the task off to ``due``; the first time, remember where it was.
+
+        A recurring occurrence keeps its rule: closing it makes the next one
+        as usual. With ``keep_both`` — it lands on its next occurrence's day,
+        and both are wanted — the series moves on now: the next occurrence
+        is made (and returned, for the caller to keep) and this one leaves
+        the series as a one-off, as a reopened occurrence does.
+
+        Args:
+            now (datetime): When.
+            due (DueDate): The new due date (the caller checked it is later).
+            keep_both (bool): Make the next occurrence now; this one stops
+                repeating.
+            changes (dict | None): Field → ``(before, after)`` as text, for
+                the history (the due date's at least).
+
+        Returns:
+            Task | None: The next occurrence, made now (``keep_both``).
+        """
+        previous: dict[str, Any] = self.snapshot()
+        event: TaskSnoozedEvent = TaskSnoozedEvent(
+            occurred_at=now,
+            task_id=self.id,
+            user_id=self.user_id,
+            changes={k: [old, new] for k, (old, new) in (changes or {}).items()},
+            keeps_both=keep_both,
+            previous=previous,
+        )
+        # From the occurrence as it is, before it moves; linked to the snooze,
+        # so undo takes it away with it
+        following: Task | None = (
+            self.create_next_occurrence(now, caused_by=event.id) if keep_both else None
+        )
+        if self.snoozed_from is None:
+            self.snoozed_from = self.due_date
+        self.due_date = due
+        if keep_both:
+            self.recurrence = None
+        self._touch(now)
+        self.add_event(event)
+        return following
+
     def set_strict_due(self, now: datetime, strict: bool) -> None:
         """Whether the due date is a hard deadline (or when the task starts)."""
         self.strict_due = strict
@@ -1111,6 +1164,9 @@ class Task(Entity):
             "series_id": str(self.series_id) if self.series_id else None,
             "estimate": self.estimated_duration_minutes,
             "strict": self.strict_due,
+            "snoozed_from": (
+                axiom_date_to_dict(self.snoozed_from) if self.snoozed_from else None
+            ),
             "tags": sorted(self.tags),
             "parent_id": str(self.parent_id) if self.parent_id else None,
             "depends_on": sorted(str(t) for t in self.depends_on),
@@ -1175,6 +1231,12 @@ class Task(Entity):
                 self.strict_due = bool(snapshot["strict"])
             if "tags" in snapshot:
                 self.tags = frozenset(snapshot["tags"])
+            if "snoozed_from" in snapshot:
+                self.snoozed_from = (
+                    axiom_date_from_dict(snapshot["snoozed_from"], DueDate)
+                    if snapshot["snoozed_from"]
+                    else None
+                )
             if "series_id" in snapshot:
                 self.series_id = (
                     TaskId.from_string(snapshot["series_id"])

@@ -11,6 +11,7 @@ from b_domain.events.task_events import (
     TaskPausedEvent,
     TaskReopenedEvent,
     TaskRestoredEvent,
+    TaskSnoozedEvent,
     TaskStartedEvent,
     TaskUndoneEvent,
 )
@@ -32,6 +33,7 @@ _ACTIONS: dict[type[DomainEvent], TaskAction] = {
     TaskUndoneEvent: TaskAction.UNDONE,
     TaskStartedEvent: TaskAction.STARTED,
     TaskPausedEvent: TaskAction.PAUSED,
+    TaskSnoozedEvent: TaskAction.SNOOZED,
 }
 
 
@@ -52,7 +54,7 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
         return None
 
     changes: tuple[FieldChange, ...] = ()
-    if isinstance(event, TaskEditedEvent):
+    if isinstance(event, TaskEditedEvent | TaskSnoozedEvent):
         changes = tuple(
             FieldChange(field=name, before=values[0], after=values[1])
             for name, values in event.changes.items()
@@ -66,6 +68,8 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
         note = event.action
     if isinstance(event, TaskPausedEvent):
         note = f"{event.minutes} min"
+    if isinstance(event, TaskSnoozedEvent) and event.keeps_both:
+        note = "Both kept: it left its series, which moved on."
 
     caused_by = getattr(event, "caused_by", None)
     undoes = getattr(event, "undoes", None)

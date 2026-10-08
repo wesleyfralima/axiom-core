@@ -41,6 +41,28 @@ class TaskEditedEvent(DomainEvent):
 
 
 @dataclass(frozen=True, kw_only=True)
+class TaskSnoozedEvent(DomainEvent):
+    """Triggered when a task is snoozed: put off to later today or another day.
+
+    Attributes:
+        task_id (TaskId): Identifier of the task.
+        user_id (UserId): Identifier of the user.
+        changes (dict[str, list[str | None]]): Field → ``[before, after]``, as
+            text: the due date, and the rule when it left its series.
+        keeps_both (bool): A recurring occurrence kept apart from its next
+            one: the series moved on, this one is a one-off.
+    """
+
+    task_id: TaskId
+    user_id: UserId
+    changes: dict[str, list[str | None]]
+    keeps_both: bool = False
+    # The task before this change (``Task.snapshot``), for undo
+    previous: dict[str, Any] | None = None
+    caused_by: UniqueId | None = None
+
+
+@dataclass(frozen=True, kw_only=True)
 class TaskReopenedEvent(DomainEvent):
     """Triggered when a done or cancelled task is reopened."""
 

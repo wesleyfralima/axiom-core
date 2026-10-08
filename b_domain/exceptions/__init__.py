@@ -22,6 +22,7 @@ from .security import (
     NotAuthenticatedError,
     SecurityException,
 )
+from .snooze import SnoozeRefusal, SnoozeRefusedError
 from .sync import (
     AlreadyJoinedError,
     DeviceNotAllowedError,
@@ -56,6 +57,8 @@ __all__ = [
     "NthBusinessDayWithOtherDayRules",
     "RecurrenceRuleException",
     "SecurityException",
+    "SnoozeRefusal",
+    "SnoozeRefusedError",
     "SyncConflictError",
     "SyncException",
     "SyncRefusedError",

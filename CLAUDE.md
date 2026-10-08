@@ -117,6 +117,11 @@ simulator: `python -m d_fake_infra`).
   newest command (`of_command`), newest first. A delete is a tombstone
   (`deleted_at`): searches see only live tasks unless asked for deleted
   ones; `get_by_id` sees both; `purge_deleted` is final.
+- **Snooze:** `c_application/use_cases/task/snooze.py` — only an open task
+  due today or late, only later; a recurring one is refused onto its next
+  occurrence's day (`SnoozeRefusedError.reason`) unless `keep_both`, which
+  makes the next occurrence now and leaves the snoozed one as a one-off.
+  `Task.snoozed_from` keeps the due date before the first snooze.
 - **Task lifecycle:** the state machine is `TaskStatus._get_transitions`
   (`b_domain/value_objects/enums.py`). Closed = done, cancelled, archived;
   only done/cancelled can be reopened or archived; archived is terminal and
@@ -260,7 +265,7 @@ there too.
 
 ## Current state (2026-10-08)
 
-- Version `0.33.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.34.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -290,9 +295,10 @@ there too.
   report's series timeline, short weekday rules, the period's rate
   (0.30.x); a task done at the moment it was (0.31.0); the due date as a
   block, `strict_due` (0.32.0, product Backlog 04); the day at a glance,
-  `TodayUseCase` (0.33.0, product Backlog 01, Part 8).
+  `TodayUseCase` (0.33.0, product Backlog 01, Part 8); the snooze,
+  `snoozed_from` (0.34.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 837 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 87.1% over an 87.0% floor.
+- 864 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 87.3% over an 87.3% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

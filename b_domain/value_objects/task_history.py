@@ -23,6 +23,7 @@ class TaskAction(StrEnum):
     UNDONE = "undone"
     STARTED = "started"
     PAUSED = "paused"
+    SNOOZED = "snoozed"
 
 
 @dataclass(frozen=True, kw_only=True)
