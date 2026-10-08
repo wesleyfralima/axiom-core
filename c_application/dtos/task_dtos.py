@@ -1,5 +1,5 @@
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 
 from a_core import DTO
 from b_domain.value_objects.enums import EnergyLevel
@@ -116,6 +116,8 @@ class UpdateTaskInputDTO(DTO):
     # A recurring task: keep its missed occurrences (a bill) or skip them (a
     # habit); None leaves it as it is
     keep_missed: bool | None = None
+    # A done task: the time it really took (statistics only)
+    took_minutes: int | None = None
 
     # Recurrence: a new rule (its start_date defaults to the task's due date,
     # which stays — the occurrences after it follow the new rule), or
@@ -141,6 +143,27 @@ class TaskLinkDTO(DTO):
     status: str
     due_date: datetime | None = None
     deleted: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class DayLoadDTO(DTO):
+    """How full a day is: its open tasks' estimates against the time it has.
+
+    Today, the time left: from now (or the day's start) to the day's end;
+    another day, its whole productive day — both minus the user's margin.
+    """
+
+    day: date
+    # The open tasks' estimates (the late ones too, for today)
+    planned_minutes: int
+    # The time there is for them
+    available_minutes: int
+    is_today: bool = False
+
+    @property
+    def is_full(self) -> bool:
+        """More planned than there is time for."""
+        return self.planned_minutes > self.available_minutes
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -223,6 +246,10 @@ class TaskOutputDTO(DTO):
     # What the change did on its own, to tell the user (a subtask brought
     # within its parent, the parent's estimate raised…)
     notes: list[str] = field(default_factory=list)
+    # The time it really took, as the user told it (statistics only)
+    took_minutes: int | None = None
+    # The day the change put it on is full (the user's warnings on)
+    full_day: DayLoadDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -232,6 +259,8 @@ class SubtasksAddedOutputDTO(DTO):
     parent: TaskOutputDTO
     subtasks: list[TaskOutputDTO]
     notes: list[str] = field(default_factory=list)
+    # The parent's day is full (its estimate grew)
+    full_day: DayLoadDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -259,6 +288,8 @@ class TaskByUserRequest(DTO):
     # Completion metadata: when it was done, as typed ("yesterday 21:00", a
     # wall-clock time where the user is) or an instant; None is now
     completed_at: DateInput | None = None
+    # Done: the time it really took, as the user tells it (statistics only)
+    took_minutes: int | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

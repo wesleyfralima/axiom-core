@@ -10,9 +10,11 @@ from b_domain.value_objects import UserId
 from c_application.dtos.task_dtos import (
     AddSubtasksInputDTO,
     CreateTaskInputDTO,
+    DayLoadDTO,
     SubtasksAddedOutputDTO,
 )
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import full_day_of
 from c_application.use_cases.task.create import make_task
 from c_application.use_cases.task.relations import cover_subtasks, relations_of
 from c_application.utils.task_utils import find_task
@@ -91,7 +93,12 @@ class AddSubtasksUseCase(UseCase[AddSubtasksInputDTO, SubtasksAddedOutputDTO]):
                 relations=await relations_of(uow, parent, user_id),
             )
 
+        # Its estimate may have grown: its day, when full (warned only)
+        async with self.uow as uow:
+            full_day: DayLoadDTO | None = await full_day_of(uow, user_id, parent, now)
+
         return SubtasksAddedOutputDTO(
+            full_day=full_day,
             parent=parent_out,
             subtasks=[
                 TaskMapper.to_output(task, now, context=context)

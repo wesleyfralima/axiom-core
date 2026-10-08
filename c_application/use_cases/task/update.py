@@ -17,8 +17,13 @@ from b_domain.value_objects.recurrences import RecurrenceRule
 from b_domain.value_objects.texts import normalize_tags
 from b_domain.value_objects.work_calendar import WorkCalendar, weekdays_only
 from c_application.dtos.recurrence_dtos import RecurrenceInputDTO
-from c_application.dtos.task_dtos import TaskOutputDTO, UpdateTaskInputDTO
+from c_application.dtos.task_dtos import (
+    DayLoadDTO,
+    TaskOutputDTO,
+    UpdateTaskInputDTO,
+)
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import full_day_of
 from c_application.use_cases.task.relations import (
     check_can_be_subtask,
     check_dependency,
@@ -259,6 +264,11 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                         now, replace(task.recurrence, keep_missed=keep_missed)
                     )
 
+            if request.took_minutes is not None:
+                task.set_took(now, request.took_minutes)
+            # An hourly series never lasts longer than its interval
+            task.check_fits_its_interval()
+
             # Parent and dependencies: never a loop (a task under its own
             # subtask, two tasks waiting on each other)
             if request.parent_id is not None:
@@ -367,6 +377,16 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 else None
             )
 
+        # Moved or grown: the day it is on, when full (warned, never refused)
+        full_day: DayLoadDTO | None = None
+        if (
+            request.due_date is not None
+            or request.estimated_minutes is not None
+            or request.parent_id is not None
+        ):
+            async with self.uow as uow:
+                full_day = await full_day_of(uow, user_id, task, now)
+
         # 5. Return mapped output DTO. Recurring: a preview of what comes
         # next — up to days_ahead, but at least the next one and at most
         # ten, hourly rules included
@@ -388,6 +408,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 relations=relations,
             ),
             notes=notes,
+            full_day=full_day,
         )
 
     @staticmethod
@@ -478,5 +499,6 @@ def _snapshot(task: Task, context_names: dict[ContextId, str]) -> dict[str, str 
         "recurrence": format_task_recurrence(task.recurrence),
         "estimate": str(task.estimated_duration_minutes),
         "strict": "yes" if task.strict_due else None,
+        "took": str(task.took_minutes) if task.took_minutes else None,
         "tags": " ".join(f"#{t}" for t in sorted(task.tags)) or None,
     }

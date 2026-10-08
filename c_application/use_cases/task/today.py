@@ -17,9 +17,10 @@ from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, TaskId, TaskStatus, UserId
 from c_application.dtos.context_dtos import ContextOutputDTO
-from c_application.dtos.task_dtos import TaskOutputDTO
+from c_application.dtos.task_dtos import DayLoadDTO, TaskOutputDTO
 from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import day_load
 from c_application.use_cases.task.radar import RadarDTO, radar_of
 from c_application.utils import find_context
 from c_application.utils.date_input import local_today
@@ -56,6 +57,10 @@ class TodayOutputDTO(DTO):
     # Late and today's tasks the radar flags (put off, or missed in a row);
     # none when the user turned the warnings off
     radar: list[RadarDTO] = field(default_factory=list)
+    # How full today is: the open tasks' estimates against what is left
+    load: DayLoadDTO | None = None
+    # Whether to warn about it (the user's full_day_warnings)
+    warn_full: bool = True
 
 
 @dataclass(kw_only=True)
@@ -213,6 +218,10 @@ class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
                 day.zone,
             )
             return TodayOutputDTO(
+                load=await day_load(
+                    uow, user_id, day.prefs, day.today, self.clock.now()
+                ),
+                warn_full=day.prefs.full_day_warnings,
                 radar=list(flagged.values()),
                 day=day.today,
                 overdue=[day.output(t) for t in day.overdue],

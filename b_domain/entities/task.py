@@ -99,6 +99,9 @@ class Task(Entity):
     # The due date it had before it was first snoozed (None: never snoozed);
     # an occurrence of its own, not carried to the next one
     snoozed_from: DueDate | None = None
+    # The time it really took, as the user told it (statistics only: the
+    # report, a series' estimate); a timer measures it otherwise
+    took_minutes: int | None = None
 
     # --- Campos Comportamentais (Telemetria) ---
     success_count: int = 0
@@ -897,6 +900,42 @@ class Task(Entity):
         self.add_event(event)
         return following
 
+    def set_took(self, now: datetime, minutes: int) -> None:
+        """The time it really took, as the user tells it.
+
+        Raises:
+            ValidationException: If it is not done, or the time is not
+                positive.
+        """
+        if self.status is not TaskStatus.DONE:
+            raise ValidationException(
+                f"'{self.title}' is not done: only a done task took some time."
+            )
+        if minutes <= 0:
+            raise ValidationException("It took some time: more than 0 minutes.")
+        self.took_minutes = minutes
+        self._touch(now)
+
+    def check_fits_its_interval(self) -> None:
+        """An hourly series cannot last longer than its interval (every 2
+        hours, 3 hours long: one would start before the other ends).
+
+        Raises:
+            ValidationException: If it does.
+        """
+        rule: RecurrenceRule | None = self.recurrence
+        if rule is None or not rule.is_sub_daily:
+            return
+        limit: int = rule.interval * 60
+        if self.estimated_duration_minutes > limit:
+            every: str = (
+                "every hour" if rule.interval == 1 else (f"every {rule.interval} hours")
+            )
+            raise ValidationException(
+                f"'{self.title}' repeats {every}: it can take {limit // 60}h at "
+                f"most, not {self.estimated_duration_minutes} min."
+            )
+
     def set_strict_due(self, now: datetime, strict: bool) -> None:
         """Whether the due date is a hard deadline (or when the task starts)."""
         self.strict_due = strict
@@ -1170,6 +1209,7 @@ class Task(Entity):
             "series_id": str(self.series_id) if self.series_id else None,
             "estimate": self.estimated_duration_minutes,
             "strict": self.strict_due,
+            "took": self.took_minutes,
             "snoozed_from": (
                 axiom_date_to_dict(self.snoozed_from) if self.snoozed_from else None
             ),
@@ -1237,6 +1277,8 @@ class Task(Entity):
                 self.strict_due = bool(snapshot["strict"])
             if "tags" in snapshot:
                 self.tags = frozenset(snapshot["tags"])
+            if "took" in snapshot:
+                self.took_minutes = snapshot["took"]
             if "snoozed_from" in snapshot:
                 self.snoozed_from = (
                     axiom_date_from_dict(snapshot["snoozed_from"], DueDate)

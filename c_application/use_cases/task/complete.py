@@ -77,9 +77,16 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
 
             # 2. Close active timers and compute actual duration
             actual_duration: int = await self._close_active_timers(uow, task, now)
+            # The time the user says it took wins over the timer's
+            if request.took_minutes is not None:
+                if request.took_minutes <= 0:
+                    raise ValidationException("It took some time: more than 0 minutes.")
+                actual_duration = request.took_minutes
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
             task.mark_as_done(now, actual_minutes=actual_duration)
+            if request.took_minutes is not None:
+                task.set_took(now, request.took_minutes)
             # A measured time: the running average (the next occurrence's
             # estimate) learns from it
             task.record_duration(actual_duration)

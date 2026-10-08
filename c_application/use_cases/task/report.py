@@ -300,10 +300,16 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             owner: Task | None = session_tasks.get(session.task_id)
             time_by_context[_context_name(_state_of(owner), contexts)] += minutes
 
-        # Estimated vs. actual, of what was done with measured time
+        # Estimated vs. actual, of what was done with measured time — or
+        # the time the user said it took, which wins
         accuracy: dict[str, list[int]] = defaultdict(lambda: [0, 0, 0])
         for entry in completions:
-            actual: int = spent_on.get(entry.task_id, 0)
+            told: Task | None = tasks.get(entry.task_id)
+            actual: int = (
+                told.took_minutes
+                if told is not None and told.took_minutes
+                else spent_on.get(entry.task_id, 0)
+            )
             if actual <= 0:
                 continue
             state = entry.previous or _state_of(tasks.get(entry.task_id))

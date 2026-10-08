@@ -26,8 +26,9 @@ from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
 from b_domain.value_objects.dates import DueDate
-from c_application.dtos.task_dtos import TaskOutputDTO
+from c_application.dtos.task_dtos import DayLoadDTO, TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import full_day_of
 from c_application.use_cases.task.relations import (
     add_occurrence,
     bring_subtasks,
@@ -71,6 +72,8 @@ class SnoozedTaskOutputDTO(DTO):
     next: TaskOutputDTO | None = None
     # What the snooze did on its own (subtasks moved along)
     notes: list[str] = field(default_factory=list)
+    # The day it went to is full (the user's warnings on)
+    full_day: DayLoadDTO | None = None
 
 
 class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
@@ -195,7 +198,11 @@ class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
                 if task.context_id
                 else None
             )
+        # The day it lands on, when full (warned, never refused)
+        async with self.uow as uow:
+            full_day: DayLoadDTO | None = await full_day_of(uow, user_id, task, now)
             return SnoozedTaskOutputDTO(
+                full_day=full_day,
                 task=TaskMapper.to_output(task, now, context=context, parent=parent),
                 next=(
                     TaskMapper.to_output(following_task, now, context=context)
