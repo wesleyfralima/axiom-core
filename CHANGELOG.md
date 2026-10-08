@@ -6,6 +6,29 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.36.0] — 2026-10-08
+
+Product Backlog 01, Part 8: a habit or a bill (axiom-enterprise 0.27.0,
+axiom-cli 0.41.0).
+
+### Added
+- **`RecurrenceRule.keep_missed`** (default False: a habit, as before):
+  the series keeps its missed occurrences, one after another — the next
+  one is the one after this, late or not — instead of skipping them to the
+  first still on time. Counted from where the occurrence was due before
+  any snooze (`snoozed_from`), so putting one off does not eat the ones
+  after it. In the rule's data (undo, sync), `RecurrenceInputDTO` and
+  `RecurrenceOutputDTO` (`catch_up`, never used, is gone), the factory
+  (`keep_missed=`), and its description ("…, keeping the missed ones.").
+- `UpdateTaskInputDTO.keep_missed`: switch a series either way; a new rule
+  keeps the series' choice unless told; refused for a task that does not
+  repeat.
+
+### Changed
+- A series that keeps its missed ones is snoozed anywhere later — landing
+  on its next one's day is what it means — and `wrap` offers it tomorrow.
+- Coverage floor 87.5%.
+
 ## [0.35.0] — 2026-10-08
 
 Product Backlog 01, Part 8: the end of the day (axiom-enterprise 0.26.0,

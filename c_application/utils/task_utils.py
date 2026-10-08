@@ -29,6 +29,8 @@ def format_task_recurrence(recurrence: RecurrenceRule | None) -> str | None:
         parts.append(f"for {recurrence.count} {times}")
     elif recurrence.end_date:
         parts.append(f"until {recurrence.end_date.materialize():%Y-%m-%d}")
+    if recurrence.keep_missed:
+        parts.append("keeping the missed ones")
 
     return ", ".join(parts) + "."
 

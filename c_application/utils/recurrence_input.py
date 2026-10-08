@@ -68,4 +68,5 @@ def build_recurrence(
         window_start=dto.window_start,
         window_end=dto.window_end,
         week_start=week_start,
+        keep_missed=dto.keep_missed,
     )

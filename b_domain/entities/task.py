@@ -417,13 +417,16 @@ class Task(Entity):
 
         Depending on the mode, either generates the strict sequential next
         occurrence (financial use case) or skips overdue occurrences until
-        a future one is found (habit use case).
+        a future one is found (habit use case). A rule that keeps its missed
+        occurrences (``keep_missed``) is always strict, counted from where
+        this one was due before any snooze: putting one off does not eat the
+        ones after it.
 
         Args:
             now (datetime): Current timestamp used for comparison and task creation.
             catch_up (bool, optional):
                 - If True (default), skips overdue occurrences and creates the next
-                  future occurrence (habit mode).
+                  future occurrence (habit mode), unless the rule keeps them.
                 - If False, creates the strict sequential next occurrence regardless
                   of whether it is in the past (financial mode).
 
@@ -447,6 +450,9 @@ class Task(Entity):
         # -------------------------------------------------------
         # Strategy 1: Strict mode (Financial)
         # -------------------------------------------------------
+        if self.recurrence.keep_missed:
+            catch_up = False
+            last_reference = (self.snoozed_from or self.due_date).value
         if not catch_up:
             next_dt = self.recurrence.get_next_occurrence(
                 last_occurrence=last_reference
