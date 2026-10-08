@@ -258,9 +258,9 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-10-02)
+## Current state (2026-10-08)
 
-- Version `0.29.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.33.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -286,9 +286,13 @@ there too.
   an account on the same version (0.27.0); saved views, this device's or
   every device's (0.28.0, product Backlog 03, Part 2); a waiting task
   is never done around its dependency, reopening a parent brings its
-  subtasks, undo refused after another device's change (0.29.0).
+  subtasks, undo refused after another device's change (0.29.0); the
+  report's series timeline, short weekday rules, the period's rate
+  (0.30.x); a task done at the moment it was (0.31.0); the due date as a
+  block, `strict_due` (0.32.0, product Backlog 04); the day at a glance,
+  `TodayUseCase` (0.33.0, product Backlog 01, Part 8).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 792 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 86.8% over an 86.7% floor.
+- 837 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 87.1% over an 87.0% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.
