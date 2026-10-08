@@ -6,6 +6,26 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.37.0] — 2026-10-08
+
+Product Backlog 01, Part 8: the procrastination radar (axiom-enterprise
+0.28.0, axiom-cli 0.42.0).
+
+### Added
+- **The radar** (`c_application/use_cases/task/radar.py`, `RADAR_AFTER` =
+  3): a task put off three times — snoozed, or its due date moved later by
+  an edit; the user's own changes, not undone; per occurrence for a
+  recurring one — or a series missed three in a row — skipped, never made
+  (a habit done late skips them), or still open past their day — is
+  flagged (`RadarDTO`: `postponed`, `missed_in_row`). Nothing new is
+  collected: the history and the series say it all.
+- `TodayOutputDTO.radar` (the late and today's ones) and
+  `WrapItemDTO.radar`; a flagged task left at the end of the day can be
+  split into subtasks (`WrapAction.SPLIT`, not a subtask).
+- **`UserPrefs.postpone_warnings`** (default on): the user can turn the
+  warnings off.
+- Coverage floor 87.6%.
+
 ## [0.36.0] — 2026-10-08
 
 Product Backlog 01, Part 8: a habit or a bill (axiom-enterprise 0.27.0,

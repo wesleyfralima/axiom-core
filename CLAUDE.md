@@ -105,6 +105,11 @@ simulator: `python -m d_fake_infra`).
   the default) skips missed occurrences to the first still on time; a
   bill keeps each, the next counted from where this one was due before a
   snooze (`Task.create_next_occurrence`).
+- **The radar:** `c_application/use_cases/task/radar.py` — put off
+  (`SNOOZED`, or an `EDITED` due moved later, not `caused_by`, not undone)
+  or missed in a row (the series' closed occurrences, the gaps a habit
+  skipped, the open one's days gone); flags at `RADAR_AFTER`; off with
+  `postpone_warnings`. Used by `today` and `wrap`.
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
   the rule starts at it (`build_recurrence`, shared with create), the next
   occurrences follow it. `count` = occurrences left, this one included.
@@ -269,7 +274,7 @@ there too.
 
 ## Current state (2026-10-08)
 
-- Version `0.36.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.37.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -301,9 +306,10 @@ there too.
   block, `strict_due` (0.32.0, product Backlog 04); the day at a glance,
   `TodayUseCase` (0.33.0, product Backlog 01, Part 8); the snooze,
   `snoozed_from` (0.34.0); the end of the day, `WrapUseCase` (0.35.0);
-  a habit or a bill, `RecurrenceRule.keep_missed` (0.36.0).
+  a habit or a bill, `RecurrenceRule.keep_missed` (0.36.0); the
+  procrastination radar (0.37.0).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 880 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 87.5% over an 87.5% floor.
+- 887 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 87.6% over an 87.6% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

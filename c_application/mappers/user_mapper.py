@@ -112,6 +112,7 @@ class UserMapper[D: UserOutputDTO]:
             auto_schedule_tasks=prefs.auto_schedule_tasks,
             allow_overdue_tasks=prefs.allow_overdue_tasks,
             keep_deleted_days=prefs.keep_deleted_days,
+            postpone_warnings=prefs.postpone_warnings,
             notify_due_soon=prefs.notify_due_soon,
             notify_overdue=prefs.notify_overdue,
             notify_task_completed=prefs.notify_task_completed,
