@@ -6,6 +6,37 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.34.0] — 2026-10-08
+
+Product Backlog 01, Part 8: the snooze (axiom-enterprise 0.25.0, axiom-cli
+0.39.0).
+
+### Added
+- **`SnoozeTaskUseCase`** (`c_application/use_cases/task/snooze.py`): put
+  off an open task due today, or late — to the next day at the same time
+  (default), the next business day (`business_day`), some `minutes` from
+  the later of now and its due date, or a moment typed (`to`: a time alone
+  is today, a day keeps the time). Only later. A parent's subtasks follow
+  it; a subtask stays within its parent.
+- **A recurring occurrence is refused when it lands on its next one's day
+  or later** (by time for an hourly rule); `keep_both` keeps both: the
+  series moves on at once (the next occurrence is made, its subtasks
+  brought) and the snoozed one leaves it as a one-off.
+- `SnoozeRefusedError` with a `reason` (`SnoozeRefusal`: closed, no due
+  date, not due yet, not later, lands on the next) and the next
+  occurrence's `next_due`, so an interface says what to do instead.
+- **`Task.snoozed_from`**: the due date before the first snooze (in the
+  snapshot, so undo brings it back; never carried to the next occurrence);
+  `TaskOutputDTO.snoozed_from`. `Task.snooze()` and `TaskSnoozedEvent`: a
+  "snoozed" entry in the history (the due date before → after; the rule,
+  when both are kept).
+
+### Changed
+- The recurring handler's "keep the next occurrence" and "bring the
+  subtasks" are `add_occurrence` and `bring_subtasks` in
+  `use_cases/task/relations.py`, shared with the snooze.
+- Coverage floor 87.3%.
+
 ## [0.33.0] — 2026-10-08
 
 Product Backlog 01, Part 8: `axpro today` (axiom-enterprise 0.24.0,

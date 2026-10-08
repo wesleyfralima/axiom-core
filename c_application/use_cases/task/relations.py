@@ -23,6 +23,7 @@ from zoneinfo import ZoneInfo
 from a_core import UniqueId
 from a_core.exceptions import InvalidStateTransition, ValidationException
 from b_domain.entities import Task
+from b_domain.entities.task import subtask_copy_id
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.value_objects import TaskId, TaskStatus, UserId
 from b_domain.value_objects.dates import DueDate
@@ -541,3 +542,76 @@ def shifted_due(
             moment.astimezone(ZoneInfo(zone)).replace(tzinfo=None), zone
         )
     return DueDate.fixed(moment)
+
+
+async def add_occurrence(uow: UnitOfWork, occurrence: Task) -> Task | None:
+    """Keep a series' next occurrence; None when it is there already.
+
+    Its ID comes from the series and the date, so the row may exist: made
+    by another device, or before a reopen — then there is nothing to add;
+    or taken away by an undo — then it comes back, as new.
+    """
+    existing: Task | None = await uow.tasks.get_by_id(occurrence.id)
+    if existing is not None and existing.deleted_at is None:
+        return None
+    if existing is None:
+        await uow.tasks.add(occurrence)
+        return occurrence
+    existing.come_back_as(occurrence)
+    await uow.tasks.update(existing)
+    return existing
+
+
+async def bring_subtasks(
+    uow: UnitOfWork,
+    task: Task,
+    next_task: Task,
+    now: datetime,
+    caused_by: UniqueId | None,
+    parent_due: DueDate | None = None,
+) -> None:
+    """Copy ``task``'s subtasks under its next occurrence, open.
+
+    Each copy's ID comes from the new parent and the subtask (the same on
+    every device); one already there is left, one an undo took away comes
+    back. A dependency between siblings points to the sibling's copy.
+    ``caused_by``: the change that made the next occurrence (undone with it).
+    ``parent_due``: the due date the subtasks were placed against, when
+    ``task``'s has moved since (a snooze); else ``task``'s own.
+    """
+    placed: DueDate | None = parent_due or task.due_date
+    subtasks: list[Task] = await uow.tasks.get_subtasks(task.id, limit=10_000)
+    if not subtasks:
+        return
+    copies: dict[TaskId, TaskId] = {
+        sub.id: subtask_copy_id(next_task.id, sub.id) for sub in subtasks
+    }
+    made: list[Task] = []
+    for sub in subtasks:
+        depends_on: set[TaskId] = {copies.get(ref, ref) for ref in sub.depends_on}
+        outside: set[TaskId] = {ref for ref in depends_on if ref in sub.depends_on}
+        copy: Task = sub.copy_under(
+            now,
+            next_task,
+            shifted_due(sub.due_date, placed, next_task.due_date),
+            depends_on,
+            # A sibling's copy is open; an outside task, as it is
+            waiting=len(outside) < len(depends_on)
+            or await waits_on_open(uow, outside, task.user_id),
+            caused_by=caused_by,
+        )
+        existing: Task | None = await uow.tasks.get_by_id(copy.id)
+        if existing is not None and existing.deleted_at is None:
+            continue
+        if existing is None:
+            await uow.tasks.add(copy)
+        else:
+            existing.come_back_as(copy)
+            await uow.tasks.update(existing)
+        made.append(copy)
+    # The copies are open again: the new parent covers them all (it is new —
+    # no edit to record)
+    total: int = await subtasks_minutes(uow, next_task, made)
+    if total > next_task.estimated_duration_minutes:
+        next_task.update_estimate(now, total)
+        await uow.tasks.update(next_task)

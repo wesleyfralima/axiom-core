@@ -212,6 +212,8 @@ class TaskOutputDTO(DTO):
     # its parent: its parent's)
     strict_due: bool = False
     deadline: datetime | None = None
+    # The due date it had before it was first snoozed (None: never snoozed)
+    snoozed_from: datetime | None = None
     time_spent_minutes: int = 0
     running_since: datetime | None = None
 
