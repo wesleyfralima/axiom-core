@@ -20,6 +20,7 @@ from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO
 from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.radar import RadarDTO, radar_of
 from c_application.utils import find_context
 from c_application.utils.date_input import local_today
 from c_application.utils.work_calendar import use_work_calendar
@@ -52,6 +53,9 @@ class TodayOutputDTO(DTO):
     next: list[TaskOutputDTO] = field(default_factory=list)
     # The context the day is limited to (None: every context)
     context: ContextOutputDTO | None = None
+    # Late and today's tasks the radar flags (put off, or missed in a row);
+    # none when the user turned the warnings off
+    radar: list[RadarDTO] = field(default_factory=list)
 
 
 @dataclass(kw_only=True)
@@ -200,7 +204,16 @@ class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
             day: Day = await collect_day(
                 uow, user_id, self.clock.now(), request.context_id
             )
+            flagged: dict[TaskId, RadarDTO] = await radar_of(
+                uow,
+                user_id,
+                day.prefs,
+                day.overdue + day.due_today,
+                day.today,
+                day.zone,
+            )
             return TodayOutputDTO(
+                radar=list(flagged.values()),
                 day=day.today,
                 overdue=[day.output(t) for t in day.overdue],
                 today=[day.output(t) for t in day.due_today],

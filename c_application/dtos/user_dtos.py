@@ -49,6 +49,7 @@ class UserPrefsInputDTO(DTO):
     auto_schedule_tasks: bool | None = None
     allow_overdue_tasks: bool | None = None
     keep_deleted_days: int | None = None
+    postpone_warnings: bool | None = None
 
     # ------------------------------------------------------------------
     # Notifications
@@ -105,6 +106,7 @@ class UserPrefsOutputDTO(DTO):
     auto_schedule_tasks: bool
     allow_overdue_tasks: bool
     keep_deleted_days: int
+    postpone_warnings: bool
 
     # ------------------------------------------------------------------
     # Notifications

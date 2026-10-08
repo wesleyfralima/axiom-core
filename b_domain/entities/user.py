@@ -65,6 +65,9 @@ class UserPrefs(ValueObject):
     allow_overdue_tasks: bool = True
     # How long a deleted task can still be restored (0: deleted for good)
     keep_deleted_days: int = 30
+    # The radar: a task put off three times (or a series missed three in a
+    # row) asks for a decision in `today` and `wrap`
+    postpone_warnings: bool = True
 
     # ------------------------------------------------------------------
     # Notifications
