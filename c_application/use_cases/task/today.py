@@ -13,6 +13,7 @@ from a_core import DTO
 from b_domain.entities import Context, Task, User
 from b_domain.entities.user import UserPrefs
 from b_domain.ports.repositories.filters import TaskFilter
+from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import ContextId, TaskId, TaskStatus, UserId
 from c_application.dtos.context_dtos import ContextOutputDTO
@@ -53,6 +54,134 @@ class TodayOutputDTO(DTO):
     context: ContextOutputDTO | None = None
 
 
+@dataclass(kw_only=True)
+class Day:
+    """The user's day, as tasks: what ``today`` and ``wrap`` are built from.
+
+    ``overdue`` and ``due_today`` are open tasks, by due date; ``later`` the
+    open ones after today, by due date (a subtask due with its parent left
+    to it); ``done`` those completed today, in that order.
+    """
+
+    now: datetime
+    today: date
+    zone: ZoneInfo
+    prefs: UserPrefs
+    scope: Context | None
+    overdue: list[Task] = field(default_factory=list)
+    due_today: list[Task] = field(default_factory=list)
+    later: list[Task] = field(default_factory=list)
+    done: list[Task] = field(default_factory=list)
+    parents: dict[TaskId, Task] = field(default_factory=dict)
+    contexts: dict[ContextId, Context] = field(default_factory=dict)
+
+    def output(self, task: Task) -> TaskOutputDTO:
+        """A task as the lists show it: its context, its parent's title."""
+        parent: Task | None = (
+            self.parents.get(task.parent_id) if task.parent_id else None
+        )
+        return TaskMapper.to_output(
+            task,
+            self.now,
+            context=self.contexts.get(task.context_id) if task.context_id else None,
+            parent_title=str(parent.title) if parent else None,
+            parent=parent,
+        )
+
+    def wall(self, task: Task) -> datetime:
+        """A task's due date as wall-clock time where the user is."""
+        assert task.due_date is not None
+        return _wall_clock(task.due_date.value, self.zone)
+
+    def due_with_parent(self, task: Task) -> bool:
+        """A subtask due when its parent is: the parent stands for it."""
+        return _due_with_parent(task, self.parents)
+
+    def context_output(self) -> ContextOutputDTO | None:
+        """The context the day is limited to, if any."""
+        if self.scope is None:
+            return None
+        return ContextMapper.to_output(
+            self.scope, ContextOutputDTO, self.prefs.active_context_id
+        )
+
+
+async def collect_day(
+    uow: UnitOfWork, user_id: UserId, now: datetime, context_ref: str | None
+) -> Day:
+    """The user's day: the open tasks with a due date, sorted into late, due
+    today and later, and what was completed today (by ``completed_at``: one
+    done "yesterday 21:00" this morning is yesterday's). Every context unless
+    ``context_ref`` (a name or ID prefix) names one.
+
+    Raises:
+        EntityNotFound: If the context matches no context.
+        AmbiguousIdentifierError: If the context's ID prefix matches several.
+    """
+    user: User | None = await uow.users.get_by_id(user_id)
+    prefs: UserPrefs = user.preferences if user else UserPrefs()
+    zone: ZoneInfo = _zone(prefs.timezone)
+    today: date = local_today(now, prefs.timezone)
+    start: datetime = datetime.combine(today, time(), tzinfo=zone)
+    end: datetime = start + timedelta(days=1)
+
+    contexts: list[Context] = await uow.contexts.list_by_user(user_id)
+    scope: Context | None = find_context(contexts, context_ref) if context_ref else None
+    context_id: ContextId | None = scope.id if scope else None
+
+    open_tasks: list[Task] = await uow.tasks.list(
+        TaskFilter(
+            user_id=user_id,
+            exclude_statuses=TaskStatus.closed(),
+            has_due_date=True,
+            context_id=context_id,
+            limit=10_000,
+        )
+    )
+    # Touched today, then by when it was completed
+    done_tasks: list[Task] = [
+        t
+        for t in await uow.tasks.list(
+            TaskFilter(
+                user_id=user_id,
+                status=TaskStatus.DONE,
+                context_id=context_id,
+                updated_after=start.astimezone(UTC),
+                limit=10_000,
+            )
+        )
+        if t.completed_at is not None and start <= _aware(t.completed_at) < end
+    ]
+    await use_work_calendar(uow, user_id, prefs, open_tasks)
+
+    day: Day = Day(
+        now=now,
+        today=today,
+        zone=zone,
+        prefs=prefs,
+        scope=scope,
+        contexts={c.id: c for c in contexts},
+    )
+    for ref in {t.parent_id for t in open_tasks + done_tasks if t.parent_id}:
+        parent: Task | None = await uow.tasks.get_by_id(ref, user_id)
+        if parent is not None:
+            day.parents[ref] = parent
+
+    for task in sorted(
+        open_tasks, key=lambda t: (day.wall(t), t.parent_id is not None)
+    ):
+        wall: datetime = day.wall(task)
+        parent = day.parents.get(task.parent_id) if task.parent_id else None
+        if task.is_overdue(now, parent) or wall.date() < today:
+            day.overdue.append(task)
+        elif wall.date() == today:
+            day.due_today.append(task)
+        elif not day.due_with_parent(task):
+            day.later.append(task)
+    day.done = sorted(done_tasks, key=lambda t: _aware(t.completed_at))
+    return day
+
+
 class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
     """Build the user's day from the open tasks and today's completions."""
 
@@ -67,109 +196,18 @@ class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
         user_id: UserId = UserId.from_string(
             request.user_id, error_msg="Invalid user ID."
         )
-        now: datetime = self.clock.now()
-
         async with self.uow as uow:
-            user: User | None = await uow.users.get_by_id(user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
-            zone: ZoneInfo = _zone(prefs.timezone)
-            today: date = local_today(now, prefs.timezone)
-            start: datetime = datetime.combine(today, time(), tzinfo=zone)
-            end: datetime = start + timedelta(days=1)
-
-            contexts: list[Context] = await uow.contexts.list_by_user(user_id)
-            scope: Context | None = (
-                find_context(contexts, request.context_id)
-                if request.context_id
-                else None
+            day: Day = await collect_day(
+                uow, user_id, self.clock.now(), request.context_id
             )
-            context_id: ContextId | None = scope.id if scope else None
-
-            open_tasks: list[Task] = await uow.tasks.list(
-                TaskFilter(
-                    user_id=user_id,
-                    exclude_statuses=TaskStatus.closed(),
-                    has_due_date=True,
-                    context_id=context_id,
-                    limit=10_000,
-                )
-            )
-            # Done today: touched today, then by when it was completed (a
-            # task done "yesterday 21:00" this morning is yesterday's)
-            done_tasks: list[Task] = [
-                t
-                for t in await uow.tasks.list(
-                    TaskFilter(
-                        user_id=user_id,
-                        status=TaskStatus.DONE,
-                        context_id=context_id,
-                        updated_after=start.astimezone(UTC),
-                        limit=10_000,
-                    )
-                )
-                if t.completed_at is not None and start <= _aware(t.completed_at) < end
-            ]
-            await use_work_calendar(uow, user_id, prefs, open_tasks)
-
-            by_id: dict[ContextId, Context] = {c.id: c for c in contexts}
-            parents: dict[TaskId, Task] = {}
-            for ref in {
-                t.parent_id for t in open_tasks + done_tasks if t.parent_id is not None
-            }:
-                parent: Task | None = await uow.tasks.get_by_id(ref, user_id)
-                if parent is not None:
-                    parents[ref] = parent
-
-            def output(task: Task) -> TaskOutputDTO:
-                parent: Task | None = (
-                    parents.get(task.parent_id) if task.parent_id else None
-                )
-                return TaskMapper.to_output(
-                    task,
-                    now,
-                    context=by_id.get(task.context_id) if task.context_id else None,
-                    parent_title=str(parent.title) if parent else None,
-                    parent=parent,
-                )
-
-            overdue: list[tuple[datetime, TaskOutputDTO]] = []
-            due_today: list[tuple[datetime, TaskOutputDTO]] = []
-            later: list[tuple[datetime, TaskOutputDTO]] = []
-            for task in open_tasks:
-                dto: TaskOutputDTO = output(task)
-                assert dto.due_date is not None  # has_due_date
-                wall: datetime = _wall_clock(dto.due_date, zone)
-                if dto.is_overdue or wall.date() < today:
-                    overdue.append((wall, dto))
-                elif wall.date() == today:
-                    due_today.append((wall, dto))
-                elif not _due_with_parent(task, parents):
-                    later.append((wall, dto))
-
-            done: list[TaskOutputDTO] = [
-                output(t)
-                for t in sorted(done_tasks, key=lambda t: _aware(t.completed_at))
-            ]
             return TodayOutputDTO(
-                day=today,
-                overdue=_by_date(overdue),
-                today=_by_date(due_today),
-                done=done,
-                next=_by_date(later)[: max(request.next_count, 0)],
-                context=(
-                    ContextMapper.to_output(
-                        scope, ContextOutputDTO, prefs.active_context_id
-                    )
-                    if scope
-                    else None
-                ),
+                day=day.today,
+                overdue=[day.output(t) for t in day.overdue],
+                today=[day.output(t) for t in day.due_today],
+                done=[day.output(t) for t in day.done],
+                next=[day.output(t) for t in day.later[: max(request.next_count, 0)]],
+                context=day.context_output(),
             )
-
-
-def _by_date(pairs: list[tuple[datetime, TaskOutputDTO]]) -> list[TaskOutputDTO]:
-    """The tasks by due date; a parent before the subtasks due with it."""
-    pairs.sort(key=lambda pair: (pair[0], pair[1].parent_id is not None))
-    return [dto for _, dto in pairs]
 
 
 def _due_with_parent(task: Task, parents: dict[TaskId, Task]) -> bool:

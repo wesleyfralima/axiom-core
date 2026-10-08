@@ -24,6 +24,7 @@ from .task.timer import PauseTaskUseCase, StartTaskUseCase
 from .task.today import TodayUseCase
 from .task.undo import UndoPreviewUseCase, UndoUseCase
 from .task.update import UpdateTaskUseCase
+from .task.wrap import WrapUseCase
 from .user.get_current import GetCurrentUserUseCase
 from .user.update_prefs import UpdateUserPreferencesUseCase
 
@@ -56,4 +57,5 @@ __all__ = [
     "UpdateContextUseCase",
     "UpdateTaskUseCase",
     "UpdateUserPreferencesUseCase",
+    "WrapUseCase",
 ]
