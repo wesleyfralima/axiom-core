@@ -44,7 +44,9 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
 
         async with self.uow as uow:
             task: Task = await find_task(uow, request.task_id_prefix, user_id)
-            task.mark_as_cancelled(now, end_series=request.end_series)
+            task.mark_as_cancelled(
+                now, end_series=request.end_series, catch_up=request.catch_up
+            )
             await uow.tasks.update(task)
             await _stop_timers(uow, task, now)
 

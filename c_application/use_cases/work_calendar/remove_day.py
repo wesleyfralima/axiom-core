@@ -9,6 +9,7 @@ from c_application.dtos.calendar_dtos import CalendarDayChangedOutputDTO
 from c_application.use_cases.context._common import load_user, parse_user_id
 from c_application.use_cases.work_calendar._common import next_date, own_day_output
 from c_application.utils.date_input import DateInput, local_today, resolve_date_input
+from c_application.utils.prefs import prefs_of
 from c_application.utils.work_calendar import load_work_calendar
 
 
@@ -48,7 +49,7 @@ class RemoveCalendarDayUseCase(
         user_id = parse_user_id(request.user_id)
         async with self.uow as uow:
             user: User = await load_user(uow, user_id)
-            today: date = local_today(self.clock.now(), user.preferences.timezone)
+            today: date = local_today(self.clock.now(), prefs_of(uow, user).timezone)
             typed: date | datetime = resolve_date_input(request.date, today=today)
             on: date = typed.date() if isinstance(typed, datetime) else typed
 

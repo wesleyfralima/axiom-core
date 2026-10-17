@@ -32,5 +32,5 @@ class RecurrenceMapper:
             nth_business_day=getattr(rule, "nth_day", None),
             window_start=getattr(rule, "window_start", None),
             window_end=getattr(rule, "window_end", None),
-            keep_missed=rule.keep_missed,
+            catch_up=rule.catch_up,
         )

@@ -41,16 +41,21 @@ _OCCURRENCE_NAMESPACE = uuid5(
 )
 
 
-def occurrence_id(series_id: TaskId, due: DueDate) -> TaskId:
-    """The ID of a series' occurrence due at ``due``, the same on every device.
+def occurrence_id(previous_id: TaskId, due: DueDate) -> TaskId:
+    """The ID of the occurrence that follows ``previous_id``, due at ``due``:
+    the same on every device.
 
     Two devices that complete the same occurrence offline both create the
-    next one; with this ID it is one row, and sync merges it.
+    next one; with this ID it is one row, and sync merges it. It comes from
+    the occurrence before it, not from the series: one moved back a day and
+    then closed has the date it was made for as its next — a series' ID
+    would make that next one the occurrence itself, and no row would come.
     """
     moment: datetime = due.value if due.is_floating else due.value.astimezone(UTC)
     return TaskId(
         uuid5(
-            _OCCURRENCE_NAMESPACE, f"{series_id}|{due.kind.value}|{moment.isoformat()}"
+            _OCCURRENCE_NAMESPACE,
+            f"after|{previous_id}|{due.kind.value}|{moment.isoformat()}",
         )
     )
 
@@ -413,25 +418,22 @@ class Task(Entity):
     def create_next_occurrence(
         self,
         now: datetime,
-        catch_up: bool = True,
+        catch_up: bool | None = None,
         caused_by: UniqueId | None = None,
     ) -> Optional["Task"]:
         """Generate the next occurrence of this task.
 
-        Depending on the mode, either generates the strict sequential next
-        occurrence (financial use case) or skips overdue occurrences until
-        a future one is found (habit use case). A rule that keeps its missed
-        occurrences (``keep_missed``) is always strict, counted from where
-        this one was due before any snooze: putting one off does not eat the
-        ones after it.
+        By default the next one follows this one in the rule, even when it
+        is already late: each occurrence is there to be recorded, done or
+        skipped (counted from where this one was due before any snooze, so
+        putting one off does not eat the ones after it). Catching up skips
+        the missed ones to the first still on time.
 
         Args:
             now (datetime): Current timestamp used for comparison and task creation.
-            catch_up (bool, optional):
-                - If True (default), skips overdue occurrences and creates the next
-                  future occurrence (habit mode), unless the rule keeps them.
-                - If False, creates the strict sequential next occurrence regardless
-                  of whether it is in the past (financial mode).
+            catch_up (bool | None, optional): Skip the missed occurrences
+                (True) or keep them (False) this time; None: as the rule
+                says (``RecurrenceRule.catch_up``).
 
         Returns:
             Optional[Task]: A new Task entity representing the next occurrence,
@@ -451,14 +453,11 @@ class Task(Entity):
         last_reference: datetime | None = self.due_date.value
 
         # -------------------------------------------------------
-        # Strategy 1: Strict mode (Financial)
+        # Strategy 1: Keep the missed ones (the default)
         # -------------------------------------------------------
-        if self.recurrence.keep_missed:
-            catch_up = False
-            last_reference = (self.snoozed_from or self.due_date).value
-        if not catch_up:
+        if not (self.recurrence.catch_up if catch_up is None else catch_up):
             next_dt = self.recurrence.get_next_occurrence(
-                last_occurrence=last_reference
+                last_occurrence=(self.snoozed_from or self.due_date).value
             )
             if next_dt:
                 return self._recreate_task_with_date(now, next_dt, caused_by)
@@ -466,7 +465,7 @@ class Task(Entity):
                 return None
 
         # -------------------------------------------------------
-        # Strategy 2: Catch-up mode (Habit)
+        # Strategy 2: Catch up (skip the missed ones)
         # -------------------------------------------------------
         while True:
             next_dt = self.recurrence.get_next_occurrence(
@@ -545,10 +544,10 @@ class Task(Entity):
         # 4. Call Task.create with the dynamically extracted parameters.
         # Everything the user defined for the series carries over; whatever
         # belongs to this occurrence (status, counters, calendar) starts over.
-        # Its ID comes from the series and the date: the same on every device.
+        # Its ID comes from this one and the date: the same on every device.
         series_id: TaskId = self.series_id or self.id
         return Task.create(
-            task_id=occurrence_id(series_id, new_dd),
+            task_id=occurrence_id(self.id, new_dd),
             now=now,
             user_id=self.user_id,
             title=self.title,
@@ -971,9 +970,12 @@ class Task(Entity):
         now: datetime,
         actual_minutes: int = 0,
         caused_by: UniqueId | None = None,
+        catch_up: bool | None = None,
     ) -> None:
         """Mark the task as completed (``caused_by``: its parent's
-        completion, when it closes along with it)."""
+        completion, when it closes along with it; ``catch_up``: a recurring
+        task's next occurrence skips the missed ones, or keeps them, this
+        time — None: as its rule says)."""
         previous: dict[str, Any] = self.snapshot()
         self.change_status(now, TaskStatus.DONE, allow_same=False)
         self.completed_at = now
@@ -988,6 +990,7 @@ class Task(Entity):
                 energy_level_used=self.required_energy_level,
                 task_complexity=self.complexity,
                 caused_by=caused_by,
+                catch_up=catch_up,
             )
         )
 
@@ -996,6 +999,7 @@ class Task(Entity):
         now: datetime,
         end_series: bool = False,
         caused_by: UniqueId | None = None,
+        catch_up: bool | None = None,
     ) -> None:
         """Cancel the task: the user decided not to do it.
 
@@ -1009,6 +1013,9 @@ class Task(Entity):
                 occurrence. Only for a recurring task.
             caused_by (UniqueId | None): Its parent's cancel, when it goes
                 along.
+            catch_up (bool | None): The next occurrence skips the missed
+                ones (True) or keeps them (False) this time; None: as the
+                rule says.
 
         Raises:
             NotRecurringTaskError: If ``end_series`` is asked of a task that
@@ -1029,6 +1036,7 @@ class Task(Entity):
                 user_id=self.user_id,
                 end_series=end_series,
                 caused_by=caused_by,
+                catch_up=catch_up,
             )
         )
 

@@ -3,6 +3,7 @@
 The fake clock says Thursday 2026-03-05, 12:00 UTC; the user is in UTC.
 """
 
+from dataclasses import replace
 from datetime import UTC, datetime, timedelta
 
 import pytest
@@ -32,7 +33,7 @@ from c_application.use_cases import (
     StartTaskUseCase,
 )
 from c_application.use_cases.task.report import ReportRequest
-from tests.conftest import FakeClock, FakeUowFactory, UseCaseDeps
+from tests.conftest import FakeClock, FakeUnitOfWork, FakeUowFactory, UseCaseDeps
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.uc]
 
@@ -170,3 +171,54 @@ async def test_the_next_occurrence_follows_the_moment(
     assert sorted(
         t.due_date.value.replace(tzinfo=None) for t in series if t.due_date
     ) == [datetime(2026, 3, 4, 8, 0), datetime(2026, 3, 5, 8, 0)]
+
+
+async def _in_sao_paulo(uow_factory: FakeUowFactory, user: User) -> None:
+    async with uow_factory() as uow:
+        user.preferences = replace(user.preferences, timezone="America/Sao_Paulo")
+        await uow.users.update(user)
+
+
+async def test_a_time_typed_is_where_the_user_is_kept_in_utc(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    """The owner's case (2026-10-17): 08:45 typed in São Paulo was kept as
+    08:45 UTC — SQLite keeps no offset — and shown as 05:45."""
+    await _in_sao_paulo(fake_uow_factory, user)
+    task = await _create(use_case_context, user)
+
+    done = await _done_at(use_case_context, user, task, "08:45")
+
+    moment = done.completed_task.completed_at
+    assert moment == datetime(2026, 3, 5, 11, 45, tzinfo=UTC)
+    assert moment is not None and moment.utcoffset() == timedelta(0)
+    async with fake_uow_factory() as uow:
+        [entry] = [
+            e
+            for e in await uow.task_history.recent(user.id)
+            if e.action == TaskAction.COMPLETED
+        ]
+    assert entry.occurred_at.utcoffset() == timedelta(0)
+
+
+async def test_the_commands_zone_wins_over_the_preference(
+    fake_uow_factory: FakeUowFactory, fake_clock: FakeClock, user: User
+) -> None:
+    """``--tz``: a time typed is a wall-clock time in the command's zone."""
+    await _in_sao_paulo(fake_uow_factory, user)
+
+    def in_tokyo(trigger_relay: bool = False) -> FakeUnitOfWork:
+        uow = fake_uow_factory(trigger_relay)
+        uow.timezone = "Asia/Tokyo"
+        return uow
+
+    deps: UseCaseDeps = {"uow_factory": in_tokyo, "clock": fake_clock}
+    task = await _create(deps, user)
+
+    # 12:00 UTC is 21:00 in Tokyo: today's 08:45 there
+    done = await _done_at(deps, user, task, "08:45")
+
+    assert done.completed_task.completed_at == datetime(2026, 3, 4, 23, 45, tzinfo=UTC)
+    async with fake_uow_factory() as uow:
+        stored = await uow.users.get_by_id(user.id)
+    assert stored is not None and stored.preferences.timezone == "America/Sao_Paulo"

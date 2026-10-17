@@ -128,6 +128,9 @@ class TaskCompletedEvent(DomainEvent):
     previous: dict[str, Any] | None = None
     # The change that made this one on its own (a parent's completion)
     caused_by: UniqueId | None = None
+    # A recurring task's next occurrence: skip the missed ones (True), keep
+    # them (False) or as its rule says (None)
+    catch_up: bool | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -149,6 +152,9 @@ class TaskCancelledEvent(DomainEvent):
     previous: dict[str, Any] | None = None
     # The change that made this one on its own (a parent's or a subtask's)
     caused_by: UniqueId | None = None
+    # A recurring task's next occurrence: skip the missed ones (True), keep
+    # them (False) or as its rule says (None)
+    catch_up: bool | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

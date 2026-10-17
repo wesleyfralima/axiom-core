@@ -86,12 +86,16 @@ class UnitOfWork(ABC):
     # The command the user typed (the interface makes one per command): it
     # goes on every history entry written, so one undo takes it all back
     command_id: UUID | None = None
+    # The zone the command runs in, over the user's preference (``--tz``;
+    # None: the preference) — read through ``prefs_of``
+    timezone: str | None = None
 
     def __init__(
         self,
         event_bus: EventBus,
         trigger_relay: bool = True,
         command_id: UUID | None = None,
+        timezone: str | None = None,
     ):
         """Initialize the UnitOfWork with an event bus.
 
@@ -100,9 +104,13 @@ class UnitOfWork(ABC):
             trigger_relay (bool): If true, trigger relay events when published.
             command_id (UUID | None): The command the user typed, written on
                 every history entry (None: not recorded).
+            timezone (str | None): The zone the command runs in, over the
+                user's preference (``--tz``): where a typed time is and what
+                "today" is. None: the preference.
         """
         self.event_bus = event_bus
         self.command_id = command_id
+        self.timezone = timezone
         self._seen_entities: set[Entity] = set()
         self._trigger_relay = trigger_relay
 

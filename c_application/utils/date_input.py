@@ -142,15 +142,16 @@ def resolve_horizon(ahead: int | DateInput, *, today: date) -> date:
 
 
 def local_instant(moment: datetime, tz_name: str) -> datetime:
-    """A wall-clock time where the user is as an instant (aware); an aware
-    one stays as it is."""
+    """A wall-clock time where the user is as an instant, in UTC (as the
+    clock's: what is stored is always UTC); an aware one is the instant it
+    already is."""
     if moment.tzinfo is not None:
-        return moment
+        return moment.astimezone(UTC)
     try:
         zone: ZoneInfo = ZoneInfo(tz_name)
     except (ZoneInfoNotFoundError, ValueError):
         zone = ZoneInfo("UTC")
-    return moment.replace(tzinfo=zone)
+    return moment.replace(tzinfo=zone).astimezone(UTC)
 
 
 def end_of_day(day: date, tz_name: str) -> datetime:

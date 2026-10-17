@@ -6,6 +6,43 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.39.0] — 2026-10-17
+
+Product Backlog 05: what the owner's gym showed (axiom-enterprise 0.30.0,
+axiom-cli 0.44.0).
+
+### Changed
+- **A series keeps its missed occurrences by default**:
+  `RecurrenceRule.keep_missed` (False by default, a habit) becomes
+  `RecurrenceRule.catch_up` (False by default: each occurrence comes after
+  the one before, late or not, to be recorded — done at the moment it was,
+  or skipped — so the report counts every one). `catch_up=True` skips them
+  to the first still on time. A rule stored with `keep_missed` reads as
+  `catch_up=False`, whatever it said: every series keeps its missed ones.
+  The same rename in `RecurrenceFactory.create_from_input`,
+  `RecurrenceInputDTO`, `RecurrenceOutputDTO` and `UpdateTaskInputDTO`;
+  the rule's sentence says "skipping the missed ones" when it catches up.
+  A snooze is refused onto the next one's day only in a series that
+  catches up; `wrap` offers tomorrow to the others.
+- **The next occurrence's ID comes from the occurrence before it**
+  (`occurrence_id(previous_id, due)`), not from the series: still the same
+  on every device. Found on the owner's data: an occurrence made for
+  Saturday, moved back to Friday and done, had Saturday's next as its own
+  ID — `add_occurrence` found the row there and the series stopped.
+- **`local_instant` returns UTC**, as the clock does: `task done --at
+  08:45` was an instant at -03:00, and SQLite, which keeps no offset,
+  stored 08:45 — read back as UTC, it showed 05:45.
+
+### Added
+- **One command catches up, or not, for itself**: `catch_up` on
+  `TaskByUserRequest` (done) and `CancelTaskInputDTO` (skip), carried by
+  `TaskCompletedEvent`/`TaskCancelledEvent` to the recurrence handler;
+  `Task.create_next_occurrence(now, catch_up=None)` — None is the rule's.
+- **The command's zone**: `UnitOfWork.timezone` (an interface's `--tz`)
+  wins over the user's preference, never saved — where a typed time is
+  and what "today" is. `prefs_of(uow, user)` reads the preferences with it
+  (every task use case, the recurrence handler, the work calendar).
+
 ## [0.38.0] — 2026-10-08
 
 Product Backlog 01, Part 8: the commitment limit (axiom-enterprise 0.29.0,

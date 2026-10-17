@@ -208,7 +208,9 @@ async def test_a_skip_makes_the_next_occurrence_still_on_time(
         estimated_minutes=120,
         strict_due=strict,
         recurrence=RecurrenceInputDTO(
-            frequency=RecurrenceInterval.DAILY, start_date="2026-03-04 08:00"
+            frequency=RecurrenceInterval.DAILY,
+            start_date="2026-03-04 08:00",
+            catch_up=True,
         ),
     )
     fake_clock.set_time(_at(9))

@@ -67,7 +67,10 @@ async def _snooze(
 
 
 def _daily(start: str) -> RecurrenceInputDTO:
-    return RecurrenceInputDTO(frequency=RecurrenceInterval.DAILY, start_date=start)
+    """A habit: its missed occurrences skipped (it catches up)."""
+    return RecurrenceInputDTO(
+        frequency=RecurrenceInterval.DAILY, start_date=start, catch_up=True
+    )
 
 
 # --- Where it goes ----------------------------------------------------------
@@ -319,7 +322,10 @@ async def test_several_times_a_day_compares_the_time(
         user,
         "Water",
         recurrence=RecurrenceInputDTO(
-            frequency=RecurrenceInterval.HOURLY, interval=2, start_date="today 06:00"
+            frequency=RecurrenceInterval.HOURLY,
+            interval=2,
+            start_date="today 06:00",
+            catch_up=True,
         ),
         estimated_minutes=5,
     )

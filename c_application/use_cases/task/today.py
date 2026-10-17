@@ -24,6 +24,7 @@ from c_application.use_cases.task.capacity import day_load
 from c_application.use_cases.task.radar import RadarDTO, radar_of
 from c_application.utils import find_context
 from c_application.utils.date_input import local_today
+from c_application.utils.prefs import prefs_of
 from c_application.utils.work_calendar import use_work_calendar
 
 
@@ -128,7 +129,7 @@ async def collect_day(
         AmbiguousIdentifierError: If the context's ID prefix matches several.
     """
     user: User | None = await uow.users.get_by_id(user_id)
-    prefs: UserPrefs = user.preferences if user else UserPrefs()
+    prefs: UserPrefs = prefs_of(uow, user)
     zone: ZoneInfo = _zone(prefs.timezone)
     today: date = local_today(now, prefs.timezone)
     start: datetime = datetime.combine(today, time(), tzinfo=zone)

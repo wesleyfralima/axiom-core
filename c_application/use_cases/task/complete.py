@@ -25,6 +25,7 @@ from c_application.utils.date_input import (
     local_today,
     resolve_date_input,
 )
+from c_application.utils.prefs import prefs_of
 
 
 class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
@@ -84,7 +85,9 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
                 actual_duration = request.took_minutes
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
-            task.mark_as_done(now, actual_minutes=actual_duration)
+            task.mark_as_done(
+                now, actual_minutes=actual_duration, catch_up=request.catch_up
+            )
             if request.took_minutes is not None:
                 task.set_took(now, request.took_minutes)
             # A measured time: the running average (the next occurrence's
@@ -188,7 +191,7 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         if request.completed_at is None:
             return now
         user: User | None = await uow.users.get_by_id(user_id)
-        prefs: UserPrefs = user.preferences if user else UserPrefs()
+        prefs: UserPrefs = prefs_of(uow, user)
         resolved = resolve_date_input(
             request.completed_at, today=local_today(now, prefs.timezone)
         )

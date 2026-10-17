@@ -20,9 +20,9 @@ class RecurrenceInputDTO(DTO):
     # The first date (a DateInput; a date alone gets the user's default due
     # time). None: today, at the default due time
     start_date: DateInput | None = None
-    # Missed occurrences are kept, one after another (a bill); else skipped
-    # to the first still on time (a habit)
-    keep_missed: bool = False
+    # Missed occurrences are skipped to the first still on time; else kept,
+    # one after another, even when late (the default)
+    catch_up: bool = False
     interval: int = 1
 
     # End conditions
@@ -63,4 +63,4 @@ class RecurrenceOutputDTO(DTO):
     nth_business_day: int | None = None
     window_start: time | None = None
     window_end: time | None = None
-    keep_missed: bool = False
+    catch_up: bool = False
