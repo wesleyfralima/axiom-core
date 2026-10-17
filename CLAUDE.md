@@ -67,8 +67,14 @@ simulator: `python -m d_fake_infra`).
   never past the due date's day), or, with `Task.strict_due`, a hard
   deadline. `Task.deadline`/`is_overdue` (a subtask due with its parent
   shares its deadline), the report's on time / late and the next
-  occurrence of a skipped or completed one (the first still on time) all
-  use it.
+  occurrence of a series that catches up (the first still on time) all
+  use it. **Instants are UTC**: a time the user types is a wall-clock time
+  in their zone, made an instant by `local_instant` (UTC, as the clock's)
+  — never an aware datetime in another offset (SQLite keeps no offset).
+  **The command's zone:** `UnitOfWork.timezone` (an interface's `--tz`)
+  over the preference; use cases read the preferences through
+  `prefs_of(uow, user)` (`c_application/utils/prefs.py`), and only what
+  changes them reads `user.preferences`.
 - **Recurrences:** `b_domain/value_objects/recurrences/` — one class per rule,
   `_base.py` with the contract, `_factory.py` builds from the
   `RecurrenceInputDTO`. Each rule describes itself (`describe_pattern()`); a
@@ -101,10 +107,18 @@ simulator: `python -m d_fake_infra`).
   the user's `week_start`); monthly alone = the Nth day of the month;
   monthly with weekdays = the Nth of each. Any other combination is refused
   by `RecurrenceFactory` — never ignored.
-- **A habit or a bill:** `RecurrenceRule.keep_missed` — a habit (False,
-  the default) skips missed occurrences to the first still on time; a
-  bill keeps each, the next counted from where this one was due before a
-  snooze (`Task.create_next_occurrence`).
+- **Missed occurrences kept, or caught up:** `RecurrenceRule.catch_up` —
+  False, the default, keeps each one, late or not, the next counted from
+  where this one was due before a snooze (each is there to be recorded:
+  done `--at`, or skipped); True skips them to the first still on time.
+  One command decides for itself: `catch_up` on `TaskByUserRequest` and
+  `CancelTaskInputDTO`, carried by the events to the handler
+  (`Task.create_next_occurrence(now, catch_up)`; None: the rule's). Rules
+  stored before 0.39.0 say `keep_missed`, ignored: all of them keep.
+- **The next occurrence's ID:** `occurrence_id(previous_id, due)` — from
+  the occurrence before it and its date, the same on every device; not
+  from the series (0.39.0: one moved back a day and closed had its own ID
+  as its next one's, and no row came).
 - **The radar:** `c_application/use_cases/task/radar.py` — put off
   (`SNOOZED`, or an `EDITED` due moved later, not `caused_by`, not undone)
   or missed in a row (the series' closed occurrences, the gaps a habit
@@ -312,9 +326,12 @@ there too.
   `snoozed_from` (0.34.0); the end of the day, `WrapUseCase` (0.35.0);
   a habit or a bill, `RecurrenceRule.keep_missed` (0.36.0); the
   procrastination radar (0.37.0); the commitment limit — the
-  productive day, a full day warned, `took_minutes` (0.38.0).
+  productive day, a full day warned, `took_minutes` (0.38.0); missed
+  occurrences kept by default, `catch_up` on the rule or on one
+  command, the next occurrence's ID from the one before, instants in
+  UTC, the command's zone (0.39.0, product Backlog 05).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 898 tests passing; **`make check` green**: mypy at zero (packages and
+- 906 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.7% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

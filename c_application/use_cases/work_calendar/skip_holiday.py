@@ -9,6 +9,7 @@ from b_domain.ports.use_case import UseCase
 from c_application.dtos.calendar_dtos import HolidaySkippedOutputDTO
 from c_application.use_cases.context._common import load_user, parse_user_id
 from c_application.utils.date_input import local_today
+from c_application.utils.prefs import prefs_of
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -49,7 +50,7 @@ class SkipHolidayUseCase(UseCase[SkipHolidayInputDTO, HolidaySkippedOutputDTO]):
 
         async with self.uow as uow:
             user: User = await load_user(uow, user_id)
-            prefs = user.preferences
+            prefs = prefs_of(uow, user)
             today: date = local_today(self.clock.now(), prefs.timezone)
             skipped: list[str] = [
                 n.strip() for n in prefs.skipped_holidays.split(";") if n.strip()

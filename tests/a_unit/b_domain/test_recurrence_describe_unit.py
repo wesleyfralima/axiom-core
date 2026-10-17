@@ -205,7 +205,9 @@ def test_hourly_task_completion_finds_the_next_occurrence() -> None:
         ),
     )
 
-    following = task.create_next_occurrence(now=datetime(2026, 1, 5, 12, 30))
+    following = task.create_next_occurrence(
+        now=datetime(2026, 1, 5, 12, 30), catch_up=True
+    )
 
     assert following is not None and following.due_date is not None
     assert following.due_date.value == datetime(2026, 1, 5, 13, 0)

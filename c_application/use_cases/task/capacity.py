@@ -19,6 +19,7 @@ from b_domain.value_objects import TaskStatus, UserId
 from b_domain.value_objects.dates import DueDate
 from c_application.dtos.task_dtos import DayLoadDTO
 from c_application.utils.date_input import local_today
+from c_application.utils.prefs import prefs_of
 
 
 def available_minutes(prefs: UserPrefs, day: date, now: datetime) -> int:
@@ -87,7 +88,7 @@ async def full_day_of(
     else None. A subtask's is its parent's (the parent covers it); a late
     task is today's."""
     user: User | None = await uow.users.get_by_id(user_id)
-    prefs: UserPrefs = user.preferences if user else UserPrefs()
+    prefs: UserPrefs = prefs_of(uow, user)
     if not prefs.full_day_warnings:
         return None
     if task.parent_id is not None:

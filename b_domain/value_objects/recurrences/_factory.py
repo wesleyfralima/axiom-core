@@ -53,7 +53,7 @@ class RecurrenceFactory:
         window_start: time | None = None,
         window_end: time | None = None,
         week_start: int = 0,
-        keep_missed: bool = False,
+        catch_up: bool = False,
     ) -> RecurrenceRule:
         """Create the appropriate recurrence rule based on input parameters.
 
@@ -83,8 +83,9 @@ class RecurrenceFactory:
                 window rules. Defaults to None.
             week_start (int, optional): The week's first day (0 = Monday,
                 6 = Sunday), for "the Nth day of the week". Defaults to 0.
-            keep_missed (bool, optional): Keep the missed occurrences, one
-                after another (a bill), instead of skipping them (a habit).
+            catch_up (bool, optional): Skip the missed occurrences to the
+                first still on time, instead of keeping them one after
+                another (the default).
 
         Returns:
             RecurrenceRule: The appropriate recurrence rule implementation.
@@ -110,8 +111,8 @@ class RecurrenceFactory:
             window_end,
             week_start,
         )
-        # A bill: its missed occurrences kept, one after another
-        return replace(rule, keep_missed=True) if keep_missed else rule
+        # Its missed occurrences skipped, instead of kept one after another
+        return replace(rule, catch_up=True) if catch_up else rule
 
     @staticmethod
     def _build(

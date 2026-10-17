@@ -40,6 +40,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.prefs import prefs_of
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
 from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import load_work_calendar
@@ -132,13 +133,14 @@ class CreateTaskUseCase(UseCase[CreateTaskInputDTO, TaskOutputDTO]):
             )
 
         # 9. Return mapped output DTO (recurring: the occurrences ahead)
-        today: date = local_today(now_system, user.preferences.timezone)
+        zone_name: str = prefs_of(uow, user).timezone
+        today: date = local_today(now_system, zone_name)
         horizon: date = resolve_horizon(user.preferences.days_ahead, today=today)
         return replace(
             TaskMapper.to_output(
                 task,
                 now_system,
-                occurrences_until=end_of_day(horizon, user.preferences.timezone),
+                occurrences_until=end_of_day(horizon, zone_name),
                 context=context,
                 relations=relations,
             ),
@@ -224,7 +226,7 @@ async def make_task(
     context_id_vo: ContextId | None = context.id if context else None
 
     # 5. Timezone & priority inheritance (a subtask: its parent's)
-    tz_to_use: str = dto.timezone or user.preferences.timezone
+    tz_to_use: str = dto.timezone or prefs_of(uow, user).timezone
 
     priority: Priority = (
         Priority.parse(dto.priority)

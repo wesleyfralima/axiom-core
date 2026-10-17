@@ -12,6 +12,7 @@ from c_application.mappers.task_mapper import TaskMapper
 from c_application.use_cases.task.relations import relations_of
 from c_application.use_cases.task.timer import time_of
 from c_application.utils.date_input import end_of_day, local_today, resolve_horizon
+from c_application.utils.prefs import prefs_of
 from c_application.utils.work_calendar import use_work_calendar
 
 
@@ -85,7 +86,7 @@ class GetTaskUseCase(UseCase[GetTaskRequest, TaskOutputDTO]):
             # Recurring: the occurrences ahead, up to the horizon asked for
             # (or the user's days_ahead)
             user: User | None = await uow.users.get_by_id(user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            prefs: UserPrefs = prefs_of(uow, user)
             await use_work_calendar(uow, user_id, prefs, [task])
             now: datetime = self.clock.now()
             horizon: date = resolve_horizon(

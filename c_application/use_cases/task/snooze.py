@@ -38,6 +38,7 @@ from c_application.use_cases.task.relations import (
 )
 from c_application.utils import format_task_recurrence
 from c_application.utils.date_input import DateInput, local_today, resolve_date_input
+from c_application.utils.prefs import prefs_of
 from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import load_work_calendar, use_work_calendar
 
@@ -110,7 +111,7 @@ class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
         async with self.uow as uow:
             task: Task = await find_task(uow, request.task_id_prefix, user_id)
             user: User | None = await uow.users.get_by_id(user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            prefs: UserPrefs = prefs_of(uow, user)
             zone: ZoneInfo = _zone(prefs.timezone)
             today: date = local_today(now, prefs.timezone)
             await use_work_calendar(uow, user_id, prefs, [task])
@@ -130,12 +131,13 @@ class SnoozeTaskUseCase(UseCase[SnoozeTaskRequest, SnoozedTaskOutputDTO]):
                 )
 
             # A recurring occurrence: not onto its next one, unless both stay
-            # — as they always do when the series keeps its missed ones
+            # — as they always do when the series keeps its missed ones (it
+            # does not catch up)
             keep_both: bool = False
             if (
                 task.recurrence is not None
                 and task.parent_id is None
-                and not task.recurrence.keep_missed
+                and task.recurrence.catch_up
             ):
                 upcoming: Task | None = task.create_next_occurrence(now)
                 if upcoming is not None and upcoming.due_date is not None:

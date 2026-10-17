@@ -32,6 +32,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.prefs import prefs_of
 from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import use_work_calendar
 
@@ -100,7 +101,7 @@ class ListTasksUseCase(UseCase[ListTasksRequest, TaskListOutputDTO]):
             contexts: list[Context] = await uow.contexts.list_by_user(f_user_id)
             scope: Context | None = None
             user: User | None = await uow.users.get_by_id(f_user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            prefs: UserPrefs = prefs_of(uow, user)
             active_id: ContextId | None = prefs.active_context_id
             if request.inbox:
                 scope = None  # the inbox has no context, whatever is active

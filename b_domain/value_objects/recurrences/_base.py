@@ -55,9 +55,9 @@ class RecurrenceRule(ValueObject, ABC):
         interval (int): The repetition interval. Defaults to 1.
         end_date (Optional[AxiomDate]): The date and time when repetition ends.
         count (Optional[int]): Maximum number of repetitions.
-        keep_missed (bool): Missed occurrences are kept, one after another (a
-            bill); otherwise they are skipped to the first still on time (a
-            habit, the default).
+        catch_up (bool): Missed occurrences are skipped to the first still on
+            time; otherwise they are kept, one after another, even when
+            already late (the default: each one is there to be recorded).
         _freq (str): Internal frequency marker (set by subclasses).
     """
 
@@ -65,7 +65,7 @@ class RecurrenceRule(ValueObject, ABC):
     interval: int = 1
     end_date: AxiomDate | None = None
     count: int | None = None
-    keep_missed: bool = False
+    catch_up: bool = False
 
     _freq: str = field(init=False, repr=False)
 

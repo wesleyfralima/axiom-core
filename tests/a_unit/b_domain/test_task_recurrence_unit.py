@@ -293,18 +293,41 @@ def test_the_next_occurrence_has_the_same_id_on_every_device() -> None:
     assert after.series_id == task.series_id
 
 
-def test_another_series_or_date_is_another_occurrence() -> None:
+def test_another_occurrence_before_or_date_is_another_occurrence() -> None:
     first = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
     other = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
     now = datetime(2026, 1, 1, 10, 0)
 
     one = first.create_next_occurrence(now)
     two = other.create_next_occurrence(now)
-    later = first.create_next_occurrence(datetime(2026, 1, 5, 10, 0))
+    later = first.create_next_occurrence(datetime(2026, 1, 5, 10, 0), catch_up=True)
 
     assert one is not None and two is not None and later is not None
     assert one.id != two.id
     assert one.id != later.id  # catch-up: a later date
+
+
+def test_moved_back_a_day_its_next_is_another_task() -> None:
+    """The owner's case (2026-10-17): Saturday's occurrence moved back to
+    Friday and done; its next, Saturday's, is a task of its own — it used
+    to share the occurrence's ID (the series and Saturday), and no row
+    came."""
+    friday = create_task_with_recurrence(datetime(2026, 1, 1, 9, 0))
+    saturday = friday.create_next_occurrence(datetime(2026, 1, 1, 10, 0))
+    assert saturday is not None and saturday.due_date is not None
+    assert saturday.due_date.value == datetime(2026, 1, 2, 9, 0)
+
+    saturday.update_due_date(
+        datetime(2026, 1, 2, 12, 0),
+        datetime(2026, 1, 1, 9, 0),
+        is_floating=True,
+        tz_name="UTC",
+    )
+    following = saturday.create_next_occurrence(datetime(2026, 1, 2, 12, 0))
+
+    assert following is not None and following.due_date is not None
+    assert following.due_date.value == datetime(2026, 1, 2, 9, 0)
+    assert following.id != saturday.id
 
 
 def test_a_fixed_occurrence_id_does_not_depend_on_the_offset() -> None:

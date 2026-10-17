@@ -59,7 +59,10 @@ async def _wrap(deps: UseCaseDeps, user: User, **kwargs: object) -> WrapOutputDT
 
 
 def _daily(start: str) -> RecurrenceInputDTO:
-    return RecurrenceInputDTO(frequency=RecurrenceInterval.DAILY, start_date=start)
+    """A habit: its missed occurrences skipped (it catches up)."""
+    return RecurrenceInputDTO(
+        frequency=RecurrenceInterval.DAILY, start_date=start, catch_up=True
+    )
 
 
 async def test_done_and_left_each_with_what_fits_it(

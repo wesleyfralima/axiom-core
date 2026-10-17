@@ -113,9 +113,9 @@ class UpdateTaskInputDTO(DTO):
     timezone: str | None = None
     # Whether the due date is a hard deadline (None: as it is)
     strict_due: bool | None = None
-    # A recurring task: keep its missed occurrences (a bill) or skip them (a
-    # habit); None leaves it as it is
-    keep_missed: bool | None = None
+    # A recurring task: skip its missed occurrences to the first still on
+    # time, or keep them (the default); None leaves it as it is
+    catch_up: bool | None = None
     # A done task: the time it really took (statistics only)
     took_minutes: int | None = None
 
@@ -290,6 +290,9 @@ class TaskByUserRequest(DTO):
     completed_at: DateInput | None = None
     # Done: the time it really took, as the user tells it (statistics only)
     took_minutes: int | None = None
+    # A recurring task's next occurrence skips the missed ones (True) or
+    # keeps them (False) this time; None: as its rule says
+    catch_up: bool | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -301,11 +304,15 @@ class CancelTaskInputDTO(DTO):
         user_id (str): The user who owns the task.
         end_series (bool): For a recurring task, end the whole series instead
             of skipping only this occurrence.
+        catch_up (bool | None): A recurring task's next occurrence skips the
+            missed ones (True) or keeps them (False) this time; None: as its
+            rule says.
     """
 
     task_id_prefix: str
     user_id: str
     end_series: bool = False
+    catch_up: bool | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

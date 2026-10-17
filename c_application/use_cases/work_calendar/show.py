@@ -13,6 +13,7 @@ from c_application.dtos.calendar_dtos import (
 from c_application.use_cases.context._common import load_user, parse_user_id
 from c_application.use_cases.work_calendar._common import own_day_output
 from c_application.utils.date_input import DateInput, local_today, resolve_horizon
+from c_application.utils.prefs import prefs_of
 from c_application.utils.work_calendar import load_work_calendar
 
 DEFAULT_AHEAD_DAYS: int = 365
@@ -51,7 +52,7 @@ class ShowWorkCalendarUseCase(UseCase[ShowWorkCalendarInputDTO, WorkCalendarOutp
         user_id = parse_user_id(request.user_id)
         async with self.uow as uow:
             user: User = await load_user(uow, user_id)
-            prefs = user.preferences
+            prefs = prefs_of(uow, user)
             calendar: WorkCalendar = await load_work_calendar(uow, user_id, prefs)
             suggested: str | None = (
                 None

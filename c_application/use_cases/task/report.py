@@ -26,6 +26,7 @@ from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.use_cases.task.timer import time_of
 from c_application.utils import format_task_recurrence
 from c_application.utils.date_input import DateInput, local_today, resolve_date_input
+from c_application.utils.prefs import prefs_of
 from c_application.utils.recurrence_input import WEEK_STARTS
 
 _NO_CONTEXT: str = "none"
@@ -162,7 +163,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
 
         async with self.uow as uow:
             user: User | None = await uow.users.get_by_id(user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            prefs: UserPrefs = prefs_of(uow, user)
             zone: ZoneInfo = _zone(prefs.timezone)
             today: date = local_today(now, prefs.timezone)
             first, last, label = _period(request, today, prefs)

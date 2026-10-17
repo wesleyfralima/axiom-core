@@ -47,6 +47,7 @@ from c_application.utils.date_input import (
     resolve_date_input,
     resolve_horizon,
 )
+from c_application.utils.prefs import prefs_of
 from c_application.utils.recurrence_input import WEEK_STARTS, build_recurrence
 from c_application.utils.task_utils import find_task
 from c_application.utils.work_calendar import load_work_calendar, use_work_calendar
@@ -145,7 +146,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
             previous: dict[str, Any] = task.snapshot()
             old_due: DueDate | None = task.due_date
             user: User | None = await uow.users.get_by_id(user_id)
-            prefs: UserPrefs = user.preferences if user else UserPrefs()
+            prefs: UserPrefs = prefs_of(uow, user)
             # Business days are the user's, for the rule it has or gets
             calendar: WorkCalendar | None = await use_work_calendar(
                 uow, user_id, prefs, [task]
@@ -233,8 +234,8 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     now, new_due, is_floating=is_floating, tz_name=tz_name
                 )
 
-            kept_missed: bool = (
-                task.recurrence.keep_missed if task.recurrence is not None else False
+            caught_up: bool = (
+                task.recurrence.catch_up if task.recurrence is not None else False
             )
             if request.remove_recurrence:
                 task.change_recurrence(now, None)
@@ -247,21 +248,22 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                     now,
                     calendar.is_business_day if calendar else weekdays_only,
                 )
-            # A habit or a bill: as asked, else as it was (a new rule too)
-            keep_missed: bool | None = (
-                request.keep_missed
-                if request.keep_missed is not None
-                else (kept_missed if request.recurrence is not None else None)
+            # Missed ones skipped or kept: as asked, else as it was (a new
+            # rule too)
+            catch_up: bool | None = (
+                request.catch_up
+                if request.catch_up is not None
+                else (caught_up if request.recurrence is not None else None)
             )
-            if keep_missed is not None:
+            if catch_up is not None:
                 if task.recurrence is None:
                     raise ValidationException(
                         f"'{task.title}' does not repeat: only a recurring task "
                         "keeps or skips its missed occurrences."
                     )
-                if task.recurrence.keep_missed != keep_missed:
+                if task.recurrence.catch_up != catch_up:
                     task.change_recurrence(
-                        now, replace(task.recurrence, keep_missed=keep_missed)
+                        now, replace(task.recurrence, catch_up=catch_up)
                     )
 
             if request.took_minutes is not None:
