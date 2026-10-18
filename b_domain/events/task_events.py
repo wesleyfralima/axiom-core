@@ -237,3 +237,6 @@ class TaskPausedEvent(DomainEvent):
     previous: dict[str, Any] | None = None
     # The start of another task that paused this one on its own
     caused_by: UniqueId | None = None
+    # The session was discarded: stopped, counted nowhere (``minutes``: how
+    # long it ran)
+    discarded: bool = False

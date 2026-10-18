@@ -20,6 +20,8 @@ class TimeEntry(Entity):
         end_time (Optional[datetime]): Timestamp when the task work ended.
             If None, the task is still in progress.
         description (str): Optional notes about the work session.
+        discarded (bool): Stopped without counting (``pause --discard``):
+            kept, counted nowhere.
     """
 
     task_id: TaskId
@@ -27,6 +29,12 @@ class TimeEntry(Entity):
     start_time: datetime
     end_time: datetime | None = None
     description: str = ""
+    discarded: bool = False
+
+    def counted_minutes(self, now: datetime | None = None) -> int:
+        """The minutes the session counts: its elapsed time, or none when
+        it was discarded."""
+        return 0 if self.discarded else self.elapsed_minutes(now)
 
     def elapsed_minutes(self, now: datetime | None = None) -> int:
         """Calculate the elapsed time in minutes.
@@ -60,8 +68,15 @@ class TimeEntry(Entity):
         return int(delta.total_seconds() // 60)
 
     def resume(self) -> None:
-        """Run again a timer that was stopped (undoing a pause)."""
+        """Run again a timer that was stopped (undoing a pause, or a
+        discard: it counts again)."""
         self.end_time = None
+        self.discarded = False
+
+    def discard(self, now: datetime) -> None:
+        """Stop the timer without counting it (kept, marked discarded)."""
+        self.stop(now)
+        self.discarded = True
 
     def stop(self, now: datetime) -> None:
         """Stop the timer by setting the `end_time`.

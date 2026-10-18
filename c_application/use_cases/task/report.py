@@ -333,7 +333,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                         limit=100_000,
                     )
                 )
-                if _aware(e.end_time or now) > start
+                if _aware(e.end_time or now) > start and not e.discarded
             ]
             session_tasks: dict[TaskId, Task] = (
                 {

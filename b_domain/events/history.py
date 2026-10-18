@@ -67,7 +67,11 @@ def history_entry(event: DomainEvent) -> TaskHistoryEntry | None:
     if isinstance(event, TaskUndoneEvent):
         note = event.action
     if isinstance(event, TaskPausedEvent):
-        note = f"{event.minutes} min"
+        note = (
+            f"Timer discarded: {event.minutes} min not counted."
+            if event.discarded
+            else f"{event.minutes} min"
+        )
     if isinstance(event, TaskSnoozedEvent) and event.keeps_both:
         note = "Both kept: it left its series, which moved on."
 

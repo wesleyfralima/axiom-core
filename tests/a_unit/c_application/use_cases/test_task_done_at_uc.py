@@ -33,6 +33,7 @@ from c_application.use_cases import (
     StartTaskUseCase,
 )
 from c_application.use_cases.task.report import ReportRequest
+from c_application.use_cases.task.timer import TimerRequest
 from tests.conftest import FakeClock, FakeUnitOfWork, FakeUowFactory, UseCaseDeps
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.uc]
@@ -116,7 +117,7 @@ async def test_a_running_timer_stops_at_the_moment(
 ) -> None:
     task = await _create(use_case_context, user)
     await StartTaskUseCase(**use_case_context).execute(
-        TaskByUserRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+        TimerRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
     )
     fake_clock.set_time(NOON + timedelta(hours=2))
 

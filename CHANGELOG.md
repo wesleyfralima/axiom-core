@@ -6,6 +6,36 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.43.0] — 2026-10-18
+
+Product Backlog 09, Part 1: timer moments (axiom-enterprise 0.33.0,
+axiom-cli 0.47.0).
+
+### Changed
+- **One timer at a time, enforced**: `StartTaskUseCase` is refused while
+  any timer runs — another task's or the same one's — with
+  `TimerRunningError` (the task, its title, since when); it no longer
+  pauses the other on its own (`TaskTimerOutputDTO.paused_other` gone).
+- `StartTaskUseCase` and `PauseTaskUseCase` take a `TimerRequest`
+  (`task_id_prefix`, `user_id`, `at`, `discard`) instead of
+  `TaskByUserRequest`. Pausing with no timer running says so ("has no
+  timer running").
+
+### Added
+- **When it really started or stopped**: `TimerRequest.at` — a time as
+  typed, wall-clock time where the user is, a time alone today, **never in
+  the future** (`date_input.past_moment`, shared with `done --at`). A
+  start may be before the task was created; never inside another session
+  of any task — a session ending after it is named, so no time counts
+  twice. A pause never before its session's start. The output says when:
+  `started_at`, `stopped_at`.
+- **A discarded timer**: `TimerRequest.discard` stops the session and
+  marks it (`TimeEntry.discarded`, `discard()`, `counted_minutes()`):
+  kept, counted nowhere — the task's time, the report's time and
+  accuracy, the learnt average. The pause's history entry says "Timer
+  discarded: 12 min not counted." (`TaskPausedEvent.discarded`). Undoing
+  it runs the session again, counting.
+
 ## [0.42.0] — 2026-10-18
 
 Product Backlog 08, Part 1: the report counts each occurrence once
