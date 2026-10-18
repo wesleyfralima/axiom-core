@@ -6,6 +6,22 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.45.0] — 2026-10-18
+
+Product Backlog 09, Part 3: the forgotten timer (axiom-cli 0.49.0).
+
+### Added
+- **A forgotten timer**: `running_timer` (`timer.py`) — the user's running
+  timer as a `RunningTimerDTO` (task, since, minutes), `forgotten` when it
+  runs past the end of the productive day it started in (`day_start` plus
+  the day's length: past midnight when `day_end` is), and the user's
+  `last_change` in the history between its start and that day's end — a
+  hint of when they stopped. Warned, never cut. In `TodayOutputDTO.timer`
+  and `WrapOutputDTO.timer`; `TimerRunningError` carries `forgotten` and
+  `last_change`.
+- **`wrap` with a timer**: `WrapAction.PAUSE_TIMER` and `DISCARD_TIMER` on
+  the task whose timer runs.
+
 ## [0.44.0] — 2026-10-18
 
 Product Backlog 09, Part 2: done with a timer (axiom-cli 0.48.0).

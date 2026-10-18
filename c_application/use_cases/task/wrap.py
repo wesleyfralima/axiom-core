@@ -19,6 +19,7 @@ from b_domain.value_objects import TaskId, UserId
 from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.task_dtos import TaskOutputDTO
 from c_application.use_cases.task.radar import RadarDTO, radar_of
+from c_application.use_cases.task.timer import RunningTimerDTO, running_timer
 from c_application.use_cases.task.today import Day, collect_day
 from c_application.utils.date_input import resolve_horizon
 
@@ -34,6 +35,8 @@ class WrapAction(StrEnum):
     CANCEL = "cancel"  # not to be done
     DONE = "done"
     SPLIT = "split"  # the radar flags it: into subtasks, smaller steps
+    PAUSE_TIMER = "pause_timer"  # its timer runs: stop it (at a moment typed)
+    DISCARD_TIMER = "discard_timer"  # its timer runs: stop it, counting nothing
     KEEP = "keep"  # leave it as it is
 
 
@@ -73,6 +76,8 @@ class WrapOutputDTO(DTO):
     left: list[WrapItemDTO] = field(default_factory=list)
     ahead: list[TaskOutputDTO] = field(default_factory=list)
     context: ContextOutputDTO | None = None
+    # The timer that runs, if any (its task may not be among those left)
+    timer: RunningTimerDTO | None = None
 
 
 class WrapUseCase(UseCase[WrapRequest, WrapOutputDTO]):
@@ -104,10 +109,16 @@ class WrapUseCase(UseCase[WrapRequest, WrapOutputDTO]):
             flagged: dict[TaskId, RadarDTO] = await radar_of(
                 uow, user_id, day.prefs, pending, day.today, day.zone
             )
+            timer: RunningTimerDTO | None = await running_timer(uow, user_id, now)
             left: list[WrapItemDTO] = [
                 WrapItemDTO(
                     task=await day.shown(uow, t),
-                    actions=_actions(t, day, t.id in flagged),
+                    actions=_actions(
+                        t,
+                        day,
+                        t.id in flagged,
+                        timing=timer is not None and timer.task_id == str(t.id),
+                    ),
                     radar=flagged.get(t.id),
                 )
                 for t in pending
@@ -131,14 +142,18 @@ class WrapUseCase(UseCase[WrapRequest, WrapOutputDTO]):
                 left=left,
                 ahead=[await day.shown(uow, t) for t in ahead],
                 context=day.context_output(),
+                timer=timer,
             )
 
 
-def _actions(task: Task, day: Day, flagged: bool = False) -> list[WrapAction]:
+def _actions(
+    task: Task, day: Day, flagged: bool = False, timing: bool = False
+) -> list[WrapAction]:
     """What fits a task left: a recurring one is skipped, not cancelled, and
     keeps its date (its rule needs one); a subtask keeps a date too, and
     goes no later than its parent; a waiting one cannot be done; one the
-    radar flags can be split into subtasks (not a subtask: one level)."""
+    radar flags can be split into subtasks (not a subtask: one level); one
+    whose timer runs (``timing``) can have it paused or discarded."""
     actions: list[WrapAction] = []
     if _fits_tomorrow(task, day):
         actions += [WrapAction.TOMORROW, WrapAction.BUSINESS_DAY]
@@ -151,6 +166,8 @@ def _actions(task: Task, day: Day, flagged: bool = False) -> list[WrapAction]:
         actions.append(WrapAction.DONE)
     if flagged and task.parent_id is None:
         actions.append(WrapAction.SPLIT)
+    if timing:
+        actions += [WrapAction.PAUSE_TIMER, WrapAction.DISCARD_TIMER]
     actions.append(WrapAction.KEEP)
     return actions
 

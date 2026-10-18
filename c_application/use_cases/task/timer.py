@@ -9,7 +9,7 @@ time counts twice); a pause never before its start. A pause can
 """
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from a_core import DTO
@@ -21,6 +21,7 @@ from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
+from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos import TaskOutputDTO
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.utils.date_input import DateInput, past_moment
@@ -45,6 +46,30 @@ class TimerRequest(DTO):
     user_id: str
     at: DateInput | None = None
     discard: bool = False
+
+
+@dataclass(frozen=True, kw_only=True)
+class RunningTimerDTO(DTO):
+    """The timer that runs, and whether it was forgotten.
+
+    Attributes:
+        task_id (str): Its task.
+        title (str): The task's title.
+        since (datetime): When it started (an instant).
+        minutes (int): How long it has run.
+        forgotten (bool): It runs past the end of the productive day it
+            started in (``day_end``): warned, never cut.
+        last_change (datetime | None): The user's last change in the
+            history between its start and that day's end, when there is
+            one — a hint of when they stopped.
+    """
+
+    task_id: str
+    title: str
+    since: datetime
+    minutes: int
+    forgotten: bool = False
+    last_change: datetime | None = None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -92,11 +117,13 @@ class StartTaskUseCase(UseCase[TimerRequest, TaskTimerOutputDTO]):
                 user_id
             )
             if running is not None:
-                owner: Task | None = await uow.tasks.get_by_id(running.task_id, user_id)
+                found: RunningTimerDTO | None = await running_timer(uow, user_id, now)
                 raise TimerRunningError(
                     str(running.task_id),
-                    str(owner.title) if owner else "a deleted task",
+                    found.title if found else "a deleted task",
                     _aware(running.start_time),
+                    forgotten=found is not None and found.forgotten,
+                    last_change=found.last_change if found else None,
                 )
             moment: datetime = await _moment(uow, user_id, request.at, now, "started")
             await _clear_of_sessions(uow, user_id, moment)
@@ -163,6 +190,63 @@ class PauseTaskUseCase(UseCase[TimerRequest, TaskTimerOutputDTO]):
             )
 
 
+async def running_timer(
+    uow: UnitOfWork, user_id: UserId, now: datetime
+) -> RunningTimerDTO | None:
+    """The user's running timer, if any, and whether it was forgotten:
+    running past the end of the productive day it started in."""
+    entry: TimeEntry | None = await uow.time_entries.get_active_for_user(user_id)
+    if entry is None:
+        return None
+    task: Task | None = await uow.tasks.get_by_id(entry.task_id, user_id)
+    user: User | None = await uow.users.get_by_id(user_id)
+    prefs: UserPrefs = prefs_of(uow, user)
+    since: datetime = _aware(entry.start_time)
+    end: datetime = _day_end_after(since, prefs)
+    forgotten: bool = now > end
+    last: datetime | None = None
+    if forgotten:
+        changes: list[TaskHistoryEntry] = [
+            e
+            for e in await uow.task_history.between(user_id, since, end)
+            # A change after it, not the start itself
+            if _aware(e.occurred_at) > since
+            and not (e.action == TaskAction.STARTED and e.task_id == entry.task_id)
+        ]
+        last = max((_aware(e.occurred_at) for e in changes), default=None)
+    return RunningTimerDTO(
+        task_id=str(entry.task_id),
+        title=str(task.title) if task else "a deleted task",
+        since=since,
+        minutes=_until(entry, now),
+        forgotten=forgotten,
+        last_change=last,
+    )
+
+
+def _day_end_after(since: datetime, prefs: UserPrefs) -> datetime:
+    """The end of the productive day a moment falls in (or the next one,
+    before it starts): ``day_start`` plus the day's length — past midnight
+    when ``day_end`` is."""
+    zone: ZoneInfo = _zone(prefs.timezone)
+    local: datetime = since.astimezone(zone)
+    hours, minutes = (int(p) for p in prefs.day_start.split(":"))
+    end: datetime = local
+    for day in (local.date() - timedelta(days=1), local.date()):
+        begin: datetime = datetime.combine(day, time(hours, minutes), tzinfo=zone)
+        end = begin + timedelta(minutes=prefs.day_minutes)
+        if local < end:
+            return end
+    return end
+
+
+def _zone(name: str) -> ZoneInfo:
+    try:
+        return ZoneInfo(name)
+    except (ZoneInfoNotFoundError, ValueError):
+        return ZoneInfo("UTC")
+
+
 async def _moment(
     uow: UnitOfWork,
     user_id: UserId,
@@ -220,11 +304,7 @@ async def _wall(uow: UnitOfWork, user_id: UserId, moment: datetime) -> str:
     """A moment as the user reads it: "2026-01-04 23:12" where they are."""
     user: User | None = await uow.users.get_by_id(user_id)
     prefs: UserPrefs = prefs_of(uow, user)
-    try:
-        zone: ZoneInfo = ZoneInfo(prefs.timezone)
-    except (ZoneInfoNotFoundError, ValueError):
-        zone = ZoneInfo("UTC")
-    return f"{moment.astimezone(zone):%Y-%m-%d %H:%M}"
+    return f"{moment.astimezone(_zone(prefs.timezone)):%Y-%m-%d %H:%M}"
 
 
 def _until(entry: TimeEntry, moment: datetime) -> int:

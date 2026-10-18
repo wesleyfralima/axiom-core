@@ -141,7 +141,10 @@ simulator: `python -m d_fake_infra`).
   nowhere (`counted_minutes`). **Done with a timer**
   (`CompleteTaskUseCase._close_active_timers`): `--took` stops a running
   one where the sessions add up to it (`TookPastTimerError` past the
-  completion or in the future); a stopped one stays as it is.
+  completion or in the future); a stopped one stays as it is. **A
+  forgotten timer** (`running_timer`): past the end of the productive day
+  it started in — warned in `today`, `wrap` and a refused start, with the
+  user's last change that day as the moment to suggest; never cut.
 - **The report:** `c_application/use_cases/task/report.py` — **each task
   once, by how it ended** (`_last_closings`: its last completion or cancel,
   not undone, not followed by a reopen; a deleted one never); **a series
@@ -324,7 +327,7 @@ there too.
 
 ## Current state (2026-10-18)
 
-- Version `0.44.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.45.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -368,9 +371,10 @@ there too.
   each task once and judges a series by its slots, hourly ones apart
   (0.42.0, product Backlog 08, Part 1); timers that tell the truth —
   one at a time enforced, `--at`, `discard` (0.43.0, product Backlog 09,
-  Part 1); `--took` with a running timer (0.44.0, Part 2).
+  Part 1); `--took` with a running timer (0.44.0, Part 2); the forgotten
+  timer, `wrap`'s pause and discard (0.45.0, Part 3).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 954 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 88.0% over an 87.9% floor.
+- 959 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 88.1% over an 87.9% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

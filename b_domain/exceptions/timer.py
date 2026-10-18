@@ -13,15 +13,27 @@ class TimerRunningError(DomainException):
         task_id (str): The task whose timer runs.
         title (str): Its title.
         since (datetime): When it started (an instant).
+        forgotten (bool): It runs past the end of the day it started in.
+        last_change (datetime | None): The user's last change after it
+            started, that day (a hint of when they stopped).
     """
 
-    def __init__(self, task_id: str, title: str, since: datetime) -> None:
+    def __init__(
+        self,
+        task_id: str,
+        title: str,
+        since: datetime,
+        forgotten: bool = False,
+        last_change: datetime | None = None,
+    ) -> None:
         super().__init__(
             f"The timer of '{title}' is running: pause it before starting another."
         )
         self.task_id: str = task_id
         self.title: str = title
         self.since: datetime = since
+        self.forgotten: bool = forgotten
+        self.last_change: datetime | None = last_change
 
 
 class TookPastTimerError(DomainException):
