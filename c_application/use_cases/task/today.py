@@ -22,6 +22,7 @@ from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
 from c_application.use_cases.task.capacity import day_load, with_parts
 from c_application.use_cases.task.radar import RadarDTO, radar_of
+from c_application.use_cases.task.timer import RunningTimerDTO, running_timer
 from c_application.utils import find_context
 from c_application.utils.date_input import local_today
 from c_application.utils.prefs import prefs_of
@@ -62,6 +63,8 @@ class TodayOutputDTO(DTO):
     load: DayLoadDTO | None = None
     # Whether to warn about it (the user's full_day_warnings)
     warn_full: bool = True
+    # The timer that runs, if any (``forgotten``: past its day's end)
+    timer: RunningTimerDTO | None = None
 
 
 @dataclass(kw_only=True)
@@ -238,6 +241,7 @@ class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
                     for t in day.later[: max(request.next_count, 0)]
                 ],
                 context=day.context_output(),
+                timer=await running_timer(uow, user_id, self.clock.now()),
             )
 
 
