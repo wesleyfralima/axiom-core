@@ -209,6 +209,9 @@ class TaskOutputDTO(DTO):
     blocks: list[TaskLinkDTO] = field(default_factory=list)
     # A closed parent: how many subtasks come back with it when reopened
     reopens_with: int = 0
+    # A parent with subtasks: the part of its estimate that is its own (on
+    # its day; its subtasks count on theirs). None: all of it is its own
+    own_minutes: int | None = None
     due_date: datetime | None = None
     is_overdue: bool = False
 

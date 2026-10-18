@@ -20,7 +20,7 @@ from c_application.dtos.context_dtos import ContextOutputDTO
 from c_application.dtos.task_dtos import DayLoadDTO, TaskOutputDTO
 from c_application.mappers.context_mapper import ContextMapper
 from c_application.mappers.task_mapper import TaskMapper
-from c_application.use_cases.task.capacity import day_load
+from c_application.use_cases.task.capacity import day_load, with_parts
 from c_application.use_cases.task.radar import RadarDTO, radar_of
 from c_application.utils import find_context
 from c_application.utils.date_input import local_today
@@ -97,6 +97,11 @@ class Day:
             parent_title=str(parent.title) if parent else None,
             parent=parent,
         )
+
+    async def shown(self, uow: UnitOfWork, task: Task) -> TaskOutputDTO:
+        """A task as the lists show it, a parent with its own part and its
+        subtasks counted (the tree is not drawn)."""
+        return await with_parts(uow, task, self.output(task))
 
     def wall(self, task: Task) -> datetime:
         """A task's due date as wall-clock time where the user is."""
@@ -225,10 +230,13 @@ class TodayUseCase(UseCase[TodayRequest, TodayOutputDTO]):
                 warn_full=day.prefs.full_day_warnings,
                 radar=list(flagged.values()),
                 day=day.today,
-                overdue=[day.output(t) for t in day.overdue],
-                today=[day.output(t) for t in day.due_today],
-                done=[day.output(t) for t in day.done],
-                next=[day.output(t) for t in day.later[: max(request.next_count, 0)]],
+                overdue=[await day.shown(uow, t) for t in day.overdue],
+                today=[await day.shown(uow, t) for t in day.due_today],
+                done=[await day.shown(uow, t) for t in day.done],
+                next=[
+                    await day.shown(uow, t)
+                    for t in day.later[: max(request.next_count, 0)]
+                ],
                 context=day.context_output(),
             )
 

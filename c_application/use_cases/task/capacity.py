@@ -14,6 +14,7 @@ cancelled one is gone. Worked out each time, never stored.
 """
 
 from collections.abc import Iterable
+from dataclasses import replace
 from datetime import date, datetime, time, timedelta
 from uuid import UUID
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
@@ -25,7 +26,7 @@ from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.value_objects import TaskId, TaskStatus, UserId
 from b_domain.value_objects.dates import DueDate
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
-from c_application.dtos.task_dtos import DayLoadDTO
+from c_application.dtos.task_dtos import DayLoadDTO, TaskOutputDTO
 from c_application.utils.date_input import local_today
 from c_application.utils.prefs import prefs_of
 
@@ -58,26 +59,62 @@ def counts(task: Task) -> bool:
 
 
 async def own_minutes(uow: UnitOfWork, task: Task) -> int:
-    """The part of ``task``'s estimate that is its own, on its day.
+    """The part of ``task``'s estimate that is its own, on its day: a
+    parent's own part (``own_part``); anything else, its whole estimate."""
+    own: int | None = await own_part(uow, task)
+    return task.estimated_duration_minutes if own is None else own
 
-    A subtask, or a parent with no subtasks: its whole estimate. A parent:
-    its estimate minus every subtask's (open, done or cancelled), never
+
+async def own_part(
+    uow: UnitOfWork, task: Task, subs: list[Task] | None = None
+) -> int | None:
+    """A parent's own part of its estimate; None for a task with no
+    subtasks (or a subtask): all of it is its own.
+
+    Its estimate minus every subtask's (open, done or cancelled), never
     below zero. Every subtask cancelled (none open, none done) and nothing
     of its own left: the estimate of the one cancelled last — the last step
     left became the parent's to do.
+
+    Args:
+        uow (UnitOfWork): Where the tasks are.
+        task (Task): The task.
+        subs (list[Task] | None): Its subtasks, when already read.
     """
     if task.parent_id is not None:
-        return task.estimated_duration_minutes
-    subs: list[Task] = await uow.tasks.get_subtasks(task.id, limit=10_000)
+        return None
+    if subs is None:
+        subs = await uow.tasks.get_subtasks(task.id, limit=10_000)
+    if not subs:
+        return None
     own: int = max(
         task.estimated_duration_minutes
         - sum(s.estimated_duration_minutes for s in subs),
         0,
     )
-    if own or not subs or any(s.status != TaskStatus.CANCELLED for s in subs):
+    if own or any(s.status != TaskStatus.CANCELLED for s in subs):
         return own
     last: Task | None = await _cancelled_last(uow, task.user_id, subs)
     return last.estimated_duration_minutes if last is not None else 0
+
+
+async def with_parts(
+    uow: UnitOfWork, task: Task, output: TaskOutputDTO
+) -> TaskOutputDTO:
+    """A parent's output with its own part and its subtasks counted (open
+    and all), where a list shows it without its tree (``today``,
+    ``wrap``); anything else as it was."""
+    if task.parent_id is not None:
+        return output
+    subs: list[Task] = await uow.tasks.get_subtasks(task.id, limit=10_000)
+    if not subs:
+        return output
+    return replace(
+        output,
+        own_minutes=await own_part(uow, task, subs),
+        open_subtasks=sum(1 for s in subs if not s.status.is_closed),
+        all_subtasks=len(subs),
+    )
 
 
 async def _cancelled_last(

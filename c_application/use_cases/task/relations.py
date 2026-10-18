@@ -29,6 +29,7 @@ from b_domain.value_objects import TaskId, TaskStatus, UserId
 from b_domain.value_objects.dates import DueDate
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
 from c_application.dtos.task_dtos import TaskLinkDTO
+from c_application.use_cases.task.capacity import own_part
 
 
 def is_open(task: Task | None) -> bool:
@@ -243,7 +244,8 @@ def link(task: Task) -> TaskLinkDTO:
 async def relations_of(uow: UnitOfWork, task: Task, user_id: UserId) -> dict[str, Any]:
     """What ``show`` tells about a task's relations, as TaskOutputDTO fields:
     its parent, its subtasks (direct, and how many are open at any depth),
-    what it waits on and what waits on it."""
+    what it waits on and what waits on it; a parent's own part of its
+    estimate."""
     parent: Task | None = (
         await uow.tasks.get_by_id(task.parent_id, user_id) if task.parent_id else None
     )
@@ -263,6 +265,7 @@ async def relations_of(uow: UnitOfWork, task: Task, user_id: UserId) -> dict[str
     return {
         "parent": link(parent) if parent else None,
         "subtasks": [link(t) for t in children],
+        "own_minutes": await own_part(uow, task, children),
         "open_subtasks": sum(1 for t in below if is_open(t)),
         "all_subtasks": len(below),
         "waits_on": [link(t) for t in waits_on],

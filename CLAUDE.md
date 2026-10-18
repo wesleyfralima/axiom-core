@@ -138,7 +138,8 @@ simulator: `python -m d_fake_infra`).
   parent, only its own part** (`own_minutes`: its estimate minus every
   subtask's — open, done or cancelled — never below zero; every subtask
   cancelled, the one cancelled last when nothing is left of its own),
-  worked out each time, never stored. `full_day_of` after a change (its
+  worked out each time, never stored; shown as `TaskOutputDTO.own_minutes`
+  (`own_part`, `with_parts` for `today`/`wrap`). `full_day_of` after a change (its
   own transaction, so it reads what was saved), on the days the task and
   `also` are on; off with `full_day_warnings`.
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
@@ -305,7 +306,7 @@ there too.
 
 ## Current state (2026-10-17)
 
-- Version `0.40.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.41.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -344,9 +345,10 @@ there too.
   command, the next occurrence's ID from the one before, instants in
   UTC, the command's zone (0.39.0, product Backlog 05); a floating date
   read where the user is (0.39.1); a subtask counted on its own day, its
-  parent only its own part (0.40.0, product Backlog 06, Part 1).
+  parent only its own part (0.40.0, product Backlog 06, Part 1); the own
+  part in the output, `own_minutes` (0.41.0, Part 2).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 927 tests passing; **`make check` green**: mypy at zero (packages and
+- 929 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.8% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

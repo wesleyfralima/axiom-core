@@ -23,6 +23,7 @@ from c_application.dtos.task_dtos import (
     AddSubtasksInputDTO,
     CancelTaskInputDTO,
     CreateTaskInputDTO,
+    GetTaskRequest,
     TaskByUserRequest,
     TaskOutputDTO,
     UpdateTaskInputDTO,
@@ -36,13 +37,16 @@ from c_application.use_cases import (
     CompleteTaskUseCase,
     CreateTaskUseCase,
     DeleteTaskUseCase,
+    GetTaskUseCase,
     ReopenTaskUseCase,
     TodayUseCase,
     UpdateTaskUseCase,
+    WrapUseCase,
 )
 from c_application.use_cases.task.capacity import day_load
 from c_application.use_cases.task.delete import DeleteTaskInputDTO
 from c_application.use_cases.task.today import TodayRequest
+from c_application.use_cases.task.wrap import WrapRequest
 from tests.conftest import FakeClock, FakeUowFactory, UseCaseDeps
 
 pytestmark = [pytest.mark.asyncio, pytest.mark.uc]
@@ -479,3 +483,67 @@ async def test_a_subtask_moved_out_warns_on_the_parent_it_left(
     # Its 3h are the trip's own now (4h30 planned, 1h30 of subtasks left)
     assert alone.full_day is not None
     assert (alone.full_day.day, alone.full_day.planned_minutes) == (PARENT_DAY, 960)
+
+
+# --- Shown: the own part and the subtasks counted -----------------------------------
+
+
+async def test_the_card_shows_the_own_part(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    trip = await _trip(use_case_context, user, planned=360)
+    get = GetTaskUseCase(**use_case_context)
+
+    card = await get.execute(
+        GetTaskRequest(user_id=str(user.id), task_id_prefix=trip["trip"].id)
+    )
+    hotel = await get.execute(
+        GetTaskRequest(user_id=str(user.id), task_id_prefix=trip["hotel"].id)
+    )
+
+    assert (card.own_minutes, card.estimated_minutes) == (90, 360)
+    assert hotel.own_minutes is None  # a subtask: all of it is its own
+
+
+async def test_today_and_wrap_show_a_parents_part(
+    use_case_context: UseCaseDeps, user: User, fake_clock: FakeClock
+) -> None:
+    party = await _create(
+        use_case_context, user, "Party", due_date="today 18:00", estimated_minutes=90
+    )
+    await AddSubtasksUseCase(**use_case_context).execute(
+        AddSubtasksInputDTO(
+            user_id=str(user.id),
+            parent_id=party.id,
+            titles=["Cake", "Music"],
+            estimated_minutes=30,
+        )
+    )
+    [cake, _] = (
+        await GetTaskUseCase(**use_case_context).execute(
+            GetTaskRequest(user_id=str(user.id), task_id_prefix=party.id)
+        )
+    ).subtasks
+    await _done(use_case_context, user, cake)  # type: ignore[arg-type]
+    await _create(
+        use_case_context, user, "Alone", due_date="today 20:00", estimated_minutes=20
+    )
+
+    day = await TodayUseCase(**use_case_context).execute(
+        TodayRequest(user_id=str(user.id))
+    )
+
+    shown = {t.title: t for t in day.today}
+    assert (shown["Party"].own_minutes, shown["Party"].estimated_minutes) == (30, 90)
+    assert (shown["Party"].open_subtasks, shown["Party"].all_subtasks) == (1, 2)
+    assert shown["Music"].own_minutes is None
+    assert shown["Alone"].own_minutes is None and shown["Alone"].all_subtasks == 0
+    # The load counts the parts: 30 + the music's 30 + 20
+    assert day.load is not None and day.load.planned_minutes == 80
+
+    fake_clock.set_time(datetime(2026, 3, 5, 21, tzinfo=UTC))
+    wrap = await WrapUseCase(**use_case_context).execute(
+        WrapRequest(user_id=str(user.id))
+    )
+    [left] = [i.task for i in wrap.left if i.task.title == "Party"]
+    assert (left.own_minutes, left.open_subtasks) == (30, 1)
