@@ -8,18 +8,23 @@ from datetime import UTC, datetime, timedelta
 import pytest
 
 from a_core import InvalidStateTransition
+from a_core.exceptions import ValidationException
 from b_domain.entities import User
+from b_domain.exceptions import TimerRunningError
+from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.value_objects import TaskId, TaskStatus
 from c_application.dtos.task_dtos import (
     CreateTaskInputDTO,
     GetTaskRequest,
     TaskByUserRequest,
+    TaskHistoryRequest,
     TaskOutputDTO,
     UpdateTaskInputDTO,
 )
 from c_application.use_cases import (
     CompleteTaskUseCase,
     CreateTaskUseCase,
+    GetTaskHistoryUseCase,
     GetTaskUseCase,
     PauseTaskUseCase,
     ReportUseCase,
@@ -29,6 +34,7 @@ from c_application.use_cases import (
     UpdateTaskUseCase,
 )
 from c_application.use_cases.task.report import ReportRequest
+from c_application.use_cases.task.timer import TimerRequest
 from c_application.use_cases.task.undo import UndoRequest
 from tests.conftest import FakeClock, FakeUowFactory, UseCaseDeps
 
@@ -52,6 +58,10 @@ async def _create(deps: UseCaseDeps, user: User, **kwargs: object) -> TaskOutput
 
 def _by(user: User, task: TaskOutputDTO) -> TaskByUserRequest:
     return TaskByUserRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+
+
+def _timer(user: User, task: TaskOutputDTO, **kwargs: object) -> TimerRequest:
+    return TimerRequest(task_id_prefix=task.id[:8], user_id=str(user.id), **kwargs)  # type: ignore[arg-type]
 
 
 def _at(clock: FakeClock, minutes: int) -> None:
@@ -78,18 +88,18 @@ async def test_start_pause_start_done_counts_every_session(
 ) -> None:
     task = await _create(use_case_context, user)
 
-    started = await StartTaskUseCase(**use_case_context).execute(_by(user, task))
+    started = await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
     assert started.task.status == TaskStatus.IN_PROGRESS
     assert started.task.running_since == NOON
 
     _at(fake_clock, 25)
-    paused = await PauseTaskUseCase(**use_case_context).execute(_by(user, task))
+    paused = await PauseTaskUseCase(**use_case_context).execute(_timer(user, task))
     assert paused.task.status == TaskStatus.PAUSED
     assert paused.session_minutes == 25
     assert paused.task.running_since is None
 
     _at(fake_clock, 60)
-    await StartTaskUseCase(**use_case_context).execute(_by(user, task))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
     _at(fake_clock, 70)
     done = await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
 
@@ -100,32 +110,31 @@ async def test_start_pause_start_done_counts_every_session(
     assert shown.time_spent_minutes == 35  # 25 + 10
 
 
-async def test_starting_one_task_pauses_the_other(
+async def test_one_timer_at_a_time_is_enforced(
     use_case_context: UseCaseDeps,
     user: User,
     fake_clock: FakeClock,
     fake_uow_factory: FakeUowFactory,
 ) -> None:
+    """The owner, 2026-10-18: a start is refused while any timer runs — it
+    is paused first, never on its own."""
     first = await _create(use_case_context, user, title="First")
     second = await _create(use_case_context, user, title="Second")
-    await StartTaskUseCase(**use_case_context).execute(_by(user, first))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, first))
 
     _at(fake_clock, 15)
-    started = await StartTaskUseCase(**use_case_context).execute(_by(user, second))
+    for task in (second, first):
+        with pytest.raises(TimerRunningError, match="'First' is running") as refused:
+            await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
+        assert refused.value.task_id == first.id and refused.value.since == NOON
 
-    assert started.paused_other == "First"
-    back = await _task(fake_uow_factory, first)
-    assert back is not None and back.status == TaskStatus.PAUSED
+    back = await _task(fake_uow_factory, second)
+    assert back is not None and back.status == TaskStatus.PENDING
 
-    # Undoing the start resumes the first, and throws away the second's session
+    # Undoing a start throws its session away
     assert await _undo(use_case_context, user) == "started"
-    first_back = await _task(fake_uow_factory, first)
-    second_back = await _task(fake_uow_factory, second)
-    assert first_back is not None and first_back.status == TaskStatus.IN_PROGRESS
-    assert second_back is not None and second_back.status == TaskStatus.PENDING
     async with fake_uow_factory() as uow:
-        running = await uow.time_entries.get_active_for_user(user.id)
-    assert running is not None and running.task_id == first_back.id
+        assert await uow.time_entries.get_active_for_user(user.id) is None
 
 
 async def test_undoing_a_pause_runs_the_same_session_again(
@@ -135,9 +144,9 @@ async def test_undoing_a_pause_runs_the_same_session_again(
     fake_uow_factory: FakeUowFactory,
 ) -> None:
     task = await _create(use_case_context, user)
-    await StartTaskUseCase(**use_case_context).execute(_by(user, task))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
     _at(fake_clock, 20)
-    await PauseTaskUseCase(**use_case_context).execute(_by(user, task))
+    await PauseTaskUseCase(**use_case_context).execute(_timer(user, task))
 
     assert await _undo(use_case_context, user) == "paused"
 
@@ -157,12 +166,12 @@ async def test_what_cannot_start_or_pause(
     )
 
     with pytest.raises(InvalidStateTransition, match="waiting on other tasks"):
-        await StartTaskUseCase(**use_case_context).execute(_by(user, after))
-    with pytest.raises(InvalidStateTransition, match="not in progress"):
-        await PauseTaskUseCase(**use_case_context).execute(_by(user, blocker))
-    await StartTaskUseCase(**use_case_context).execute(_by(user, blocker))
-    with pytest.raises(InvalidStateTransition, match="already in progress"):
-        await StartTaskUseCase(**use_case_context).execute(_by(user, blocker))
+        await StartTaskUseCase(**use_case_context).execute(_timer(user, after))
+    with pytest.raises(InvalidStateTransition, match="no timer running"):
+        await PauseTaskUseCase(**use_case_context).execute(_timer(user, blocker))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, blocker))
+    with pytest.raises(TimerRunningError, match="'Before' is running"):
+        await StartTaskUseCase(**use_case_context).execute(_timer(user, blocker))
 
 
 async def test_estimates_default_edit_and_learn(
@@ -183,7 +192,7 @@ async def test_estimates_default_edit_and_learn(
     )
     assert edited.estimated_minutes == 20
 
-    await StartTaskUseCase(**use_case_context).execute(_by(user, task))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
     _at(fake_clock, 40)
     await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
     back = await _task(fake_uow_factory, task)
@@ -201,7 +210,7 @@ async def test_the_report_has_time_accuracy_and_best_hours(
         task = await _create(
             use_case_context, user, title=f"Task {n}", estimated_minutes=30
         )
-        await StartTaskUseCase(**use_case_context).execute(_by(user, task))
+        await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
         _at(fake_clock, n * 60 + 45)  # every one takes 45 minutes
         await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
     _at(fake_clock, 6 * 60)
@@ -218,3 +227,152 @@ async def test_the_report_has_time_accuracy_and_best_hours(
     assert (overall.label, overall.tasks) == ("all", 5)
     assert (overall.estimated_minutes, overall.actual_minutes) == (150, 225)
     assert len(report.best_hours) == 3
+
+
+# --- When it started, when it stopped (product Backlog 09) -------------------------
+
+
+async def test_a_forgotten_timer_stopped_when_it_really_was(
+    use_case_context: UseCaseDeps,
+    user: User,
+    fake_clock: FakeClock,
+    fake_uow_factory: FakeUowFactory,
+) -> None:
+    """The owner's night: started at 20:00, never paused; the morning after,
+    paused at 23:10 the night before, and started again now."""
+    task = await _create(use_case_context, user)
+    fake_clock.set_time(datetime(2026, 3, 4, 20, 0, tzinfo=UTC))
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
+    fake_clock.set_time(NOON)  # the next day, 16h later
+
+    paused = await PauseTaskUseCase(**use_case_context).execute(
+        _timer(user, task, at="yesterday 23:10")
+    )
+    assert (paused.session_minutes, paused.stopped_at) == (
+        190,
+        datetime(2026, 3, 4, 23, 10, tzinfo=UTC),
+    )
+    again = await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
+
+    assert again.started_at == NOON
+    assert again.task.time_spent_minutes == 190
+    log = await GetTaskHistoryUseCase(**use_case_context).execute(
+        TaskHistoryRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+    )
+    assert [e.note for e in log.entries if e.action == "paused"] == ["190 min"]
+
+
+async def test_a_start_may_be_before_the_task_was_created(
+    use_case_context: UseCaseDeps, user: User, fake_clock: FakeClock
+) -> None:
+    task = await _create(use_case_context, user)  # created at noon
+
+    started = await StartTaskUseCase(**use_case_context).execute(
+        _timer(user, task, at="11:20")
+    )
+
+    assert started.started_at == datetime(2026, 3, 5, 11, 20, tzinfo=UTC)
+    assert started.task.running_since == datetime(2026, 3, 5, 11, 20, tzinfo=UTC)
+
+
+@pytest.mark.parametrize(
+    ("typed", "match"),
+    [
+        ("13:00", "cannot be started in the future"),
+        ("2026-03-04", "needs a time of day"),
+    ],
+)
+async def test_what_a_start_moment_refuses(
+    use_case_context: UseCaseDeps, user: User, typed: str, match: str
+) -> None:
+    task = await _create(use_case_context, user)
+    with pytest.raises(ValidationException, match=match):
+        await StartTaskUseCase(**use_case_context).execute(_timer(user, task, at=typed))
+
+
+async def test_no_time_counts_twice(
+    use_case_context: UseCaseDeps, user: User, fake_clock: FakeClock
+) -> None:
+    """Timed 09:00 to 10:00; a start at 09:30 (or 08:00) would run over it."""
+    first = await _create(use_case_context, user, title="First")
+    second = await _create(use_case_context, user, title="Second")
+    start = StartTaskUseCase(**use_case_context)
+    await start.execute(_timer(user, first, at="09:00"))
+    await PauseTaskUseCase(**use_case_context).execute(_timer(user, first, at="10:00"))
+
+    for typed in ("09:30", "08:00"):
+        with pytest.raises(
+            ValidationException,
+            match="'First' was timed from 2026-03-05 09:00 to 2026-03-05 10:00",
+        ):
+            await start.execute(_timer(user, second, at=typed))
+    started = await start.execute(_timer(user, second, at="10:00"))
+    assert started.started_at == datetime(2026, 3, 5, 10, 0, tzinfo=UTC)
+
+
+async def test_a_pause_moment_is_after_its_start_and_never_ahead(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    task = await _create(use_case_context, user)
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task, at="11:00"))
+    pause = PauseTaskUseCase(**use_case_context)
+
+    with pytest.raises(ValidationException, match="started at 2026-03-05 11:00"):
+        await pause.execute(_timer(user, task, at="10:30"))
+    with pytest.raises(ValidationException, match="cannot be paused in the future"):
+        await pause.execute(_timer(user, task, at="12:30"))
+
+
+async def test_a_discarded_timer_counts_nowhere_and_is_kept(
+    use_case_context: UseCaseDeps,
+    user: User,
+    fake_clock: FakeClock,
+    fake_uow_factory: FakeUowFactory,
+) -> None:
+    """Started, then something urgent: not even a minute counts."""
+    task = await _create(use_case_context, user, estimated_minutes=30)
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
+    _at(fake_clock, 12)
+
+    dropped = await PauseTaskUseCase(**use_case_context).execute(
+        _timer(user, task, discard=True)
+    )
+
+    assert dropped.discarded and dropped.session_minutes == 12
+    assert dropped.task.time_spent_minutes == 0
+    async with fake_uow_factory() as uow:
+        [kept] = await uow.time_entries.search(
+            TimeEntryFilter(task_id=TaskId.from_string(task.id))
+        )
+    assert kept.discarded and kept.elapsed_minutes() == 12
+    log = await GetTaskHistoryUseCase(**use_case_context).execute(
+        TaskHistoryRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+    )
+    assert log.entries[-1].note == "Timer discarded: 12 min not counted."
+
+    # Done: nothing measured, nothing learnt; the report has no time
+    _at(fake_clock, 20)
+    await CompleteTaskUseCase(**use_case_context).execute(_by(user, task))
+    back = await _task(fake_uow_factory, task)
+    assert back is not None and back.success_count == 0
+    report = await ReportUseCase(**use_case_context).execute(
+        ReportRequest(user_id=str(user.id))
+    )
+    assert report.time_spent_minutes == 0
+
+
+async def test_undoing_a_discard_counts_the_session_again(
+    use_case_context: UseCaseDeps, user: User, fake_clock: FakeClock
+) -> None:
+    task = await _create(use_case_context, user)
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task))
+    _at(fake_clock, 10)
+    await PauseTaskUseCase(**use_case_context).execute(_timer(user, task, discard=True))
+
+    assert await _undo(use_case_context, user) == "paused"
+
+    _at(fake_clock, 30)
+    shown = await GetTaskUseCase(**use_case_context).execute(
+        GetTaskRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
+    )
+    assert shown.running_since == NOON and shown.time_spent_minutes == 30

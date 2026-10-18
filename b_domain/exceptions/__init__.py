@@ -33,6 +33,7 @@ from .sync import (
     SyncUnavailableError,
     WrongCredentialsError,
 )
+from .timer import TimerRunningError
 
 __all__ = [
     "AlreadyJoinedError",
@@ -63,6 +64,7 @@ __all__ = [
     "SyncException",
     "SyncRefusedError",
     "SyncUnavailableError",
+    "TimerRunningError",
     "UnknownHolidayRegionError",
     "WrongCredentialsError",
 ]

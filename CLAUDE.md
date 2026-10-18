@@ -132,6 +132,13 @@ simulator: `python -m d_fake_infra`).
   or missed in a row (the series' closed occurrences, the gaps a habit
   skipped, the open one's days gone); flags at `RADAR_AFTER`; off with
   `postpone_warnings`. Used by `today` and `wrap`.
+- **Timers:** `c_application/use_cases/task/timer.py` — **one at a time,
+  enforced** (`TimerRunningError`: a start is refused while any timer
+  runs; it is never paused on its own); `TimerRequest.at` (never in the
+  future, `past_moment`): a start may be before the task's creation,
+  never inside another session; a pause never before its start;
+  `discard` keeps the session marked (`TimeEntry.discarded`), counted
+  nowhere (`counted_minutes`).
 - **The report:** `c_application/use_cases/task/report.py` — **each task
   once, by how it ended** (`_last_closings`: its last completion or cancel,
   not undone, not followed by a reopen; a deleted one never); **a series
@@ -314,7 +321,7 @@ there too.
 
 ## Current state (2026-10-18)
 
-- Version `0.42.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.43.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -356,9 +363,11 @@ there too.
   parent only its own part (0.40.0, product Backlog 06, Part 1); the own
   part in the output, `own_minutes` (0.41.0, Part 2); the report counts
   each task once and judges a series by its slots, hourly ones apart
-  (0.42.0, product Backlog 08, Part 1).
+  (0.42.0, product Backlog 08, Part 1); timers that tell the truth —
+  one at a time enforced, `--at`, `discard` (0.43.0, product Backlog 09,
+  Part 1).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 939 tests passing; **`make check` green**: mypy at zero (packages and
+- 947 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 88.0% over an 87.9% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

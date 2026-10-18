@@ -13,7 +13,7 @@ import re
 from datetime import UTC, date, datetime, time, timedelta
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from a_core.exceptions import InvalidValueError
+from a_core.exceptions import InvalidValueError, ValidationException
 
 type DateInput = datetime | date | str
 """A datetime, a date without time, or a text expression to resolve."""
@@ -152,6 +152,39 @@ def local_instant(moment: datetime, tz_name: str) -> datetime:
     except (ZoneInfoNotFoundError, ValueError):
         zone = ZoneInfo("UTC")
     return moment.replace(tzinfo=zone).astimezone(UTC)
+
+
+def past_moment(
+    value: DateInput,
+    now: datetime,
+    tz_name: str,
+    *,
+    needs_time: str,
+    in_future: str,
+) -> datetime:
+    """A moment the user typed — wall-clock time where they are, as an
+    instant (UTC) — never in the future; a time alone is today.
+
+    Args:
+        value (DateInput): As typed ("yesterday 23:12", "09:30").
+        now (datetime): The current instant.
+        tz_name (str): Where the user is.
+        needs_time (str): The message when only a day was typed.
+        in_future (str): The message when it is after now.
+
+    Raises:
+        ValidationException: If it has no time of day or is in the future.
+        InvalidValueError: If it is not a date the user can type.
+    """
+    resolved: date | datetime = resolve_date_input(
+        value, today=local_today(now, tz_name)
+    )
+    if not isinstance(resolved, datetime):
+        raise ValidationException(needs_time)
+    moment: datetime = local_instant(resolved, tz_name)
+    if moment > (now if now.tzinfo else now.replace(tzinfo=UTC)):
+        raise ValidationException(in_future)
+    return moment
 
 
 def end_of_day(day: date, tz_name: str) -> datetime:

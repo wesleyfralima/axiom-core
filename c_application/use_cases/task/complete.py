@@ -20,11 +20,7 @@ from c_application.use_cases.task.relations import (
     subtasks_of,
 )
 from c_application.use_cases.task.timer import time_of
-from c_application.utils.date_input import (
-    local_instant,
-    local_today,
-    resolve_date_input,
-)
+from c_application.utils.date_input import past_moment
 from c_application.utils.prefs import prefs_of
 
 
@@ -192,17 +188,13 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             return now
         user: User | None = await uow.users.get_by_id(user_id)
         prefs: UserPrefs = prefs_of(uow, user)
-        resolved = resolve_date_input(
-            request.completed_at, today=local_today(now, prefs.timezone)
+        return past_moment(
+            request.completed_at,
+            now,
+            prefs.timezone,
+            needs_time="When it was done needs a time of day, e.g. 'yesterday 21:00'.",
+            in_future="A task cannot be done in the future.",
         )
-        if not isinstance(resolved, datetime):
-            raise ValidationException(
-                "When it was done needs a time of day, e.g. 'yesterday 21:00'."
-            )
-        moment: datetime = local_instant(resolved, prefs.timezone)
-        if moment > (now if now.tzinfo else now.replace(tzinfo=UTC)):
-            raise ValidationException("A task cannot be done in the future.")
-        return moment
 
     @staticmethod
     async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime) -> int:

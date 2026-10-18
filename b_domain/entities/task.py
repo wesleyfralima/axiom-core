@@ -708,7 +708,11 @@ class Task(Entity):
         )
 
     def pause(
-        self, now: datetime, minutes: int, caused_by: UniqueId | None = None
+        self,
+        now: datetime,
+        minutes: int,
+        caused_by: UniqueId | None = None,
+        discarded: bool = False,
     ) -> None:
         """Stop working on the task for now (its timer stops).
 
@@ -717,6 +721,7 @@ class Task(Entity):
             minutes (int): How long the session that ends lasted.
             caused_by (UniqueId | None): The start of another task that
                 paused this one (undoing that start resumes this one).
+            discarded (bool): The session counts nowhere (kept).
 
         Raises:
             InvalidStateTransition: If the task is not in progress.
@@ -735,6 +740,7 @@ class Task(Entity):
                 minutes=minutes,
                 previous=previous,
                 caused_by=caused_by,
+                discarded=discarded,
             )
         )
 
