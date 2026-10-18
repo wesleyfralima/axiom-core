@@ -297,11 +297,11 @@ def _due_from_wall(wall: datetime, like: DueDate, zone: ZoneInfo) -> DueDate:
 
 
 def _due_at(moment: datetime, like: DueDate, zone: ZoneInfo) -> DueDate:
-    """An instant as a due date of ``like``'s kind."""
+    """An instant as a due date of ``like``'s kind: a floating one is the
+    wall-clock time where the user is."""
     if like.is_floating:
-        own: ZoneInfo = _zone(like.timezone or "UTC")
         return DueDate.floating(
-            moment.astimezone(own).replace(tzinfo=None), like.timezone or "UTC"
+            moment.astimezone(zone).replace(tzinfo=None), like.timezone or "UTC"
         )
     return DueDate.fixed(moment.astimezone(UTC))
 

@@ -71,10 +71,18 @@ simulator: `python -m d_fake_infra`).
   use it. **Instants are UTC**: a time the user types is a wall-clock time
   in their zone, made an instant by `local_instant` (UTC, as the clock's)
   — never an aware datetime in another offset (SQLite keeps no offset).
-  **The command's zone:** `UnitOfWork.timezone` (an interface's `--tz`)
-  over the preference; use cases read the preferences through
+  **The command's zone:** `UnitOfWork.timezone` — where the user is now:
+  the interface hands it (the CLI: `--tz`, else the preference) — over
+  the preference; use cases read the preferences through
   `prefs_of(uow, user)` (`c_application/utils/prefs.py`), and only what
-  changes them reads `user.preferences`.
+  changes them reads `user.preferences`. **A floating date is wall-clock
+  time where the user is** (06:00 is 06:00 in São Paulo or in Lisbon):
+  while a unit of work is open its zone is `wall_clock_zone()`
+  (`dates.py`, a context variable), and `AxiomDate.materialize`,
+  `reading_zone` and everything built on them (late, the deadline, the
+  first still on time, the projection, the report) read floating dates
+  there; the zone stored with one only says where it was set (and is the
+  fallback with no zone). A fixed date is an instant, the same anywhere.
 - **Recurrences:** `b_domain/value_objects/recurrences/` — one class per rule,
   `_base.py` with the contract, `_factory.py` builds from the
   `RecurrenceInputDTO`. Each rule describes itself (`describe_pattern()`); a
@@ -329,9 +337,10 @@ there too.
   productive day, a full day warned, `took_minutes` (0.38.0); missed
   occurrences kept by default, `catch_up` on the rule or on one
   command, the next occurrence's ID from the one before, instants in
-  UTC, the command's zone (0.39.0, product Backlog 05).
+  UTC, the command's zone (0.39.0, product Backlog 05); a floating date
+  read where the user is (0.39.1).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 906 tests passing; **`make check` green**: mypy at zero (packages and
+- 911 tests passing; **`make check` green**: mypy at zero (packages and
   tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.7% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.
