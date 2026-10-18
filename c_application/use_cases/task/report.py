@@ -1,10 +1,17 @@
 """`axpro report`: what was done in a period, from the history and the tasks.
 
-Nothing new is collected: completions, cancellations and creations come
-from the history (an undone one does not count), and a completion is on
-time or late against the deadline the task had *when it was completed*
-(the snapshot in its history entry: due + estimate, or the due date when
-strict), so moving a date later does not rewrite the past.
+Nothing new is collected. **Each task counts once, by how it ended**: its
+last closing in the history (done or cancelled — not undone, not followed
+by a reopen), when it falls in the period; a deleted task never counts. A
+completion is on time or late against the deadline the task had *when it
+was completed* (the snapshot in its history entry: due + estimate, or the
+due date when strict), so moving a date later does not rewrite the past.
+
+**A series is judged by its slots** (``series_slots``): the days its rule
+says should have had an occurrence, each with one outcome — done on time,
+late, skipped, missed (nothing recorded, its day gone) or pending (today).
+Hourly series are apart (``HourlySeriesDTO``): how many of the day's slots
+were done.
 """
 
 from collections import Counter, defaultdict
@@ -23,21 +30,28 @@ from b_domain.value_objects import ContextId, Priority, TaskId, TaskStatus, User
 from b_domain.value_objects.dates import deadline_of
 from b_domain.value_objects.recurrences._serial import axiom_date_from_dict
 from b_domain.value_objects.task_history import TaskAction, TaskHistoryEntry
+from c_application.use_cases.task.series_slots import (
+    LATE,
+    MISSED,
+    NO_SLOT,
+    ON_TIME,
+    PENDING,
+    SKIPPED,
+    Slot,
+    series_slots,
+    streak_of,
+)
 from c_application.use_cases.task.timer import time_of
 from c_application.utils import format_task_recurrence
 from c_application.utils.date_input import DateInput, local_today, resolve_date_input
 from c_application.utils.prefs import prefs_of
 from c_application.utils.recurrence_input import WEEK_STARTS
+from c_application.utils.work_calendar import use_work_calendar
 
 _NO_CONTEXT: str = "none"
 _GONE_CONTEXT: str = "(deleted context)"
 
-# What happened to a series on one day (worst wins when several did)
-_NOTHING: str = "none"
-_ON_TIME: str = "on_time"
-_LATE: str = "late"
-_SKIPPED: str = "skipped"
-_WORSE: tuple[str, ...] = (_NOTHING, _ON_TIME, _LATE, _SKIPPED)
+_CLOSINGS: tuple[TaskAction, ...] = (TaskAction.COMPLETED, TaskAction.CANCELLED)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -74,22 +88,26 @@ class DayDTO(DTO):
 
 @dataclass(frozen=True, kw_only=True)
 class SeriesReportDTO(DTO):
-    """One recurring series.
+    """One recurring series (not hourly), judged by its slots.
 
     Attributes:
         series_id (str): The series.
         task_id (str): Its latest occurrence (what to open).
         title (str): Its latest occurrence's title.
         rule (str | None): How it repeats now (None: it stopped).
-        done (int): Occurrences completed in the period.
-        missed (int): Occurrences cancelled (skipped) in the period.
-        streak (int): The current streak: completed in a row, up to the
-            latest closed one (not limited to the period).
-        rate (float | None): Completed ÷ (completed + skipped) in the period
-            (None when neither happened).
-        timeline (list[str]): One entry per day of the period: "none" (nothing
-            happened), "on_time", "late" or "skipped" (the worst of the day).
-            An occurrence is on the day it was due, whenever it was closed.
+        done (int): Slots of the period done (on time or late).
+        skipped (int): Slots skipped (cancelled).
+        missed (int): Slots gone by with nothing recorded.
+        pending (int): Today's slot, not done yet (0 or 1).
+        streak (int): The current streak: slots done in a row, up to the
+            latest one gone by (not limited to the period; today's, still
+            pending, does not break it).
+        rate (float | None): Done ÷ (done + skipped + missed) in the period
+            (None when none of them happened).
+        timeline (list[str]): One entry per day of the period: "none" (no
+            slot that day), "on_time", "late", "skipped", "missed" or
+            "pending". An occurrence is on its slot's day, whenever it was
+            closed.
     """
 
     series_id: str
@@ -97,10 +115,48 @@ class SeriesReportDTO(DTO):
     title: str
     rule: str | None
     done: int
+    skipped: int
     missed: int
     streak: int
     rate: float | None
+    pending: int = 0
     timeline: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True, kw_only=True)
+class HourlyDayDTO(DTO):
+    """One day of an hourly series: its slots done of those due (today, up
+    to now)."""
+
+    day: date
+    done: int
+    slots: int
+
+
+@dataclass(frozen=True, kw_only=True)
+class HourlySeriesDTO(DTO):
+    """A series that repeats within the day, apart from the others: how many
+    of its slots were done.
+
+    Attributes:
+        series_id (str): The series.
+        task_id (str): Its latest occurrence (what to open).
+        title (str): Its latest occurrence's title.
+        rule (str | None): How it repeats now (None: it stopped).
+        done (int): Slots of the period done.
+        slots (int): Slots of the period due (today: up to now).
+        rate (float | None): Done ÷ slots (None with no slot).
+        days (list[HourlyDayDTO]): Each day of the period.
+    """
+
+    series_id: str
+    task_id: str
+    title: str
+    rule: str | None
+    done: int
+    slots: int
+    rate: float | None
+    days: list[HourlyDayDTO] = field(default_factory=list)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -133,7 +189,9 @@ class ReportOutputDTO(DTO):
     by_context: list[CountDTO] = field(default_factory=list)
     by_priority: list[CountDTO] = field(default_factory=list)
     series: list[SeriesReportDTO] = field(default_factory=list)
-    # Series still going that had nothing in the period (not listed)
+    # Series that repeat within the day, counted apart
+    hourly: list[HourlySeriesDTO] = field(default_factory=list)
+    # Series still going with no slot in the period (not listed)
     quiet_series: int = 0
     # Time measured by timers inside the period (the part of each session in
     # it), in all and by context
@@ -172,35 +230,45 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             end: datetime = datetime.combine(
                 last + timedelta(days=1), time(), tzinfo=zone
             )
-            # Up to now as well: an undo after the period still cancels a change
-            fetched: list[TaskHistoryEntry] = await uow.task_history.between(
-                user_id, start, max(end, now + timedelta(days=1))
+            # Up to now as well: an undo or a reopen after the period still
+            # changes how a task ended
+            alive: list[TaskHistoryEntry] = _alive(
+                await uow.task_history.between(
+                    user_id, start, max(end, now + timedelta(days=1))
+                )
             )
-            undone: set[Any] = {e.undoes for e in fetched if e.undoes is not None}
-            entries: list[TaskHistoryEntry] = [
+            # Each task once: its last closing, when it is in the period
+            ended: list[TaskHistoryEntry] = [
                 e
-                for e in fetched
-                if _aware(e.occurred_at) < end
-                and e.entry_id not in undone
-                and e.action != TaskAction.UNDONE
+                for e in _last_closings(alive).values()
+                if start <= _aware(e.occurred_at) < end
             ]
-
-            completions = [e for e in entries if e.action == TaskAction.COMPLETED]
+            creations: list[TaskHistoryEntry] = [
+                e
+                for e in alive
+                if e.action == TaskAction.CREATED
+                and start <= _aware(e.occurred_at) < end
+            ]
+            touched: set[TaskId] = {e.task_id for e in ended + creations}
             tasks: dict[TaskId, Task] = (
                 {
                     t.id: t
                     for t in await uow.tasks.list(
                         TaskFilter(
                             user_id=user_id,
-                            ids=list({e.task_id for e in completions}),
+                            ids=list(touched),
                             deleted=None,
                             limit=10_000,
                         )
                     )
                 }
-                if completions
+                if touched
                 else {}
             )
+            # A deleted task never counts (the sync's copies the user removed)
+            ended = [e for e in ended if _counts_for(tasks.get(e.task_id))]
+            creations = [e for e in creations if _counts_for(tasks.get(e.task_id))]
+            completions = [e for e in ended if e.action == TaskAction.COMPLETED]
             # A subtask due with its parent shares its parent's deadline
             parent_ids: set[TaskId] = {
                 TaskId.from_string(ref)
@@ -229,8 +297,29 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             contexts: dict[ContextId, str] = {
                 c.id: c.name for c in await uow.contexts.list_by_user(user_id)
             }
+
+            # The series, by their slots (read while the unit of work is
+            # open: floating dates are read where the user is)
             in_series: list[Task] = await uow.tasks.list(
                 TaskFilter(user_id=user_id, in_series=True, limit=10_000)
+            )
+            await use_work_calendar(uow, user_id, prefs, in_series)
+            histories: list[TaskHistoryEntry] = (
+                _alive(
+                    await uow.task_history.list_for_tasks(
+                        [t.id for t in in_series], user_id
+                    )
+                )
+                if in_series
+                else []
+            )
+            series, hourly, quiet = _series(
+                in_series,
+                _last_closings(histories),
+                _days(first, last),
+                today,
+                zone,
+                now,
             )
 
             # Sessions that touch the period (one can start the day before)
@@ -267,30 +356,21 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                     spent_on[entry.task_id], _ = await time_of(uow, entry.task_id, now)
 
         on_time = late = no_due = 0
-        punctuality: dict[Any, str] = {}
         by_context: Counter[str] = Counter()
         by_priority: Counter[str] = Counter()
         for entry in completions:
             state: dict[str, Any] = entry.previous or _state_of(
                 tasks.get(entry.task_id)
             )
-            deadline: datetime | None = _deadline(state, parents)
-            if deadline is None:
+            if _deadline(state, parents) is None:
                 no_due += 1
-                punctuality[entry.entry_id] = _ON_TIME
-            elif _aware(entry.occurred_at) <= deadline:
+            elif _punctuality(entry, tasks.get(entry.task_id), parents) == ON_TIME:
                 on_time += 1
-                punctuality[entry.entry_id] = _ON_TIME
             else:
                 late += 1
-                punctuality[entry.entry_id] = _LATE
             by_context[_context_name(state, contexts)] += 1
             if state.get("priority") is not None:
                 by_priority[Priority(state["priority"]).name.lower()] += 1
-
-        series, quiet = _series(
-            in_series, entries, _days(first, last), zone, punctuality
-        )
 
         # Time inside the period, by context
         time_by_context: Counter[str] = Counter()
@@ -329,9 +409,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             _aware(e.occurred_at).astimezone(zone).date() for e in completions
         )
         created_by_day: Counter[date] = Counter(
-            _aware(e.occurred_at).astimezone(zone).date()
-            for e in entries
-            if e.action == TaskAction.CREATED
+            _aware(e.occurred_at).astimezone(zone).date() for e in creations
         )
 
         return ReportOutputDTO(
@@ -340,7 +418,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
             period=label,
             done=len(completions),
             created=sum(created_by_day.values()),
-            cancelled=sum(1 for e in entries if e.action == TaskAction.CANCELLED),
+            cancelled=sum(1 for e in ended if e.action == TaskAction.CANCELLED),
             on_time=on_time,
             late=late,
             no_due=no_due,
@@ -355,6 +433,7 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                 if by_priority[p.name.lower()]
             ],
             series=series,
+            hourly=hourly,
             quiet_series=quiet,
             time_spent_minutes=sum(time_by_context.values()),
             time_by_context=_counts(+time_by_context),
@@ -375,6 +454,44 @@ class ReportUseCase(UseCase[ReportRequest, ReportOutputDTO]):
                 else []
             ),
         )
+
+
+def _alive(entries: list[TaskHistoryEntry]) -> list[TaskHistoryEntry]:
+    """The entries that still stand: neither undone nor an undo."""
+    undone: set[Any] = {e.undoes for e in entries if e.undoes is not None}
+    return [
+        e for e in entries if e.entry_id not in undone and e.action != TaskAction.UNDONE
+    ]
+
+
+def _last_closings(
+    entries: list[TaskHistoryEntry],
+) -> dict[TaskId, TaskHistoryEntry]:
+    """How each task ended, in these entries (oldest first): its last
+    completion or cancel, unless a reopen came after it."""
+    closing: dict[TaskId, TaskHistoryEntry] = {}
+    for entry in entries:
+        if entry.action in _CLOSINGS:
+            closing[entry.task_id] = entry
+        elif entry.action == TaskAction.REOPENED:
+            closing.pop(entry.task_id, None)
+    return closing
+
+
+def _counts_for(task: Task | None) -> bool:
+    """A task the report counts: there and not deleted."""
+    return task is not None and task.deleted_at is None
+
+
+def _punctuality(
+    entry: TaskHistoryEntry, task: Task | None, parents: dict[TaskId, Task]
+) -> str:
+    """A completion on time or late, against the deadline its task had then
+    (none: on time)."""
+    deadline: datetime | None = _deadline(entry.previous or _state_of(task), parents)
+    if deadline is None or _aware(entry.occurred_at) <= deadline:
+        return ON_TIME
+    return LATE
 
 
 def _period(
@@ -412,62 +529,81 @@ def _period(
 
 def _series(
     members: list[Task],
-    entries: list[TaskHistoryEntry],
+    closings: dict[TaskId, TaskHistoryEntry],
     days: list[date],
+    today: date,
     zone: ZoneInfo,
-    punctuality: dict[Any, str],
-) -> tuple[list[SeriesReportDTO], int]:
-    """Each series with something done or skipped in the period, and how
-    many others are still going with nothing in it."""
+    now: datetime,
+) -> tuple[list[SeriesReportDTO], list[HourlySeriesDTO], int]:
+    """Each series with a slot in the period (the hourly ones apart), and
+    how many others are still going with none in it.
+
+    Args:
+        members (list[Task]): Every occurrence of every series (none
+            deleted).
+        closings (dict[TaskId, TaskHistoryEntry]): How each one ended.
+        days (list[date]): The period.
+        today (date): Today, where the user is.
+        zone (ZoneInfo): Where the user is.
+        now (datetime): The current instant.
+    """
     by_series: dict[TaskId, list[Task]] = defaultdict(list)
     for task in members:
         if task.series_id is not None:
             by_series[task.series_id].append(task)
-    ids_in_period: Counter[tuple[TaskId, TaskAction]] = Counter(
-        (e.task_id, e.action) for e in entries
-    )
 
     report: list[SeriesReportDTO] = []
+    hourly: list[HourlySeriesDTO] = []
     quiet: int = 0
     for series_id, occurrences in by_series.items():
         occurrences.sort(key=lambda t: t.created_at)
         latest: Task = occurrences[-1]
-        done = sum(ids_in_period[(t.id, TaskAction.COMPLETED)] for t in occurrences)
-        missed = sum(ids_in_period[(t.id, TaskAction.CANCELLED)] for t in occurrences)
-        if not (done or missed):
+        rule = next((t.recurrence for t in reversed(occurrences) if t.recurrence), None)
+        sub_daily: bool = rule is not None and rule.is_sub_daily
+        outcomes: dict[TaskId, str | None] = {
+            t.id: _outcome(t, closings.get(t.id)) for t in occurrences
+        }
+        slots: list[Slot] = series_slots(
+            occurrences, outcomes, zone, now, hourly=sub_daily
+        )
+        local_now: datetime = now.astimezone(zone).replace(tzinfo=None)
+        in_period: list[Slot] = [
+            s
+            for s in slots
+            if days[0] <= s.day <= days[-1] and (not sub_daily or s.moment <= local_now)
+        ]
+        if not in_period:
             if latest.recurrence is not None and not latest.status.is_closed:
                 quiet += 1
             continue
+        if sub_daily:
+            per_day: list[HourlyDayDTO] = [
+                HourlyDayDTO(
+                    day=d,
+                    done=sum(1 for s in in_period if s.day == d and s.is_done),
+                    slots=sum(1 for s in in_period if s.day == d),
+                )
+                for d in days
+            ]
+            done_h: int = sum(d.done for d in per_day)
+            hourly.append(
+                HourlySeriesDTO(
+                    series_id=str(series_id),
+                    task_id=str(latest.id),
+                    title=str(latest.title),
+                    rule=format_task_recurrence(latest.recurrence),
+                    done=done_h,
+                    slots=len(in_period),
+                    rate=done_h / len(in_period),
+                    days=per_day,
+                )
+            )
+            continue
 
-        closed: list[Task] = [
-            t
-            for t in occurrences
-            if t.status in (TaskStatus.DONE, TaskStatus.CANCELLED)
-        ]
-        streak: int = 0
-        for task in reversed(closed):
-            if task.status != TaskStatus.DONE:
-                break
-            streak += 1
-
-        ids: set[TaskId] = {t.id for t in occurrences}
-        worst: dict[date, str] = {}
-        for entry in entries:
-            if entry.task_id not in ids:
-                continue
-            if entry.action == TaskAction.COMPLETED:
-                kind: str = punctuality.get(entry.entry_id, _ON_TIME)
-            elif entry.action == TaskAction.CANCELLED:
-                kind = _SKIPPED
-            else:
-                continue
-            # The day of the occurrence it closed, not the day it was typed:
-            # yesterday's skipped today is yesterday's
-            due: datetime | None = _due(entry.previous or {})
-            day: date = _aware(due or entry.occurred_at).astimezone(zone).date()
-            if _WORSE.index(kind) > _WORSE.index(worst.get(day, _NOTHING)):
-                worst[day] = kind
-
+        kinds: dict[date, str] = {s.day: s.kind(today) for s in in_period}
+        tally: Counter[str] = Counter(kinds.values())
+        done: int = tally[ON_TIME] + tally[LATE]
+        judged: int = done + tally[SKIPPED] + tally[MISSED]
         report.append(
             SeriesReportDTO(
                 series_id=str(series_id),
@@ -475,13 +611,44 @@ def _series(
                 title=str(latest.title),
                 rule=format_task_recurrence(latest.recurrence),
                 done=done,
-                missed=missed,
-                streak=streak,
-                rate=done / (done + missed),
-                timeline=[worst.get(d, _NOTHING) for d in days],
+                skipped=tally[SKIPPED],
+                missed=tally[MISSED],
+                pending=tally[PENDING],
+                streak=streak_of(slots, today),
+                rate=done / judged if judged else None,
+                timeline=[kinds.get(d, NO_SLOT) for d in days],
             )
         )
-    return sorted(report, key=lambda s: s.title.lower()), quiet
+    return (
+        sorted(report, key=lambda s: s.title.lower()),
+        sorted(hourly, key=lambda s: s.title.lower()),
+        quiet,
+    )
+
+
+def _outcome(task: Task, closing: TaskHistoryEntry | None) -> str | None:
+    """How an occurrence ended: on time, late, skipped; None while open.
+    A snoozed one is judged against its first day's deadline (it fills that
+    slot). Closed with no closing in the history (before it existed): by
+    its status."""
+    if not task.status.is_closed:
+        return None
+    if closing is None:
+        if task.status == TaskStatus.DONE:
+            return ON_TIME
+        return SKIPPED if task.status == TaskStatus.CANCELLED else None
+    if closing.action == TaskAction.CANCELLED:
+        return SKIPPED
+    if task.snoozed_from is not None:
+        # Snoozed, it stays its first day's: late against that day's deadline
+        state: dict[str, Any] = closing.previous or _state_of(task)
+        first_due: datetime = deadline_of(
+            _aware(task.snoozed_from.materialize()),
+            int(state.get("estimate") or 0),
+            bool(state.get("strict", False)),
+        )
+        return ON_TIME if _aware(closing.occurred_at) <= first_due else LATE
+    return _punctuality(closing, task, {})
 
 
 def _state_of(task: Task | None) -> dict[str, Any]:

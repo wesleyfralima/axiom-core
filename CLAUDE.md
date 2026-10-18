@@ -132,6 +132,14 @@ simulator: `python -m d_fake_infra`).
   or missed in a row (the series' closed occurrences, the gaps a habit
   skipped, the open one's days gone); flags at `RADAR_AFTER`; off with
   `postpone_warnings`. Used by `today` and `wrap`.
+- **The report:** `c_application/use_cases/task/report.py` — **each task
+  once, by how it ended** (`_last_closings`: its last completion or cancel,
+  not undone, not followed by a reopen; a deleted one never); **a series
+  by its slots** (`series_slots.py`: each occurrence fills its own —
+  `snoozed_from`, else the due date it closed with — and the slots between
+  one and the next follow the earlier one's rule; one outcome per slot,
+  the best: on time, late, skipped, missed, pending today); hourly series
+  apart (`HourlySeriesDTO`, done of the day's slots due).
 - **The commitment limit:** `c_application/use_cases/task/capacity.py` —
   a day's capacity is the productive day (`day_start`–`day_end`) minus
   `day_margin`; today, the clock. **A subtask counts on its own day; its
@@ -304,9 +312,9 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-10-17)
+## Current state (2026-10-18)
 
-- Version `0.41.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.42.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -346,9 +354,11 @@ there too.
   UTC, the command's zone (0.39.0, product Backlog 05); a floating date
   read where the user is (0.39.1); a subtask counted on its own day, its
   parent only its own part (0.40.0, product Backlog 06, Part 1); the own
-  part in the output, `own_minutes` (0.41.0, Part 2).
+  part in the output, `own_minutes` (0.41.0, Part 2); the report counts
+  each task once and judges a series by its slots, hourly ones apart
+  (0.42.0, product Backlog 08, Part 1).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 929 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.8% floor.
+- 939 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 88.0% over an 87.9% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.
