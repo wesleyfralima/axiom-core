@@ -6,6 +6,28 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.39.1] — 2026-10-17
+
+Product Backlog 05 (axiom-enterprise 0.30.1, axiom-cli 0.44.1).
+
+### Fixed
+- **A floating date is wall-clock time where the user is**, not where it
+  was set: a habit at 08:00 set in São Paulo was late at 08:00 in São
+  Paulo — 12:00 in Lisbon — wherever the user was. While a unit of work is
+  open, floating dates are read in its zone (`UnitOfWork.timezone`, where
+  the user is now): `wall_clock_zone()`, `set_wall_clock_zone` and
+  `reset_wall_clock_zone` (`b_domain/value_objects/dates.py`, a context
+  variable), `AxiomDate.reading_zone`, used by `materialize` — so late
+  (`Task.is_overdue`, `deadline`), the first occurrence still on time, the
+  projection, the report's on time × late and the radar read 08:00 where
+  the user is. A snooze by time and a subtask moved with its parent turn
+  an instant back into wall-clock time there too. The zone stored with a
+  floating date says where it was set, the fallback with no zone given.
+  Fixed dates are instants, as before: a call at 08:00 in São Paulo is
+  at 12:00 in Lisbon.
+- A subclass of `UnitOfWork` that enters on its own calls
+  `super().__aenter__()` (it sets the zone; `__aexit__` puts it back).
+
 ## [0.39.0] — 2026-10-17
 
 Product Backlog 05: what the owner's gym showed (axiom-enterprise 0.30.0,

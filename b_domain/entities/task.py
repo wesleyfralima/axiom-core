@@ -400,13 +400,13 @@ class Task(Entity):
         return occurrences
 
     def _in_due_kind(self, moment: datetime) -> datetime:
-        """A datetime as the due date compares: wall-clock time or UTC.
+        """A datetime as the due date compares: wall-clock time (where the
+        user is now) or UTC.
 
-        Aware values are converted; a naive one is already wall-clock time
-        (in the due date's zone).
+        Aware values are converted; a naive one is already wall-clock time.
         """
         assert self.due_date is not None
-        zone: ZoneInfo = ZoneInfo(self.due_date.timezone or "UTC")
+        zone: ZoneInfo = ZoneInfo(self.due_date.reading_zone or "UTC")
         if self.due_date.is_floating:
             if moment.tzinfo is None:
                 return moment

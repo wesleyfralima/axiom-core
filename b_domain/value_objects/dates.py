@@ -1,4 +1,5 @@
 import re
+from contextvars import ContextVar, Token
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta, tzinfo
 from datetime import timezone as dt_timezone
@@ -11,6 +12,26 @@ from a_core.exceptions import ValidationException
 # TYPES
 type TimezoneLike = dt_timezone | ZoneInfo
 type TimezoneInput = dt_timezone | ZoneInfo | tzinfo | str
+
+_WALL_CLOCK_ZONE: ContextVar[str | None] = ContextVar("wall_clock_zone", default=None)
+"""Where the user is now: the zone a floating date is read in."""
+
+
+def wall_clock_zone() -> str | None:
+    """The zone floating dates are read in now — where the user is (the
+    command's zone, set by the unit of work); None: each date's own."""
+    return _WALL_CLOCK_ZONE.get()
+
+
+def set_wall_clock_zone(zone: str | None) -> Token[str | None]:
+    """Read floating dates in ``zone`` from now on (None: each date's own);
+    hand the token back to ``reset_wall_clock_zone``."""
+    return _WALL_CLOCK_ZONE.set(zone)
+
+
+def reset_wall_clock_zone(token: Token[str | None]) -> None:
+    """Back to the zone before ``set_wall_clock_zone``."""
+    _WALL_CLOCK_ZONE.reset(token)
 
 
 def deadline_of(due: datetime, estimate_minutes: int, strict: bool) -> datetime:
@@ -62,8 +83,10 @@ class AxiomDate:
             - If FLOATING: must be naive.
         kind (DateKind): Defines whether the date is FIXED or FLOATING.
         timezone (Optional[str]): The IANA timezone identifier ("America/Sao_Paulo").
-            - For FLOATING: required, used as the anchor to interpret the local time
-              and handle Daylight Saving Time (DST).
+            - For FLOATING: required — where it was set. A floating date is
+              wall-clock time: 06:00 is 06:00 wherever the user is, so it is
+              read in the user's zone now (``wall_clock_zone``), this one
+              only when none is set.
             - For FIXED: optional, used as preferred display timezone.
     """
 
@@ -73,12 +96,12 @@ class AxiomDate:
 
     kind: DateKind = field(compare=False)
 
-    # Timezone anchor or preferred display zone
+    # Where a floating date was set, or a fixed one's display zone
     timezone: str | None = field(default=None, compare=False)
     """
-    The IANA timezone identifier (e.g., "America/Sao_Paulo")
-    used as the anchor to interpret floating dates and handle
-    Daylight Saving Time (DST) changes accurately.
+    The IANA timezone identifier (e.g., "America/Sao_Paulo"): where a
+    floating date was set (it is read where the user is now, see
+    ``reading_zone``), or a fixed date's preferred display zone.
     """
 
     def __post_init__(self) -> None:
@@ -209,6 +232,15 @@ class AxiomDate:
     # Conversion and Display
     # ------------------------------------------------------------------
 
+    @property
+    def reading_zone(self) -> str | None:
+        """The zone this date is read in now: for a floating one, where the
+        user is (``wall_clock_zone``), else where it was set; a fixed
+        one's own."""
+        if self.kind == DateKind.FLOATING:
+            return wall_clock_zone() or self.timezone
+        return self.timezone
+
     def materialize(
         self,
         target_tz: TimezoneInput | None = None,
@@ -223,8 +255,9 @@ class AxiomDate:
             Optional[datetime]: A timezone-aware datetime, or None if value is missing.
         """
 
-        # Determine which timezone to use
-        tz: TimezoneLike = parse_timezone(target_tz or self.timezone)
+        # Determine which timezone to use: a floating date is wall-clock
+        # time where the user is now
+        tz: TimezoneLike = parse_timezone(target_tz or self.reading_zone)
 
         if self.kind == DateKind.FLOATING:
             # Floating dates are naive, so we attach the chosen timezone
@@ -317,8 +350,8 @@ class DueDate(AxiomDate):
             )
 
         try:
-            # A floating date is wall-clock time in its own zone (the user's
-            # when it was set), never in the zone `now` happens to carry:
+            # A floating date is wall-clock time where the user is now
+            # (``reading_zone``), never in the zone `now` happens to carry:
             # 23:59 in São Paulo is not 23:59 UTC. Fixed dates are instants.
             my_limit: datetime = self.deadline(estimate_minutes, strict)
             return now_reference > my_limit

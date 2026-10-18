@@ -1,5 +1,6 @@
 import logging
 from abc import ABC, abstractmethod
+from contextvars import Token
 from dataclasses import replace
 from types import TracebackType
 from typing import Protocol, Self
@@ -31,6 +32,7 @@ from b_domain.ports.repositories.user_behavior_metrics_repository import (
 from b_domain.ports.repositories.user_behavior_profile_repository import (
     UserBehaviorProfileRepository,
 )
+from b_domain.value_objects.dates import reset_wall_clock_zone, set_wall_clock_zone
 from b_domain.value_objects.task_history import TaskHistoryEntry
 
 logger: logging.Logger = logging.getLogger(__name__)
@@ -89,6 +91,8 @@ class UnitOfWork(ABC):
     # The zone the command runs in, over the user's preference (``--tz``;
     # None: the preference) — read through ``prefs_of``
     timezone: str | None = None
+    # While open: how to put back the zone floating dates were read in
+    _zone_token: Token[str | None] | None = None
 
     def __init__(
         self,
@@ -115,11 +119,14 @@ class UnitOfWork(ABC):
         self._trigger_relay = trigger_relay
 
     async def __aenter__(self) -> Self:
-        """Enter the UnitOfWork context.
+        """Enter the UnitOfWork context: floating dates are read in the
+        command's zone (``timezone``) while it is open — a subclass that
+        enters on its own calls this too.
 
         Returns:
             UnitOfWork: The current UnitOfWork instance.
         """
+        self._zone_token = set_wall_clock_zone(self.timezone)
         return self
 
     async def __aexit__(
@@ -137,6 +144,14 @@ class UnitOfWork(ABC):
             exc (Optional[BaseException]): Exception instance if raised.
             traceback (Optional[TracebackType]): Traceback object if available.
         """
+
+        try:
+            await self._finish(exc_type)
+        finally:
+            self._leave_zone()
+
+    async def _finish(self, exc_type: type[BaseException] | None) -> None:
+        """Commit (events to the outbox, then the relay) or roll back."""
 
         # Guard clause:
         # If an exception occurred inside the `async with` block,
@@ -162,6 +177,18 @@ class UnitOfWork(ABC):
             # ensure rollback and propagate the exception.
             await self.rollback()
             raise
+
+    def _leave_zone(self) -> None:
+        """Floating dates back to the zone they were read in before."""
+        token: Token[str | None] | None = self._zone_token
+        if token is None:
+            return
+        self._zone_token = None
+        try:
+            reset_wall_clock_zone(token)
+        except ValueError:
+            # Entered in another context (another task): nothing of it here
+            pass
 
     async def _process_events(self) -> None:
         """

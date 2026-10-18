@@ -537,9 +537,10 @@ def shifted_due(
         old_parent.materialize() - due.materialize()
     )
     if due.is_floating:
-        zone: str = due.timezone or "UTC"
+        # Back to wall-clock time where it was read (where the user is)
         return DueDate.floating(
-            moment.astimezone(ZoneInfo(zone)).replace(tzinfo=None), zone
+            moment.astimezone(ZoneInfo(due.reading_zone or "UTC")).replace(tzinfo=None),
+            due.timezone or "UTC",
         )
     return DueDate.fixed(moment)
 
