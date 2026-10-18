@@ -198,15 +198,16 @@ async def test_a_series_timeline_and_period_rate(
     assert series.timeline == ["none"] * 6 + ["on_time"]
     assert series.rate == 1.0
 
-    # Skipping the next occurrence ahead of time: it counts, but its day
-    # (tomorrow's) is not in the period
+    # Skipping the next occurrence ahead of time: its slot is tomorrow's,
+    # not in the period yet (the totals count the cancel, made today)
     await CancelTaskUseCase(**use_case_context).execute(
         CancelTaskInputDTO(task_id_prefix=series.task_id[:8], user_id=str(user.id))
     )
     report = await _report(use_case_context, user)
     [series] = report.series
-    assert (series.done, series.missed, series.rate) == (1, 1, 0.5)
+    assert (series.done, series.skipped, series.missed, series.rate) == (1, 0, 0, 1.0)
     assert series.timeline == ["none"] * 6 + ["on_time"]
+    assert report.cancelled == 1
 
 
 async def _next_occurrence(
@@ -265,7 +266,7 @@ async def test_a_skip_is_on_the_day_of_the_occurrence_it_skipped(
     )
 
     [series] = (await _report(use_case_context, user)).series
-    assert (series.done, series.missed) == (1, 1)
+    assert (series.done, series.skipped, series.missed) == (1, 1, 0)
     assert series.timeline == ["none"] * 5 + ["skipped", "on_time"]
 
 
@@ -316,7 +317,12 @@ async def test_a_series_carries_its_id_and_has_a_streak(
     report = await _report(use_case_context, user)
 
     [series] = report.series
-    assert (series.title, series.done, series.missed, series.streak) == ("Gym", 1, 0, 1)
+    assert (series.title, series.done, series.skipped, series.streak) == (
+        "Gym",
+        1,
+        0,
+        1,
+    )
     assert series.rate == 1.0
     # One entry per day of the period; done at noon against a 07:00 due date
     assert series.timeline == ["none"] * 6 + ["late"]

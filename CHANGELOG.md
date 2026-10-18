@@ -6,6 +6,42 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.42.0] — 2026-10-18
+
+Product Backlog 08, Part 1: the report counts each occurrence once
+(axiom-cli 0.46.0).
+
+### Changed
+- **The totals count each task once, by how it ended**: its last closing
+  in the history — done or cancelled, not undone, not followed by a
+  reopen — when it falls in the period. A task cancelled, reopened and
+  done counts as done (at its last completion); done twice, once;
+  reopened and still open, not at all; a deleted one (the sync's copies)
+  never. Done, cancelled, created, on time × late, by day, context and
+  priority, the estimates' accuracy and the best hours all follow. The
+  owner's "6 done · 5 skipped" for a week of one task a day.
+- **A series is judged by its slots** (`series_slots.py`): the moments its
+  rule says should have had an occurrence — each occurrence fills its own
+  (snoozed: its first day, `snoozed_from`; moved by an edit: the day it
+  was moved to), the slots between one and the next follow the earlier
+  one's rule (a rule changed over time gives each stretch its own), the
+  series goes on past the latest only while it is open. A slot has one
+  outcome, the best of its occurrences: on time, late, skipped, **missed**
+  (nothing recorded and its day gone: the app not opened, a catch-up
+  series' skipped days, an old occurrence still open) or **pending**
+  (today). A snoozed occurrence is late against its first day's deadline.
+- `SeriesReportDTO`: `skipped` (was `missed`), `missed` (nothing
+  recorded), `pending`; `rate` = done ÷ (done + skipped + missed); the
+  streak counts done slots in a row (today's, pending, does not break
+  it); the timeline's days: `none` (no slot), `on_time`, `late`,
+  `skipped`, `missed`, `pending`. Listed when it has a slot in the period;
+  `quiet_series`: still going with none.
+
+### Added
+- **Hourly series apart**: `ReportOutputDTO.hourly`, `HourlySeriesDTO`
+  (done of the slots due, per day — `HourlyDayDTO` — and in the period;
+  today only the slots already due). They are no longer in `series`.
+
 ## [0.41.0] — 2026-10-18
 
 Product Backlog 06, Part 2: a parent's own part, shown (axiom-cli 0.45.0).
