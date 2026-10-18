@@ -22,3 +22,19 @@ class TimerRunningError(DomainException):
         self.task_id: str = task_id
         self.title: str = title
         self.since: datetime = since
+
+
+class TookPastTimerError(DomainException):
+    """``done --took`` with a running timer: the timer would stop where
+    the time told puts it, but that is after the task was done (or in the
+    future) — the timer started later than the work did.
+
+    Attributes:
+        task_id (str): The task.
+        title (str): Its title.
+    """
+
+    def __init__(self, task_id: str, title: str, message: str) -> None:
+        super().__init__(message)
+        self.task_id: str = task_id
+        self.title: str = title

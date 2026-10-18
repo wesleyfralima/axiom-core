@@ -1,10 +1,11 @@
 from dataclasses import replace
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from a_core import IdPrefix
 from a_core.exceptions import ValidationException
 from b_domain.entities import Context, Task, TimeEntry, User
 from b_domain.entities.user import UserPrefs
+from b_domain.exceptions import TookPastTimerError
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import TaskId, UserId
@@ -72,12 +73,14 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
             subtasks: list[Task] = await subtasks_of(uow, task)
             await refuse_while_waiting(uow, task, subtasks, user_id)
 
-            # 2. Close active timers and compute actual duration
-            actual_duration: int = await self._close_active_timers(uow, task, now)
-            # The time the user says it took wins over the timer's
+            # 2. Close active timers and compute actual duration — where the
+            # time told puts it, when there is one (the time told wins)
+            if request.took_minutes is not None and request.took_minutes <= 0:
+                raise ValidationException("It took some time: more than 0 minutes.")
+            actual_duration: int = await self._close_active_timers(
+                uow, task, now, request.took_minutes, request.completed_at is not None
+            )
             if request.took_minutes is not None:
-                if request.took_minutes <= 0:
-                    raise ValidationException("It took some time: more than 0 minutes.")
                 actual_duration = request.took_minutes
 
             # 3. Domain action: mark task as done (emits TaskCompletedEvent internally)
@@ -197,12 +200,26 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         )
 
     @staticmethod
-    async def _close_active_timers(uow: UnitOfWork, task: Task, now: datetime) -> int:
+    async def _close_active_timers(
+        uow: UnitOfWork,
+        task: Task,
+        now: datetime,
+        took: int | None = None,
+        typed: bool = False,
+    ) -> int:
         """Close active timers for a task and compute actual duration.
+
+        A running timer stops when the task was done — or, with the time
+        it took told, where that puts it: so the task's sessions add up to
+        it (the ones before counted first; past it already, at its start).
+        A timer stopped before, or none: nothing changes.
 
         Args:
             task (Task): Task entity.
             now (datetime): When it was done.
+            took (int | None): How long it took, as the user told it.
+            typed (bool): ``now`` is a moment the user typed (``--at``), not
+                the clock's.
 
         Returns:
             int: Minutes spent on the task: every session, the ones just
@@ -211,19 +228,34 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
         Raises:
             ValidationException: If a timer started after ``now`` (its session
                 would end before it began).
+            TookPastTimerError: If the time told would stop the timer after
+                the task was done or in the future.
         """
 
         active_timers: list[TimeEntry] = await uow.time_entries.get_actives_for_task(
             task.id
         )
         for timer in active_timers:
-            started: datetime = timer.start_time
-            if (started if started.tzinfo else started.replace(tzinfo=UTC)) > now:
+            started: datetime = _aware(timer.start_time)
+            if started > now:
                 raise ValidationException(
                     f"'{task.title}' has a timer that started after that: "
                     "it was done later, or pause it first."
                 )
-            timer.stop(now)
+            stop: datetime = now
+            if took is not None:
+                before, _ = await time_of(uow, task.id, started)
+                stop = started + timedelta(minutes=max(took - before, 0))
+                if stop > now:
+                    when: str = "after it was done" if typed else "in the future"
+                    raise TookPastTimerError(
+                        str(task.id),
+                        str(task.title),
+                        f"The timer of '{task.title}' started "
+                        f"{int((now - started).total_seconds() // 60)} min "
+                        f"before it was done: {took} min would stop it {when}.",
+                    )
+            timer.stop(stop)
         if active_timers:
             await uow.time_entries.update_all(active_timers)
 
@@ -244,3 +276,8 @@ class CompleteTaskUseCase(UseCase[TaskByUserRequest, CompleteTaskOutputDTO]):
                 else None
             ),
         )
+
+
+def _aware(moment: datetime) -> datetime:
+    """Naive instants (what SQLite hands back) are UTC."""
+    return moment if moment.tzinfo else moment.replace(tzinfo=UTC)

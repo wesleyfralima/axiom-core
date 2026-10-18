@@ -6,6 +6,21 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.44.0] — 2026-10-18
+
+Product Backlog 09, Part 2: done with a timer (axiom-cli 0.48.0).
+
+### Changed
+- **`--took` with a running timer stops it where the time told puts it**:
+  so the task's sessions add up to it (2h before, started at 10:00,
+  `took` 3h: it stops at 11:00; the sessions before already past it: at
+  its start, 0 min). That moment after the task was done (`--at`) or in
+  the future is refused — `TookPastTimerError` (the task), saying it
+  started later than the work did. A timer stopped before, or none: the
+  sessions stay as they are; only the time told counts.
+- A start inside a discarded session is no longer refused: it counts
+  nowhere, so nothing counts twice.
+
 ## [0.43.0] — 2026-10-18
 
 Product Backlog 09, Part 1: timer moments (axiom-enterprise 0.33.0,

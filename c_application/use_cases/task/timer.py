@@ -188,7 +188,8 @@ async def _clear_of_sessions(
     uow: UnitOfWork, user_id: UserId, moment: datetime
 ) -> None:
     """Refuse a start inside (or before) another session: from ``moment``
-    to now no session may run — no time counts twice.
+    to now no session may run — no time counts twice (a discarded one
+    counts nowhere, so it does not stand in the way).
 
     Raises:
         ValidationException: Naming the session it would run over.
@@ -198,7 +199,9 @@ async def _clear_of_sessions(
         for e in await uow.time_entries.search(
             TimeEntryFilter(user_id=user_id, limit=100_000)
         )
-        if e.end_time is not None and _aware(e.end_time) > moment
+        if e.end_time is not None
+        and _aware(e.end_time) > moment
+        and not e.discarded  # counted nowhere: nothing to count twice
     ]
     if not later:
         return
