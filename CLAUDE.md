@@ -134,8 +134,13 @@ simulator: `python -m d_fake_infra`).
   `postpone_warnings`. Used by `today` and `wrap`.
 - **The commitment limit:** `c_application/use_cases/task/capacity.py` —
   a day's capacity is the productive day (`day_start`–`day_end`) minus
-  `day_margin`; today, the clock. `full_day_of` after a change (its own
-  transaction, so it reads what was saved); off with `full_day_warnings`.
+  `day_margin`; today, the clock. **A subtask counts on its own day; its
+  parent, only its own part** (`own_minutes`: its estimate minus every
+  subtask's — open, done or cancelled — never below zero; every subtask
+  cancelled, the one cancelled last when nothing is left of its own),
+  worked out each time, never stored. `full_day_of` after a change (its
+  own transaction, so it reads what was saved), on the days the task and
+  `also` are on; off with `full_day_warnings`.
 - **Recurrence edit:** `UpdateTaskUseCase._repeat_by` — the due date stays,
   the rule starts at it (`build_recurrence`, shared with create), the next
   occurrences follow it. `count` = occurrences left, this one included.
@@ -298,9 +303,9 @@ it stays in `todo/` (`[x]` items included). `done/` is not edited
 retroactively. If a piece of work closes an item in another file, close it
 there too.
 
-## Current state (2026-10-08)
+## Current state (2026-10-17)
 
-- Version `0.38.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
+- Version `0.40.0`: WIP consolidated (Backlog 01, Part 1), `make check` green
   and CI (Part 2), survey bugs (Part 3), contexts (Part 4), license (Part 5,
   1st item), what the CLI asked for daily use (list only open tasks, edit due
   date, validate preferences), and the whole repo in English with ruff as the
@@ -338,9 +343,10 @@ there too.
   occurrences kept by default, `catch_up` on the rule or on one
   command, the next occurrence's ID from the one before, instants in
   UTC, the command's zone (0.39.0, product Backlog 05); a floating date
-  read where the user is (0.39.1).
+  read where the user is (0.39.1); a subtask counted on its own day, its
+  parent only its own part (0.40.0, product Backlog 06, Part 1).
   Backlog 01 only lacks the rest of Part 5 (showcase).
-- 911 tests passing; **`make check` green**: mypy at zero (packages and
-  tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.7% floor.
+- 927 tests passing; **`make check` green**: mypy at zero (packages and
+  tests), ruff with `B`/`RUF`, coverage 87.8% over an 87.8% floor.
 - CI (`.github/workflows/ci.yml`) runs `make check` on `master` and on PRs;
   the repository is on GitHub since 2026-09-26.

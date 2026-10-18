@@ -23,7 +23,7 @@ from c_application.dtos.task_dtos import (
     UpdateTaskInputDTO,
 )
 from c_application.mappers.task_mapper import TaskMapper
-from c_application.use_cases.task.capacity import full_day_of
+from c_application.use_cases.task.capacity import full_day_of, parent_of
 from c_application.use_cases.task.relations import (
     check_can_be_subtask,
     check_dependency,
@@ -273,6 +273,7 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
 
             # Parent and dependencies: never a loop (a task under its own
             # subtask, two tasks waiting on each other)
+            old_parent_id: TaskId | None = task.parent_id
             if request.parent_id is not None:
                 new_parent: Task = await find_task(uow, request.parent_id, user_id)
                 await check_parent(uow, task, new_parent, user_id)
@@ -379,15 +380,26 @@ class UpdateTaskUseCase(UseCase[UpdateTaskInputDTO, TaskOutputDTO]):
                 else None
             )
 
-        # Moved or grown: the day it is on, when full (warned, never refused)
+        # Moved or grown: the days it is on, when full (warned, never
+        # refused) — a subtask's parent's too, whose part a new estimate
+        # changes, and the parent it left, whose part takes its time back
         full_day: DayLoadDTO | None = None
         if (
             request.due_date is not None
             or request.estimated_minutes is not None
             or request.parent_id is not None
+            or request.remove_parent
         ):
             async with self.uow as uow:
-                full_day = await full_day_of(uow, user_id, task, now)
+                also: list[Task] = []
+                if request.estimated_minutes is not None:
+                    also += await parent_of(uow, task, user_id)
+                if old_parent_id is not None and old_parent_id != task.parent_id:
+                    left: Task | None = await uow.tasks.get_by_id(
+                        old_parent_id, user_id
+                    )
+                    also += [left] if left is not None else []
+                full_day = await full_day_of(uow, user_id, task, now, also)
 
         # 5. Return mapped output DTO. Recurring: a preview of what comes
         # next — up to days_ahead, but at least the next one and at most
