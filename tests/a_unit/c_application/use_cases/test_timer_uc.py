@@ -10,7 +10,7 @@ import pytest
 from a_core import InvalidStateTransition
 from a_core.exceptions import ValidationException
 from b_domain.entities import User
-from b_domain.exceptions import TimerRunningError
+from b_domain.exceptions import TimerRunningError, TookPastTimerError
 from b_domain.ports.repositories.filters import TimeEntryFilter
 from b_domain.value_objects import TaskId, TaskStatus
 from c_application.dtos.task_dtos import (
@@ -376,3 +376,143 @@ async def test_undoing_a_discard_counts_the_session_again(
         GetTaskRequest(task_id_prefix=task.id[:8], user_id=str(user.id))
     )
     assert shown.running_since == NOON and shown.time_spent_minutes == 30
+
+
+# --- Done with a timer: --took and --at (product Backlog 09, Part 2) --------------
+
+
+def _done(user: User, task: TaskOutputDTO, **kwargs: object) -> TaskByUserRequest:
+    return TaskByUserRequest(task_id_prefix=task.id[:8], user_id=str(user.id), **kwargs)  # type: ignore[arg-type]
+
+
+async def _sessions(factory: FakeUowFactory, task: TaskOutputDTO) -> list[int]:
+    async with factory() as uow:
+        found = await uow.time_entries.search(
+            TimeEntryFilter(task_id=TaskId.from_string(task.id))
+        )
+    return [e.counted_minutes() for e in sorted(found, key=lambda e: e.start_time)]
+
+
+async def test_took_stops_a_running_timer_where_it_adds_up(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    """2h yesterday, started at 10:00 today, `--took 3h`: it stops at 11:00."""
+    task = await _create(use_case_context, user)
+    start = StartTaskUseCase(**use_case_context)
+    pause = PauseTaskUseCase(**use_case_context)
+    await start.execute(_timer(user, task, at="yesterday 09:00"))
+    await pause.execute(_timer(user, task, at="yesterday 11:00"))
+    await start.execute(_timer(user, task, at="10:00"))
+
+    await CompleteTaskUseCase(**use_case_context).execute(
+        _done(user, task, took_minutes=180)
+    )
+
+    assert await _sessions(fake_uow_factory, task) == [120, 60]
+    back = await _task(fake_uow_factory, task)
+    assert back is not None and back.took_minutes == 180
+
+
+async def test_took_under_what_was_timed_stops_it_at_its_start(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    task = await _create(use_case_context, user)
+    await StartTaskUseCase(**use_case_context).execute(
+        _timer(user, task, at="yesterday 09:00")
+    )
+    await PauseTaskUseCase(**use_case_context).execute(
+        _timer(user, task, at="yesterday 11:00")
+    )
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task, at="10:00"))
+
+    await CompleteTaskUseCase(**use_case_context).execute(
+        _done(user, task, took_minutes=60)
+    )
+
+    assert await _sessions(fake_uow_factory, task) == [120, 0]
+
+
+@pytest.mark.parametrize(
+    ("started", "at", "match"),
+    [
+        (
+            "11:50",
+            None,
+            "started 10 min before it was done: 60 min would stop it in the future",
+        ),
+        (
+            "09:00",
+            "10:00",
+            "60 min before it was done: 120 min would stop it after it was done",
+        ),
+    ],
+)
+async def test_took_past_the_timer_is_refused(
+    use_case_context: UseCaseDeps,
+    user: User,
+    started: str,
+    at: str | None,
+    match: str,
+) -> None:
+    task = await _create(use_case_context, user)
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task, at=started))
+
+    with pytest.raises(TookPastTimerError, match=match) as refused:
+        await CompleteTaskUseCase(**use_case_context).execute(
+            _done(
+                user,
+                task,
+                took_minutes=60 if at is None else 120,
+                completed_at=at,
+            )
+        )
+    assert refused.value.task_id == task.id
+
+
+async def test_took_with_a_timer_stopped_or_none_changes_no_session(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    timed = await _create(use_case_context, user, title="Timed")
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, timed, at="09:00"))
+    await PauseTaskUseCase(**use_case_context).execute(_timer(user, timed, at="09:40"))
+    untimed = await _create(use_case_context, user, title="Untimed")
+    complete = CompleteTaskUseCase(**use_case_context)
+
+    await complete.execute(_done(user, timed, took_minutes=15))
+    await complete.execute(_done(user, untimed, took_minutes=15))
+
+    assert await _sessions(fake_uow_factory, timed) == [40]
+    assert await _sessions(fake_uow_factory, untimed) == []
+    for task in (timed, untimed):
+        back = await _task(fake_uow_factory, task)
+        assert back is not None and back.took_minutes == 15
+
+
+async def test_done_at_stops_a_running_timer_there(
+    use_case_context: UseCaseDeps, user: User, fake_uow_factory: FakeUowFactory
+) -> None:
+    task = await _create(use_case_context, user)
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, task, at="09:00"))
+
+    await CompleteTaskUseCase(**use_case_context).execute(
+        _done(user, task, completed_at="10:30")
+    )
+
+    assert await _sessions(fake_uow_factory, task) == [90]
+
+
+async def test_a_discarded_session_does_not_stand_in_the_way(
+    use_case_context: UseCaseDeps, user: User
+) -> None:
+    first = await _create(use_case_context, user, title="First")
+    second = await _create(use_case_context, user, title="Second")
+    await StartTaskUseCase(**use_case_context).execute(_timer(user, first, at="11:00"))
+    await PauseTaskUseCase(**use_case_context).execute(
+        _timer(user, first, discard=True)
+    )
+
+    started = await StartTaskUseCase(**use_case_context).execute(
+        _timer(user, second, at="11:30")
+    )
+
+    assert started.started_at == datetime(2026, 3, 5, 11, 30, tzinfo=UTC)
