@@ -6,6 +6,21 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.41.0] — 2026-10-18
+
+Product Backlog 06, Part 2: a parent's own part, shown (axiom-cli 0.45.0).
+
+### Added
+- `TaskOutputDTO.own_minutes`: a parent's own part of its estimate (its
+  subtasks count on their own days); None for a task with no subtasks or
+  a subtask — all of it is its own. Filled where a task is shown on its
+  own (`relations_of`: show, edit, create) and in `today` and `wrap`
+  (`capacity.with_parts`, `Day.shown`), which also count a parent's
+  subtasks there (`open_subtasks`, `all_subtasks`): those lists draw no
+  tree.
+- `capacity.own_part(uow, task, subs=None)`: the part, or None;
+  `own_minutes` builds on it.
+
 ## [0.40.0] — 2026-10-17
 
 Product Backlog 06, Part 1: subtasks on their own days.

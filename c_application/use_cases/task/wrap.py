@@ -106,7 +106,7 @@ class WrapUseCase(UseCase[WrapRequest, WrapOutputDTO]):
             )
             left: list[WrapItemDTO] = [
                 WrapItemDTO(
-                    task=day.output(t),
+                    task=await day.shown(uow, t),
                     actions=_actions(t, day, t.id in flagged),
                     radar=flagged.get(t.id),
                 )
@@ -127,9 +127,9 @@ class WrapUseCase(UseCase[WrapRequest, WrapOutputDTO]):
 
             return WrapOutputDTO(
                 day=day.today,
-                done=[day.output(t) for t in day.done],
+                done=[await day.shown(uow, t) for t in day.done],
                 left=left,
-                ahead=[day.output(t) for t in ahead],
+                ahead=[await day.shown(uow, t) for t in ahead],
                 context=day.context_output(),
             )
 
