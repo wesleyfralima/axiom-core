@@ -6,6 +6,43 @@ versions follow [SemVer](https://semver.org/). The current version is the
 
 ## [Unreleased]
 
+## [0.40.0] — 2026-10-17
+
+Product Backlog 06, Part 1: subtasks on their own days.
+
+### Changed
+- **A subtask counts on the day it is due** (a late one: today), like any
+  task, not on its parent's day: `capacity.counts` no longer leaves
+  subtasks out, and `day_load` lists them (no `only_roots`). The trip due
+  in two months whose hotel is booked in three days puts that hour on
+  that day.
+- **A parent counts only its own part** (`capacity.own_minutes`): its
+  estimate minus every subtask's — open, done or cancelled — never below
+  zero. A done subtask was spent on its day; a cancelled one is gone, on
+  no day. The parent's estimate stays the plan (never lowered, as
+  before); the part is worked out each time the load is, never stored. A
+  parent with no subtasks (or only deleted ones) counts its whole
+  estimate, as before.
+- **Every subtask cancelled** (none open, none done): the parent counts
+  its own part when it planned more than its subtasks; at zero, the
+  estimate of the subtask cancelled last (its latest cancel in the
+  history, not undone; several in one command: the last one written) —
+  the last step left became the parent's. With any subtask done, it is
+  the own part (owner's decision, 2026-10-17). A subtask reopened or
+  restored brings the plain rule back.
+- **The full-day warning is on the days the change fills**:
+  `full_day_of(uow, user_id, task, now, also=())` — the first full day
+  among those the task and `also` are on. A subtask's is its own day (no
+  longer its parent's); an edit of a subtask's estimate also looks at its
+  parent's day, and a subtask moved out (or under another parent) at the
+  day of the parent it left, whose part takes its time back;
+  `AddSubtasksUseCase` warns on the new subtasks' days.
+
+### Added
+- `TaskStatusChangedOutputDTO.full_day`: cancelling a subtask warns on
+  its parent's day when the parent took its time (every subtask
+  cancelled) and the day is full.
+
 ## [0.39.1] — 2026-10-17
 
 Product Backlog 05 (axiom-enterprise 0.30.1, axiom-cli 0.44.1).

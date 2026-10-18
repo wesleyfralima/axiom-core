@@ -328,6 +328,9 @@ class TaskStatusChangedOutputDTO(DTO):
             title, when the parent was closed and opened along.
         subtasks_reopened (int): A parent reopened: the subtasks it closed
             along with it, opened again with it.
+        full_day (DayLoadDTO | None): A subtask cancelled: its parent's
+            day, when the parent took its time (every subtask cancelled)
+            and the day is full (the user's warnings on).
     """
 
     task: TaskOutputDTO
@@ -335,6 +338,7 @@ class TaskStatusChangedOutputDTO(DTO):
     subtasks_along: int = 0
     parent_reopened: str | None = None
     subtasks_reopened: int = 0
+    full_day: DayLoadDTO | None = None
 
 
 @dataclass(frozen=True, kw_only=True)

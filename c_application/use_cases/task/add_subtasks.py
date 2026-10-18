@@ -93,9 +93,11 @@ class AddSubtasksUseCase(UseCase[AddSubtasksInputDTO, SubtasksAddedOutputDTO]):
                 relations=await relations_of(uow, parent, user_id),
             )
 
-        # Its estimate may have grown: its day, when full (warned only)
+        # The subtasks' days, when full (warned only): each counts on its own
         async with self.uow as uow:
-            full_day: DayLoadDTO | None = await full_day_of(uow, user_id, parent, now)
+            full_day: DayLoadDTO | None = await full_day_of(
+                uow, user_id, made[0][0], now, [t for t, _ in made[1:]]
+            )
 
         return SubtasksAddedOutputDTO(
             full_day=full_day,

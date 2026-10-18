@@ -4,8 +4,13 @@ from b_domain.entities import Task, TimeEntry
 from b_domain.ports.unit_of_work import UnitOfWork
 from b_domain.ports.use_case import UseCase
 from b_domain.value_objects import UserId
-from c_application.dtos.task_dtos import CancelTaskInputDTO, TaskStatusChangedOutputDTO
+from c_application.dtos.task_dtos import (
+    CancelTaskInputDTO,
+    DayLoadDTO,
+    TaskStatusChangedOutputDTO,
+)
 from c_application.mappers.task_mapper import TaskMapper
+from c_application.use_cases.task.capacity import full_day_of, parent_of
 from c_application.use_cases.task.relations import is_open
 from c_application.utils.task_utils import find_task
 
@@ -65,11 +70,21 @@ class CancelTaskUseCase(UseCase[CancelTaskInputDTO, TaskStatusChangedOutputDTO])
                 if task.context_id
                 else None
             )
-            return TaskStatusChangedOutputDTO(
-                task=TaskMapper.to_output(task, now, context=context),
-                series_ended=request.end_series,
-                subtasks_along=along,
-            )
+
+        # A subtask's parent may take its time (every subtask cancelled): its
+        # day, when full (warned only)
+        full_day: DayLoadDTO | None = None
+        if task.parent_id is not None:
+            async with self.uow as uow:
+                parents: list[Task] = await parent_of(uow, task, user_id)
+                if parents:
+                    full_day = await full_day_of(uow, user_id, parents[0], now)
+        return TaskStatusChangedOutputDTO(
+            task=TaskMapper.to_output(task, now, context=context),
+            series_ended=request.end_series,
+            subtasks_along=along,
+            full_day=full_day,
+        )
 
 
 async def _stop_timers(uow: UnitOfWork, task: Task, now: datetime) -> None:
